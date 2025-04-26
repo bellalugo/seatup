@@ -7,7 +7,8 @@ import { getAuth } from 'firebase/auth';
 
 // --- IMPORTANT ---
 // Ensure your Firebase project configuration is correctly set in a `.env.local` file
-// at the root of your project. You need to define the following variables:
+// at the root of your project (create this file if it doesn't exist).
+// You need to define the following variables:
 //
 // NEXT_PUBLIC_FIREBASE_API_KEY=YOUR_API_KEY
 // NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=YOUR_AUTH_DOMAIN
@@ -20,8 +21,11 @@ import { getAuth } from 'firebase/auth';
 // You can find these values in your Firebase project settings:
 // Project settings > General > Your apps > Web app > SDK setup and configuration > Config
 //
-// The "auth/api-key-not-valid" error usually means the API key is missing or incorrect
-// in your environment variables.
+// **ERROR 'auth/api-key-not-valid' or 'auth/invalid-api-key':**
+// This error almost always means the `NEXT_PUBLIC_FIREBASE_API_KEY` is missing,
+// incorrect, or the environment variable is not being loaded correctly.
+// Double-check your `.env.local` file and restart your Next.js development server
+// after creating or modifying it (`npm run dev` or equivalent).
 // --- --- --- ---
 
 // Ensure environment variables are loaded correctly
@@ -41,7 +45,12 @@ if (
     !firebaseConfig.authDomain ||
     !firebaseConfig.projectId
    ) {
-     console.error("Firebase configuration environment variables are missing or incomplete. Please ensure NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, and NEXT_PUBLIC_FIREBASE_PROJECT_ID are set in your .env.local file.");
+     console.error(
+       "Firebase configuration environment variables are missing or incomplete. " +
+       "Please ensure NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, " +
+       "and NEXT_PUBLIC_FIREBASE_PROJECT_ID are set in your .env.local file and " +
+       "that the development server was restarted after the file was created or modified."
+     );
      // Optionally throw an error or handle this case as needed
      // throw new Error("Missing Firebase configuration. Please check your .env.local file.");
 }

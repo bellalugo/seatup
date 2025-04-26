@@ -29,10 +29,11 @@ export default function LoginPage() {
     // --- IMPORTANT ---
     // 1. Check your .env.local file and Firebase Project settings.
     //    Ensure NEXT_PUBLIC_FIREBASE_API_KEY and other config variables are correctly set.
-    //    The "auth/invalid-api-key" error means the key is missing or wrong.
+    //    The "auth/invalid-api-key" or "auth/api-key-not-valid" error means the key is missing or wrong.
     // 2. Ensure the user 'admin@example.com' exists in your Firebase project's
     //    Authentication section and has the password 'admin123'.
-    //    Firebase doesn't create users automatically.
+    //    Firebase doesn't create users automatically. You might need to create this
+    //    user manually in the Firebase console (Authentication -> Add user).
     // --- --- --- ---
 
     try {
@@ -57,11 +58,15 @@ export default function LoginPage() {
                 errorMessage = 'Invalid email format.';
                 break;
              case 'auth/invalid-api-key':
-               errorMessage = 'Firebase API key is invalid. Please check configuration in .env.local.';
+             case 'auth/api-key-not-valid': // Handle variations of the API key error
+               errorMessage = 'Firebase API key is invalid. Please check configuration in .env.local and restart the server.';
                break;
              case 'auth/network-request-failed':
                 errorMessage = 'Network error. Please check your internet connection.';
                 break;
+              case 'auth/operation-not-allowed':
+                 errorMessage = 'Email/password authentication is not enabled in your Firebase project.';
+                 break;
              default:
                 // Keep generic message but log the specific code
                 console.error('Firebase Auth Error Code:', firebaseError.code);
