@@ -1,10 +1,11 @@
 
+
 import type { GameTable, User, Registration, TicketType, GameTableInput } from '@/lib/types';
 // Correctly import registrationPhases from types.ts
 import { registrationPhases as importedRegistrationPhases } from '@/lib/types';
 import { Swords, Castle, Flag } from 'lucide-react';
-import React from 'react'; // Import React for createElement
-
+import type React from 'react'; // Import React for ElementType
+import Image from 'next/image';
 
 // Map icon names to components
 const iconMap: Record<string, React.ElementType> = {
@@ -13,7 +14,37 @@ const iconMap: Record<string, React.ElementType> = {
   Flag: Flag,
 };
 
-// Helper to get icon component from name
+// --- Game Icons/Images ---
+// We'll store image URLs directly in the table data instead of mapping components
+const gameImageMap: Record<string, string> = {
+    "Fields of Fire 3": "/game-icons/fields_of_fire_3.webp",
+    "Conquest & Consequence": "/game-icons/conquest_and_consequence.webp",
+    "Next War: Taiwan": "/game-icons/next_war_taiwan.webp",
+    "Empire of the Sun": "/game-icons/empire_of_the_sun.webp",
+    "Salerno '43": "/game-icons/salerno_43.webp",
+    "Littoral Commander: Indo-Pacific": "/game-icons/littoral_commander.webp",
+    "Downfall: Conquest of the Third Reich, 1944-1945": "/game-icons/downfall.webp",
+    "A Gest of Robin Hood": "/game-icons/a_gest_of_robin_hood.webp",
+    "Here I Stand: Wars of the Reformation 1517-1555 (500th Anniversary Edition)": "/game-icons/here_i_stand.webp",
+    "Red Strike: The Soviet Plan for Nuclear War in 1979": "/game-icons/red_strike.webp",
+    "Commands & Colors: Napoleonics": "/game-icons/cc_napoleonics.webp",
+    "Plantagenet: Cousin's War for England, 1459 - 1485": "/game-icons/plantagenet.webp",
+    "Vietnam: Rumor of War": "/game-icons/vietnam_rumor_of_war.webp",
+    "Banish the Snakes": "/game-icons/banish_the_snakes.webp",
+    "Pendragon: The Fall of Roman Britain": "/game-icons/pendragon.webp",
+    "Atlantic Chase": "/game-icons/atlantic_chase.webp",
+    "Imperial Struggle": "/game-icons/imperial_struggle.webp",
+    "Vijayanagara: The Deccan Empires of Medieval India, 1290-1398": "/game-icons/vijayanagara.webp",
+    "Wolfe Tone & The United Irishmen Rebellion of 1798": "/game-icons/wolfe_tone.webp",
+    "Flying Colors (Fleet Actions in the Age of Sail)": "/game-icons/flying_colors.webp",
+    "Bayonets & Tomahawks": "/game-icons/bayonets_and_tomahawks.webp",
+    "Almoravid: Reconquista and Riposte in Spain, 1085-1086": "/game-icons/almoravid.webp",
+    "Twilight Struggle: Red Sea – Conflict in the Horn of Africa": "/game-icons/ts_red_sea.webp",
+    "Fire in the Lake: Insurgency in Vietnam": "/game-icons/fire_in_the_lake.webp"
+};
+
+
+// Helper to get icon component from name - NO LONGER USED FOR GAME ICONS
 export const getIconComponent = (iconName?: string): React.ElementType | undefined => {
   return iconName ? iconMap[iconName] : undefined;
 };
@@ -28,7 +59,7 @@ export const mockUsers: Record<string, User> = {
 };
 
 // --- Generate Mock Game Tables based on ASYNCONV programme ---
-const gameNames = [
+const gameNamesFromSite = [
     "Fields of Fire 3",
     "Conquest & Consequence",
     "Next War: Taiwan",
@@ -57,34 +88,32 @@ const gameNames = [
 
 const days: GameTable['day'][] = ['Thursday', 'Friday', 'Saturday', 'Sunday'];
 const timeSlots = [
-    { suffix: 'AM', slot: '09:00 - 13:00' },
-    { suffix: 'PM', slot: '14:00 - 19:00' }
+    { name: 'AM', slot: '09:00 - 13:00' },
+    { name: 'PM', slot: '14:00 - 19:00' }
 ];
-const defaultSeats = 4;
-const defaultIcon = Swords; // Use Swords icon as default
-const defaultIconName = 'Swords'; // Name corresponding to the default icon
+const defaultSeats = 4; // Default seats per table
 
 const generatedTables: GameTable[] = [];
-let tableCounter = 1;
+// let tableCounter = 1;
 
-gameNames.forEach(gameName => {
-    days.forEach(day => {
-        timeSlots.forEach(timeSlotInfo => {
-            const tableId = `table-${tableCounter++}`;
-            generatedTables.push({
-                id: tableId,
-                gameName: gameName,
-                day: day,
-                timeSlot: timeSlotInfo.slot,
-                totalSeats: defaultSeats,
-                gameTypeIcon: defaultIcon
-            });
-        });
-    });
-});
+// gameNamesFromSite.forEach(gameName => {
+//     days.forEach(day => {
+//         timeSlots.forEach(timeSlotInfo => {
+//             const tableId = `table-${gameName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${day.toLowerCase()}-${timeSlotInfo.name.toLowerCase()}`;
+//             generatedTables.push({
+//                 id: tableId,
+//                 gameName: gameName,
+//                 day: day,
+//                 timeSlot: timeSlotInfo.slot,
+//                 totalSeats: defaultSeats,
+//                 imageUrl: gameImageMap[gameName] || undefined // Use the image URL map
+//             });
+//         });
+//     });
+// });
 
-// Mock Game Tables Data - Initialized with generated data
-export let mockGameTables: GameTable[] = generatedTables;
+// Mock Game Tables Data - Initialize with an empty array
+export let mockGameTables: GameTable[] = []; // REMOVED ALL TABLES
 
 // Mock initial registrations (can be empty) - Make this mutable
 export let mockRegistrations: Registration[] = [
@@ -102,8 +131,15 @@ export const addMockTable = (tableInput: GameTableInput): GameTable => {
     const newId = `table-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
     const newTable: GameTable = {
         id: newId,
-        ...tableInput,
-        gameTypeIcon: getIconComponent(tableInput.gameTypeIconName || defaultIconName), // Use default if not provided
+        gameName: tableInput.gameName,
+        day: tableInput.day,
+        timeSlot: tableInput.timeSlot,
+        totalSeats: tableInput.totalSeats,
+        // Resolve imageUrl from input (assuming input might have imageUrl directly or a name to lookup)
+        // For simplicity now, let's assume imageUrl comes directly if needed or is manually set later.
+        // Or lookup based on gameName:
+        imageUrl: gameImageMap[tableInput.gameName] || tableInput.imageUrl,
+        // Removed gameTypeIcon/gameTypeIconName as we use imageUrl now
     };
     mockGameTables.push(newTable);
     console.log("Added table:", newTable);
@@ -118,14 +154,14 @@ export const updateMockTable = (updatedTableData: GameTableInput & { id: string 
         throw new Error(`Table with ID ${updatedTableData.id} not found.`);
     }
 
-    // Create the updated table object, resolving the icon
+    // Create the updated table object
     const updatedTable: GameTable = {
         id: updatedTableData.id,
         gameName: updatedTableData.gameName,
         day: updatedTableData.day,
         timeSlot: updatedTableData.timeSlot,
         totalSeats: updatedTableData.totalSeats,
-        gameTypeIcon: getIconComponent(updatedTableData.gameTypeIconName || defaultIconName), // Resolve icon
+        imageUrl: gameImageMap[updatedTableData.gameName] || updatedTableData.imageUrl, // Update image URL based on name or direct input
     };
 
     mockGameTables[index] = updatedTable;
@@ -212,11 +248,8 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
 // Function to fetch the current state of tables (useful if data could change)
 export const getCurrentTables = (): GameTable[] => {
     // Return a deep copy to prevent accidental modification of the original mock data
-    return JSON.parse(JSON.stringify(mockGameTables)).map((table: any) => ({
-        ...table,
-        // Re-assign the icon component after JSON stringification (which removes functions)
-        gameTypeIcon: getIconComponent(Object.keys(iconMap).find(key => iconMap[key].displayName === (table.gameTypeIcon ? table.gameTypeIcon.displayName : defaultIconName)) || defaultIconName)
-    }));
+    // No need to re-assign icons after JSON parse/stringify as we are using URLs
+    return JSON.parse(JSON.stringify(mockGameTables));
 };
 
 // Function to fetch the current state of registrations
@@ -255,6 +288,7 @@ export const removeRegistration = (userId: string, tableId: string): void => {
 // --- Utility to find icon name from component ---
 // This might be needed if the component itself is stored and you need the name back
 // For now, we primarily work from name -> component in add/update
+// THIS IS NO LONGER USED FOR GAME ICONS
 export const getIconNameFromComponent = (component?: React.ElementType): string | undefined => {
     if (!component) return undefined;
     return Object.keys(iconMap).find(key => iconMap[key] === component);

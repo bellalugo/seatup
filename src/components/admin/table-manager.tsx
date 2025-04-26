@@ -3,6 +3,7 @@
 
 import * as React from 'react';
 import { useState, useEffect } from 'react';
+import Image from 'next/image'; // Import next/image
 import {
   Table,
   TableBody,
@@ -33,32 +34,23 @@ import {
   addMockTable,
   updateMockTable,
   deleteMockTable,
-  getIconComponent, // Import helper function
-  getIconNameFromComponent // To get name from component for editing
+  // getIconComponent, // No longer needed for game icons
+  // getIconNameFromComponent // No longer needed for game icons
 } from '@/lib/data'; // Adjust import path if needed
 import type { GameTable, GameTableInput } from '@/lib/types';
-import { Pencil, Trash2, PlusCircle, Swords, Castle, Flag } from 'lucide-react'; // Import icons
+import { Pencil, Trash2, PlusCircle } from 'lucide-react'; // Import icons
 
-// Map icon names to components for the Select dropdown
-const iconMap: Record<string, React.ElementType> = {
-  Swords: Swords,
-  Castle: Castle,
-  Flag: Flag,
-};
-const defaultIconName = 'Swords'; // Define default icon name
+// Icon selection is removed as we now use image URLs based on game name
 
 export default function TableManager() {
-  // Important: In a real app, fetch/mutate data via API calls to a backend.
-  // This component directly manipulates the mock data for demonstration.
   const [tables, setTables] = useState<GameTable[]>([]); // Initialize empty, fetch in useEffect
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
-  const [formData, setFormData] = useState<GameTableInput>({
+  const [formData, setFormData] = useState<Omit<GameTableInput, 'gameTypeIconName' | 'imageUrl'>>({ // Exclude icon/image fields from direct form state
     gameName: '',
     day: 'Thursday',
-    timeSlot: '',
-    totalSeats: 0,
-    gameTypeIconName: defaultIconName, // Default icon name
+    timeSlot: '09:00 - 13:00', // Set default time slot
+    totalSeats: 4,
   });
   const { toast } = useToast();
 
@@ -76,19 +68,17 @@ export default function TableManager() {
     }));
   };
 
-  const handleSelectChange = (name: keyof GameTableInput) => (value: string) => {
+  const handleSelectChange = (name: keyof typeof formData) => (value: string) => {
      setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleEdit = (table: GameTable) => {
     setEditingTable(table);
-    const iconName = getIconNameFromComponent(table.gameTypeIcon) || defaultIconName; // Find icon name or use default
-    setFormData({
+    setFormData({ // Populate form, image URL is handled separately based on game name
         gameName: table.gameName,
         day: table.day,
         timeSlot: table.timeSlot,
         totalSeats: table.totalSeats,
-        gameTypeIconName: iconName
     });
     setIsDialogOpen(true);
   };
@@ -109,9 +99,8 @@ export default function TableManager() {
     setFormData({ // Reset form for adding
       gameName: '',
       day: 'Thursday',
-      timeSlot: '',
+      timeSlot: '09:00 - 13:00', // Reset to default time slot
       totalSeats: 4, // Sensible default
-      gameTypeIconName: defaultIconName,
     });
     setIsDialogOpen(true);
   };
@@ -125,14 +114,21 @@ export default function TableManager() {
         return;
     }
 
+    // Construct the data payload, imageUrl will be derived in the mock functions
+    const tableDataPayload: GameTableInput = {
+        ...formData
+        // imageUrl will be added by add/updateMockTable based on gameName
+    };
+
+
     try {
         if (editingTable) {
             // Update existing table - Pass ID along with form data
-            updateMockTable({ ...formData, id: editingTable.id });
+            updateMockTable({ ...tableDataPayload, id: editingTable.id });
             toast({ title: "Table Updated", description: "Game table details saved." });
         } else {
             // Add new table
-            addMockTable(formData);
+            addMockTable(tableDataPayload);
             toast({ title: "Table Added", description: "New game table created successfully." });
         }
         setTables(getCurrentTables()); // Refresh local state from the source
@@ -161,7 +157,7 @@ export default function TableManager() {
             <DialogHeader>
               <DialogTitle>{editingTable ? 'Edit Game Table' : 'Add New Game Table'}</DialogTitle>
               <DialogDescription>
-                {editingTable ? 'Modify the details of the existing table.' : 'Enter the details for the new game table.'}
+                {editingTable ? 'Modify the details of the existing table.' : 'Enter the details for the new game table. The game image will be set automatically based on the name if available.'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
@@ -187,7 +183,6 @@ export default function TableManager() {
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="timeSlot" className="text-right">Time Slot</Label>
-                    {/* Use Select for predefined slots or keep Input for flexibility */}
                      <Select name="timeSlot" value={formData.timeSlot} onValueChange={handleSelectChange('timeSlot')} required>
                          <SelectTrigger className="col-span-3">
                              <SelectValue placeholder="Select Time Slot" />
@@ -195,33 +190,14 @@ export default function TableManager() {
                          <SelectContent>
                              <SelectItem value="09:00 - 13:00">AM (09:00 - 13:00)</SelectItem>
                              <SelectItem value="14:00 - 19:00">PM (14:00 - 19:00)</SelectItem>
-                             {/* Add other common slots if needed */}
                          </SelectContent>
                      </Select>
-                    {/* <Input id="timeSlot" name="timeSlot" value={formData.timeSlot} onChange={handleInputChange} placeholder="e.g., 09:00 - 13:00" className="col-span-3" required /> */}
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="totalSeats" className="text-right">Total Seats</Label>
                     <Input id="totalSeats" name="totalSeats" type="number" value={formData.totalSeats} onChange={handleInputChange} className="col-span-3" min="1" required />
                  </div>
-                 <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="gameTypeIconName" className="text-right">Icon</Label>
-                     <Select name="gameTypeIconName" value={formData.gameTypeIconName} onValueChange={handleSelectChange('gameTypeIconName')} required>
-                        <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="Select Icon" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {Object.keys(iconMap).map(iconName => (
-                                <SelectItem key={iconName} value={iconName}>
-                                    <div className="flex items-center gap-2">
-                                        {React.createElement(iconMap[iconName], { className: "h-4 w-4" })}
-                                        {iconName}
-                                    </div>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                 </div>
+                 {/* Icon Selection Removed */}
               </div>
               <DialogFooter>
                  <DialogClose asChild>
@@ -234,48 +210,62 @@ export default function TableManager() {
         </Dialog>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableCaption>A list of configured game tables.</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Icon</TableHead>
-              <TableHead>Game Name</TableHead>
-              <TableHead>Day</TableHead>
-              <TableHead>Time Slot</TableHead>
-              <TableHead className="text-center">Seats</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tables.sort((a, b) => { // Sort for consistent display
-                const dayOrder = ['Thursday', 'Friday', 'Saturday', 'Sunday'];
-                const timeOrder = ["09:00 - 13:00", "14:00 - 19:00"]; // AM then PM
-                if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
-                if (a.day !== b.day) return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
-                return timeOrder.indexOf(a.timeSlot) - timeOrder.indexOf(b.timeSlot);
-            }).map((table) => (
-              <TableRow key={table.id}>
-                 <TableCell>
-                    {table.gameTypeIcon && React.createElement(table.gameTypeIcon, { className: "h-5 w-5 text-muted-foreground" })}
-                 </TableCell>
-                <TableCell className="font-medium">{table.gameName}</TableCell>
-                <TableCell>{table.day}</TableCell>
-                <TableCell>{table.timeSlot}</TableCell>
-                <TableCell className="text-center">{table.totalSeats}</TableCell>
-                <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="icon" onClick={() => handleEdit(table)}>
-                    <Pencil className="h-4 w-4" />
-                    <span className="sr-only">Edit</span>
-                  </Button>
-                  <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)}>
-                    <Trash2 className="h-4 w-4" />
-                     <span className="sr-only">Delete</span>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {tables.length > 0 ? (
+            <Table>
+            <TableCaption>A list of configured game tables.</TableCaption>
+            <TableHeader>
+                <TableRow>
+                <TableHead>Image</TableHead>
+                <TableHead>Game Name</TableHead>
+                <TableHead>Day</TableHead>
+                <TableHead>Time Slot</TableHead>
+                <TableHead className="text-center">Seats</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {tables.sort((a, b) => { // Sort for consistent display
+                    const dayOrder = ['Thursday', 'Friday', 'Saturday', 'Sunday'];
+                    const timeOrder = ["09:00 - 13:00", "14:00 - 19:00"]; // AM then PM
+                    if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
+                    if (a.day !== b.day) return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+                    return timeOrder.indexOf(a.timeSlot) - timeOrder.indexOf(b.timeSlot);
+                }).map((table) => (
+                <TableRow key={table.id}>
+                    <TableCell>
+                        {table.imageUrl ? (
+                            <Image
+                                src={table.imageUrl}
+                                alt={`${table.gameName} icon`}
+                                width={32} // Slightly larger icon in admin view
+                                height={32}
+                                className="rounded object-cover h-8 w-8"
+                            />
+                        ) : (
+                            <div className="h-8 w-8 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div>
+                        )}
+                    </TableCell>
+                    <TableCell className="font-medium">{table.gameName}</TableCell>
+                    <TableCell>{table.day}</TableCell>
+                    <TableCell>{table.timeSlot}</TableCell>
+                    <TableCell className="text-center">{table.totalSeats}</TableCell>
+                    <TableCell className="text-right space-x-2">
+                    <Button variant="outline" size="icon" onClick={() => handleEdit(table)}>
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit</span>
+                    </Button>
+                    <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)}>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete</span>
+                    </Button>
+                    </TableCell>
+                </TableRow>
+                ))}
+            </TableBody>
+            </Table>
+        ) : (
+             <p className="text-muted-foreground text-center py-4">No tables configured yet. Click 'Add Table' to create one.</p>
+        )}
       </CardContent>
     </Card>
   );

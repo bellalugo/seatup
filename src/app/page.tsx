@@ -1,7 +1,9 @@
+
 'use client'; // Required for useState, useEffect, onClick handlers
 
 import * as React from 'react';
 import { useState, useEffect } from 'react';
+import Image from 'next/image'; // Import next/image
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -216,7 +218,6 @@ export default function Home() {
               <SelectValue placeholder="Select User" />
             </SelectTrigger>
             <SelectContent>
-               {/* Removed SelectItem with empty value - placeholder is handled by SelectValue */}
               {Object.values(users).map(user => (
                 <SelectItem key={user.id} value={user.id}>
                   {user.name}
@@ -246,102 +247,116 @@ export default function Home() {
                 ))}
                 </TabsList>
 
-                {days.map(day => (
-                <TabsContent key={day} value={day.toLowerCase()}>
-                    <Card>
-                    <CardHeader>
-                        <CardTitle>{day} Game Tables</CardTitle>
-                        <CardDescription>Available games for {day}. Registration priority: Strategist {'>'} Marshal {'>'} General.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                        <TableCaption>List of games available on {day}.</TableCaption>
-                        <TableHeader>
-                            <TableRow>
-                            <TableHead>Game</TableHead>
-                            <TableHead>Time Slot</TableHead>
-                            <TableHead className="text-center">Available Seats</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {tables.filter(table => table.day === day).sort((a, b) => a.timeSlot.localeCompare(b.timeSlot)).map((table) => {
-                            const availableSeats = getAvailableSeats(table.id, registrations, tables);
-                            const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
-                            const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex);
-                            // Calculate conflicts based on *current* registrations state
-                             const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
-                            const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
+                {days.map(day => {
+                    const dayTables = tables.filter(table => table.day === day).sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+                    return (
+                        <TabsContent key={day} value={day.toLowerCase()}>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>{day} Game Tables</CardTitle>
+                                    <CardDescription>Available games for {day}. Registration priority: Strategist {'>'} Marshal {'>'} General.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {dayTables.length > 0 ? (
+                                        <Table>
+                                            <TableCaption>List of games available on {day}.</TableCaption>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Game</TableHead>
+                                                    <TableHead>Time Slot</TableHead>
+                                                    <TableHead className="text-center">Available Seats</TableHead>
+                                                    <TableHead className="text-right">Action</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {dayTables.map((table) => {
+                                                    const availableSeats = getAvailableSeats(table.id, registrations, tables);
+                                                    const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
+                                                    const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex);
+                                                    // Calculate conflicts based on *current* registrations state
+                                                    const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
+                                                    const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
 
-                            const isDisabled = !currentUser || availableSeats <= 0 || !canRegisterNow || (conflict && !isRegisteredByUser) || (isRegisteredByUser);
+                                                    const isDisabled = !currentUser || availableSeats <= 0 || !canRegisterNow || (conflict && !isRegisteredByUser) || (isRegisteredByUser);
 
+                                                    let buttonText = "Register";
+                                                    let buttonVariant: "default" | "secondary" | "destructive" = "default";
+                                                    let onClickAction = () => handleRegister(table.id);
+                                                    let tooltipText = "";
 
-                            let buttonText = "Register";
-                            let buttonVariant: "default" | "secondary" | "destructive" = "default";
-                            let onClickAction = () => handleRegister(table.id);
-                            let tooltipText = "";
+                                                    if (isRegisteredByUser) {
+                                                        buttonText = "Registered";
+                                                        buttonVariant = "secondary";
+                                                        onClickAction = () => handleUnregister(table.id); // Change to unregister
+                                                        tooltipText = "Click to unregister";
+                                                    } else if (!currentUser) {
+                                                        tooltipText = "Select a user to register";
+                                                        buttonText = "Select User";
+                                                        buttonVariant = "secondary";
+                                                    } else if (!canRegisterNow) {
+                                                        tooltipText = `Registration not open for ${currentUser.ticketType} yet`;
+                                                        buttonText = "Unavailable";
+                                                        buttonVariant = "secondary";
+                                                    } else if (conflict) {
+                                                        tooltipText = "Conflicts with your schedule";
+                                                        buttonText = "Conflict";
+                                                        buttonVariant = "destructive";
+                                                    } else if (availableSeats <= 0) {
+                                                        tooltipText = "Table is full";
+                                                        buttonText = "Full";
+                                                        buttonVariant = "destructive";
+                                                    } else {
+                                                        tooltipText = "Click to register for this table";
+                                                    }
 
-                            if (isRegisteredByUser) {
-                                buttonText = "Registered";
-                                buttonVariant = "secondary";
-                                onClickAction = () => handleUnregister(table.id); // Change to unregister
-                                tooltipText = "Click to unregister";
-                            } else if (!currentUser) {
-                                tooltipText = "Select a user to register";
-                                buttonText = "Select User";
-                                buttonVariant = "secondary";
-                            } else if (!canRegisterNow) {
-                                tooltipText = `Registration not open for ${currentUser.ticketType} yet`;
-                                buttonText = "Unavailable";
-                                buttonVariant = "secondary";
-                             } else if (conflict) {
-                                tooltipText = "Conflicts with your schedule";
-                                buttonText = "Conflict";
-                                buttonVariant = "destructive";
-                            } else if (availableSeats <= 0) {
-                                tooltipText = "Table is full";
-                                buttonText = "Full";
-                                buttonVariant = "destructive";
-                            } else {
-                                tooltipText = "Click to register for this table";
-                            }
-
-
-                            return (
-                                <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
-                                <TableCell className="font-medium flex items-center gap-2">
-                                    {table.gameTypeIcon && React.createElement(table.gameTypeIcon, { className: "h-5 w-5 text-muted-foreground" })}
-                                    {table.gameName}
-                                </TableCell>
-                                <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
-                                <TableCell className="text-center">
-                                    <Badge variant={availableSeats > 0 ? "default" : "destructive"} className="bg-accent text-accent-foreground px-2 py-1">
-                                    <Users className="inline h-4 w-4 mr-1" /> {availableSeats} / {table.totalSeats}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Button
-                                    onClick={onClickAction}
-                                    size="sm"
-                                    variant={buttonVariant}
-                                    disabled={isDisabled && !isRegisteredByUser} // Can always unregister if registered
-                                    aria-label={tooltipText || buttonText}
-                                    title={tooltipText || buttonText}
-                                    >
-                                    { isRegisteredByUser && <CheckCircle className="mr-2 h-4 w-4" />}
-                                    { !isRegisteredByUser && (availableSeats <=0 || conflict) && <AlertCircle className="mr-2 h-4 w-4" />}
-                                    {buttonText}
-                                    </Button>
-                                </TableCell>
-                                </TableRow>
-                            );
-                            })}
-                        </TableBody>
-                        </Table>
-                    </CardContent>
-                    </Card>
-                </TabsContent>
-                ))}
+                                                    return (
+                                                        <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
+                                                            <TableCell className="font-medium flex items-center gap-2">
+                                                                {table.imageUrl && (
+                                                                    <Image
+                                                                        src={table.imageUrl}
+                                                                        alt={`${table.gameName} icon`}
+                                                                        width={24} // Adjust size as needed
+                                                                        height={24}
+                                                                        className="rounded object-cover h-6 w-6" // Style the image
+                                                                    />
+                                                                )}
+                                                                {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div> /* Placeholder */}
+                                                                {table.gameName}
+                                                            </TableCell>
+                                                            <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
+                                                            <TableCell className="text-center">
+                                                                <Badge variant={availableSeats > 0 ? "default" : "destructive"} className="bg-accent text-accent-foreground px-2 py-1">
+                                                                    <Users className="inline h-4 w-4 mr-1" /> {availableSeats} / {table.totalSeats}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                <Button
+                                                                    onClick={onClickAction}
+                                                                    size="sm"
+                                                                    variant={buttonVariant}
+                                                                    disabled={isDisabled && !isRegisteredByUser} // Can always unregister if registered
+                                                                    aria-label={tooltipText || buttonText}
+                                                                    title={tooltipText || buttonText}
+                                                                >
+                                                                    {isRegisteredByUser && <CheckCircle className="mr-2 h-4 w-4" />}
+                                                                    {!isRegisteredByUser && (availableSeats <= 0 || conflict) && <AlertCircle className="mr-2 h-4 w-4" />}
+                                                                    {buttonText}
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    ) : (
+                                        <p className="text-muted-foreground text-center py-4">No tables available for {day}.</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )
+                })}
             </Tabs>
 
             {currentUser && (
@@ -367,7 +382,16 @@ export default function Home() {
                             <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day}</TableCell>
                             <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
                             <TableCell className="font-medium flex items-center gap-2">
-                                    {table.gameTypeIcon && React.createElement(table.gameTypeIcon, { className: "h-5 w-5 text-muted-foreground" })}
+                                    {table.imageUrl && (
+                                            <Image
+                                                src={table.imageUrl}
+                                                alt={`${table.gameName} icon`}
+                                                width={24} // Adjust size as needed
+                                                height={24}
+                                                className="rounded object-cover h-6 w-6" // Style the image
+                                            />
+                                        )}
+                                    {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div> /* Placeholder */}
                                     {table.gameName}
                             </TableCell>
                             <TableCell className="text-right">
