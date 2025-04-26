@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Swords } from 'lucide-react'; // Example icon
+import { Swords, ShieldCheck } from 'lucide-react'; // Import icons
 
 export default function Header() {
   return (
@@ -9,7 +9,13 @@ export default function Header() {
           <Swords className="h-6 w-6" />
           <h1 className="text-xl font-bold tracking-tight">ASYNCONV SIT</h1>
         </Link>
-        {/* Add navigation or user info here if needed */}
+        <nav>
+           <Link href="/admin" className="flex items-center gap-1 text-sm hover:text-accent transition-colors" title="Admin Area">
+             <ShieldCheck className="h-4 w-4" />
+             <span>Admin</span>
+           </Link>
+        </nav>
+        {/* Add other navigation or user info here if needed */}
       </div>
     </header>
   );
