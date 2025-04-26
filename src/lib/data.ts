@@ -1,4 +1,6 @@
+
 import type { GameTable, User, Registration, TicketType } from '@/lib/types';
+import { registrationPhases } from '@/lib/types'; // Import registrationPhases
 import { Swords, Castle, Flag } from 'lucide-react';
 
 // Mock Users
@@ -42,14 +44,44 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
     return userTables.some(registeredTable => {
         // Basic conflict check: same day and overlapping time (simplistic check)
         // A more robust check would parse times and compare ranges.
-        return registeredTable.day === newTable.day && registeredTable.timeSlot === newTable.timeSlot;
-        // Add more complex overlap logic if needed based on start/end times
+        // For now, we just check if the day and the exact timeslot string match.
+        // This assumes timeslots don't partially overlap unless they are identical strings.
+        if (registeredTable.day !== newTable.day) {
+          return false; // Different days, no conflict
+        }
+
+        // Parse time slots (HH:MM - HH:MM)
+        const parseTimeSlot = (slot: string): { start: number; end: number } | null => {
+            const match = slot.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+            if (!match) return null;
+            const startHour = parseInt(match[1], 10);
+            const startMinute = parseInt(match[2], 10);
+            const endHour = parseInt(match[3], 10);
+            const endMinute = parseInt(match[4], 10);
+            // Convert to minutes since midnight for easier comparison
+            return { start: startHour * 60 + startMinute, end: endHour * 60 + endMinute };
+        };
+
+        const registeredSlot = parseTimeSlot(registeredTable.timeSlot);
+        const newSlot = parseTimeSlot(newTable.timeSlot);
+
+        if (!registeredSlot || !newSlot) {
+            // If parsing fails, fall back to exact string match as a safeguard
+            return registeredTable.timeSlot === newTable.timeSlot;
+        }
+
+        // Check for overlap: !(newEnd <= regStart || newStart >= regEnd)
+        const overlaps = !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
+        return overlaps;
     });
 };
+
 
 // Helper function to check registration eligibility based on ticket type and current phase
 export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhaseIndex: number): boolean => {
     if (userTicketType === 'None') return false;
+    // registrationPhases is now imported from @/lib/types
     const userPhaseIndex = registrationPhases.indexOf(userTicketType);
+    // Check if user's ticket type is found and its phase index is less than or equal to the current phase index
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
