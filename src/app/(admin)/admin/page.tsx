@@ -11,7 +11,7 @@ export default function AdminPage() {
         <CardHeader className="flex flex-row items-center gap-4">
           <ShieldCheck className="h-8 w-8 text-primary" />
           <div>
-            <CardTitle>Admin Dashboard</CardTitle>
+            <CardTitle>Administration</CardTitle>
             <CardDescription>Manage game tables and convention settings.</CardDescription>
           </div>
         </CardHeader>
