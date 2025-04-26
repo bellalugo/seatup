@@ -27,6 +27,10 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      // --- IMPORTANT ---
+      // Check your .env.local file and Firebase Project settings
+      // Ensure NEXT_PUBLIC_FIREBASE_API_KEY is correctly set.
+      // The "auth/invalid-api-key" error means the key is missing or wrong.
       await signInWithEmailAndPassword(auth, email, password);
       toast({ title: 'Login Successful', description: 'Redirecting to admin...' });
       router.push('/admin'); // Redirect to admin page on successful login
@@ -43,7 +47,7 @@ export default function LoginPage() {
            } else if (firebaseError.code === 'auth/invalid-email') {
               errorMessage = 'Invalid email format.';
            } else if (firebaseError.code === 'auth/invalid-api-key') {
-             errorMessage = 'Firebase API key is invalid. Please check configuration.';
+             errorMessage = 'Firebase API key is invalid. Please check configuration in .env.local.';
            }
         }
       }
@@ -54,8 +58,9 @@ export default function LoginPage() {
     }
   };
 
+  // Function to toggle password visibility
   const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
+    setShowPassword(prevShowPassword => !prevShowPassword);
   };
 
 
@@ -101,15 +106,16 @@ export default function LoginPage() {
                     className="pr-10" // Add padding for the icon button
                   />
                   <Button
-                    type="button"
+                    type="button" // Important: type="button" prevents form submission
                     variant="ghost"
                     size="sm"
                     className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
-                    onClick={togglePasswordVisibility}
+                    onClick={togglePasswordVisibility} // Correct handler attached
                     disabled={loading}
                     aria-label={showPassword ? "Hide password" : "Show password"}
                     title={showPassword ? "Hide password" : "Show password"}
                   >
+                    {/* Conditional rendering of the icon */}
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
               </div>
