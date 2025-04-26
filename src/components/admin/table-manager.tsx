@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -28,11 +29,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import {
-  mockGameTables as initialTables,
+  getCurrentTables, // Use getCurrentTables to get the initial state
   addMockTable,
   updateMockTable,
   deleteMockTable,
-  getIconComponent // Import helper function
+  getIconComponent, // Import helper function
+  getIconNameFromComponent // To get name from component for editing
 } from '@/lib/data'; // Adjust import path if needed
 import type { GameTable, GameTableInput } from '@/lib/types';
 import { Pencil, Trash2, PlusCircle, Swords, Castle, Flag } from 'lucide-react'; // Import icons
@@ -43,11 +45,12 @@ const iconMap: Record<string, React.ElementType> = {
   Castle: Castle,
   Flag: Flag,
 };
+const defaultIconName = 'Swords'; // Define default icon name
 
 export default function TableManager() {
   // Important: In a real app, fetch/mutate data via API calls to a backend.
   // This component directly manipulates the mock data for demonstration.
-  const [tables, setTables] = useState<GameTable[]>(initialTables);
+  const [tables, setTables] = useState<GameTable[]>([]); // Initialize empty, fetch in useEffect
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
   const [formData, setFormData] = useState<GameTableInput>({
@@ -55,14 +58,13 @@ export default function TableManager() {
     day: 'Thursday',
     timeSlot: '',
     totalSeats: 0,
-    gameTypeIconName: 'Swords', // Default icon name
+    gameTypeIconName: defaultIconName, // Default icon name
   });
   const { toast } = useToast();
 
-  // Effect to potentially refresh data if needed, but not critical for mock data
-   useEffect(() => {
-    // If this were fetching from an API, you might refetch here.
-    // setTables(initialTables); // Resetting based on import might be needed if edits happen elsewhere
+  // Fetch initial data on component mount
+  useEffect(() => {
+    setTables(getCurrentTables());
   }, []);
 
 
@@ -80,7 +82,7 @@ export default function TableManager() {
 
   const handleEdit = (table: GameTable) => {
     setEditingTable(table);
-    const iconName = Object.keys(iconMap).find(key => iconMap[key] === table.gameTypeIcon) || 'Swords'; // Find icon name
+    const iconName = getIconNameFromComponent(table.gameTypeIcon) || defaultIconName; // Find icon name or use default
     setFormData({
         gameName: table.gameName,
         day: table.day,
@@ -92,10 +94,10 @@ export default function TableManager() {
   };
 
   const handleDelete = (tableId: string) => {
-    // Add confirmation dialog here in a real app
+    // Consider adding a confirmation dialog here in a real app
     try {
         deleteMockTable(tableId); // Mutate mock data
-        setTables(prev => prev.filter(t => t.id !== tableId)); // Update local state
+        setTables(getCurrentTables()); // Refresh local state from the source
         toast({ title: "Table Deleted", description: "The game table has been removed." });
     } catch (error) {
          toast({ variant: "destructive", title: "Error Deleting Table", description: (error as Error).message });
@@ -108,8 +110,8 @@ export default function TableManager() {
       gameName: '',
       day: 'Thursday',
       timeSlot: '',
-      totalSeats: 0,
-      gameTypeIconName: 'Swords',
+      totalSeats: 4, // Sensible default
+      gameTypeIconName: defaultIconName,
     });
     setIsDialogOpen(true);
   };
@@ -125,20 +127,15 @@ export default function TableManager() {
 
     try {
         if (editingTable) {
-        // Update existing table
-        const updatedTableData = updateMockTable({
-            ...editingTable, // Keep the original ID
-            ...formData,
-             gameTypeIcon: getIconComponent(formData.gameTypeIconName), // Convert name back to component
-        });
-        setTables(prev => prev.map(t => (t.id === editingTable.id ? updatedTableData : t)));
-        toast({ title: "Table Updated", description: "Game table details saved." });
+            // Update existing table - Pass ID along with form data
+            updateMockTable({ ...formData, id: editingTable.id });
+            toast({ title: "Table Updated", description: "Game table details saved." });
         } else {
-        // Add new table
-         const newTableData = addMockTable(formData);
-         setTables(prev => [...prev, newTableData]);
-         toast({ title: "Table Added", description: "New game table created successfully." });
+            // Add new table
+            addMockTable(formData);
+            toast({ title: "Table Added", description: "New game table created successfully." });
         }
+        setTables(getCurrentTables()); // Refresh local state from the source
         setIsDialogOpen(false); // Close dialog on success
     } catch(error) {
          toast({ variant: "destructive", title: "Operation Failed", description: (error as Error).message });
@@ -190,7 +187,18 @@ export default function TableManager() {
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="timeSlot" className="text-right">Time Slot</Label>
-                    <Input id="timeSlot" name="timeSlot" value={formData.timeSlot} onChange={handleInputChange} placeholder="e.g., 09:00 - 13:00" className="col-span-3" required />
+                    {/* Use Select for predefined slots or keep Input for flexibility */}
+                     <Select name="timeSlot" value={formData.timeSlot} onValueChange={handleSelectChange('timeSlot')} required>
+                         <SelectTrigger className="col-span-3">
+                             <SelectValue placeholder="Select Time Slot" />
+                         </SelectTrigger>
+                         <SelectContent>
+                             <SelectItem value="09:00 - 13:00">AM (09:00 - 13:00)</SelectItem>
+                             <SelectItem value="14:00 - 19:00">PM (14:00 - 19:00)</SelectItem>
+                             {/* Add other common slots if needed */}
+                         </SelectContent>
+                     </Select>
+                    {/* <Input id="timeSlot" name="timeSlot" value={formData.timeSlot} onChange={handleInputChange} placeholder="e.g., 09:00 - 13:00" className="col-span-3" required /> */}
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="totalSeats" className="text-right">Total Seats</Label>
@@ -241,8 +249,10 @@ export default function TableManager() {
           <TableBody>
             {tables.sort((a, b) => { // Sort for consistent display
                 const dayOrder = ['Thursday', 'Friday', 'Saturday', 'Sunday'];
+                const timeOrder = ["09:00 - 13:00", "14:00 - 19:00"]; // AM then PM
+                if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
                 if (a.day !== b.day) return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
-                return a.timeSlot.localeCompare(b.timeSlot);
+                return timeOrder.indexOf(a.timeSlot) - timeOrder.indexOf(b.timeSlot);
             }).map((table) => (
               <TableRow key={table.id}>
                  <TableCell>

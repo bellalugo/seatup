@@ -27,17 +27,64 @@ export const mockUsers: Record<string, User> = {
   'user-000': { id: 'user-000', name: 'David (No Ticket)', ticketType: 'None' },
 };
 
-// Mock Game Tables Data - Make this mutable for the admin panel demo
-export let mockGameTables: GameTable[] = [
-  { id: 'table-1', gameName: 'Twilight Imperium 4', day: 'Thursday', timeSlot: '09:00 - 17:00', totalSeats: 6, gameTypeIcon: Castle },
-  { id: 'table-2', gameName: 'Advanced Squad Leader', day: 'Thursday', timeSlot: '09:00 - 13:00', totalSeats: 2, gameTypeIcon: Swords },
-  { id: 'table-3', gameName: 'Axis & Allies: Global 1940', day: 'Thursday', timeSlot: '14:00 - 18:00', totalSeats: 5, gameTypeIcon: Flag },
-  { id: 'table-4', gameName: 'Star Wars: Rebellion', day: 'Friday', timeSlot: '10:00 - 14:00', totalSeats: 2, gameTypeIcon: Castle },
-  { id: 'table-5', gameName: 'Memoir \'44 Overlord', day: 'Friday', timeSlot: '15:00 - 18:00', totalSeats: 8, gameTypeIcon: Swords },
-  { id: 'table-6', gameName: 'Paths of Glory', day: 'Saturday', timeSlot: '09:00 - 15:00', totalSeats: 2, gameTypeIcon: Flag },
-  { id: 'table-7', gameName: 'Here I Stand', day: 'Saturday', timeSlot: '10:00 - 18:00', totalSeats: 6, gameTypeIcon: Castle },
-  { id: 'table-8', gameName: 'Commands & Colors: Ancients', day: 'Sunday', timeSlot: '10:00 - 13:00', totalSeats: 2, gameTypeIcon: Swords },
+// --- Generate Mock Game Tables based on ASYNCONV programme ---
+const gameNames = [
+    "Fields of Fire 3",
+    "Conquest & Consequence",
+    "Next War: Taiwan",
+    "Empire of the Sun",
+    "Salerno '43",
+    "Littoral Commander: Indo-Pacific",
+    "Downfall: Conquest of the Third Reich, 1944-1945",
+    "A Gest of Robin Hood",
+    "Here I Stand: Wars of the Reformation 1517-1555 (500th Anniversary Edition)",
+    "Red Strike: The Soviet Plan for Nuclear War in 1979",
+    "Commands & Colors: Napoleonics",
+    "Plantagenet: Cousin's War for England, 1459 - 1485",
+    "Vietnam: Rumor of War",
+    "Banish the Snakes",
+    "Pendragon: The Fall of Roman Britain",
+    "Atlantic Chase",
+    "Imperial Struggle",
+    "Vijayanagara: The Deccan Empires of Medieval India, 1290-1398",
+    "Wolfe Tone & The United Irishmen Rebellion of 1798",
+    "Flying Colors (Fleet Actions in the Age of Sail)",
+    "Bayonets & Tomahawks",
+    "Almoravid: Reconquista and Riposte in Spain, 1085-1086",
+    "Twilight Struggle: Red Sea – Conflict in the Horn of Africa",
+    "Fire in the Lake: Insurgency in Vietnam"
 ];
+
+const days: GameTable['day'][] = ['Thursday', 'Friday', 'Saturday', 'Sunday'];
+const timeSlots = [
+    { suffix: 'AM', slot: '09:00 - 13:00' },
+    { suffix: 'PM', slot: '14:00 - 19:00' }
+];
+const defaultSeats = 4;
+const defaultIcon = Swords; // Use Swords icon as default
+const defaultIconName = 'Swords'; // Name corresponding to the default icon
+
+const generatedTables: GameTable[] = [];
+let tableCounter = 1;
+
+gameNames.forEach(gameName => {
+    days.forEach(day => {
+        timeSlots.forEach(timeSlotInfo => {
+            const tableId = `table-${tableCounter++}`;
+            generatedTables.push({
+                id: tableId,
+                gameName: gameName,
+                day: day,
+                timeSlot: timeSlotInfo.slot,
+                totalSeats: defaultSeats,
+                gameTypeIcon: defaultIcon
+            });
+        });
+    });
+});
+
+// Mock Game Tables Data - Initialized with generated data
+export let mockGameTables: GameTable[] = generatedTables;
 
 // Mock initial registrations (can be empty) - Make this mutable
 export let mockRegistrations: Registration[] = [
@@ -56,7 +103,7 @@ export const addMockTable = (tableInput: GameTableInput): GameTable => {
     const newTable: GameTable = {
         id: newId,
         ...tableInput,
-        gameTypeIcon: getIconComponent(tableInput.gameTypeIconName),
+        gameTypeIcon: getIconComponent(tableInput.gameTypeIconName || defaultIconName), // Use default if not provided
     };
     mockGameTables.push(newTable);
     console.log("Added table:", newTable);
@@ -65,23 +112,26 @@ export const addMockTable = (tableInput: GameTableInput): GameTable => {
 };
 
 /** Updates an existing table in the mock data */
-export const updateMockTable = (updatedTable: GameTable): GameTable => {
-    const index = mockGameTables.findIndex(t => t.id === updatedTable.id);
+export const updateMockTable = (updatedTableData: GameTableInput & { id: string }): GameTable => {
+    const index = mockGameTables.findIndex(t => t.id === updatedTableData.id);
     if (index === -1) {
-        throw new Error(`Table with ID ${updatedTable.id} not found.`);
+        throw new Error(`Table with ID ${updatedTableData.id} not found.`);
     }
-    // Ensure the icon component is correctly resolved if the name changed
-    const tableWithResolvedIcon = {
-        ...updatedTable,
-        gameTypeIcon: getIconComponent( // Assuming the icon name might be passed indirectly or needs re-resolution
-             Object.keys(iconMap).find(key => iconMap[key] === updatedTable.gameTypeIcon) || undefined
-        ) ?? getIconComponent((updatedTable as any).gameTypeIconName) // Fallback if name passed directly
+
+    // Create the updated table object, resolving the icon
+    const updatedTable: GameTable = {
+        id: updatedTableData.id,
+        gameName: updatedTableData.gameName,
+        day: updatedTableData.day,
+        timeSlot: updatedTableData.timeSlot,
+        totalSeats: updatedTableData.totalSeats,
+        gameTypeIcon: getIconComponent(updatedTableData.gameTypeIconName || defaultIconName), // Resolve icon
     };
 
-    mockGameTables[index] = tableWithResolvedIcon;
-    console.log("Updated table:", tableWithResolvedIcon);
+    mockGameTables[index] = updatedTable;
+    console.log("Updated table:", updatedTable);
     console.log("Current tables:", mockGameTables);
-    return tableWithResolvedIcon;
+    return updatedTable;
 };
 
 
@@ -129,6 +179,7 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
             const startMinute = parseInt(match[2], 10);
             const endHour = parseInt(match[3], 10);
             const endMinute = parseInt(match[4], 10);
+            // Simple numeric representation (minutes from midnight)
             return { start: startHour * 60 + startMinute, end: endHour * 60 + endMinute };
         };
 
@@ -136,12 +187,14 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
         const newSlot = parseTimeSlot(newTable.timeSlot);
 
         if (!registeredSlot || !newSlot) {
-            // Fallback to exact string match if parsing fails
+             console.warn("Could not parse time slot for conflict check:", registeredTable.timeSlot, newTable.timeSlot);
+            // Fallback to exact string match if parsing fails, though less reliable for overlapping times
             return registeredTable.timeSlot === newTable.timeSlot;
         }
 
         // Check for overlap: !(endA <= startB || startA >= endB)
         const overlaps = !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
+        // console.log(`Conflict Check: ${newTable.gameName} (${newSlot.start}-${newSlot.end}) vs ${registeredTable.gameName} (${registeredSlot.start}-${registeredSlot.end}) = ${overlaps}`);
         return overlaps;
     });
 };
@@ -152,17 +205,24 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     if (userTicketType === 'None') return false;
     // Use the exported registrationPhases constant
     const userPhaseIndex = registrationPhases.indexOf(userTicketType);
+    // Check if the user's ticket type is found in the phases array AND if their phase index is less than or equal to the current phase index
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
 
 // Function to fetch the current state of tables (useful if data could change)
 export const getCurrentTables = (): GameTable[] => {
-    return [...mockGameTables]; // Return a copy to prevent direct mutation elsewhere
+    // Return a deep copy to prevent accidental modification of the original mock data
+    return JSON.parse(JSON.stringify(mockGameTables)).map((table: any) => ({
+        ...table,
+        // Re-assign the icon component after JSON stringification (which removes functions)
+        gameTypeIcon: getIconComponent(Object.keys(iconMap).find(key => iconMap[key].displayName === (table.gameTypeIcon ? table.gameTypeIcon.displayName : defaultIconName)) || defaultIconName)
+    }));
 };
 
 // Function to fetch the current state of registrations
 export const getCurrentRegistrations = (): Registration[] => {
-    return [...mockRegistrations]; // Return a copy
+     // Return a deep copy
+    return JSON.parse(JSON.stringify(mockRegistrations));
 }
 
 // Function to add a registration (simulates backend update)
@@ -173,13 +233,29 @@ export const addRegistration = (userId: string, tableId: string): Registration =
         mockRegistrations.push(newRegistration);
         console.log("Added registration:", newRegistration);
         console.log("Current registrations:", mockRegistrations);
+    } else {
+        console.log("Registration already exists for:", userId, tableId);
     }
-    return newRegistration;
+    // Return a copy of the new/existing registration
+    return { ...newRegistration };
 }
 
 // Function to remove a registration (simulates backend update)
 export const removeRegistration = (userId: string, tableId: string): void => {
+    const initialLength = mockRegistrations.length;
     mockRegistrations = mockRegistrations.filter(r => !(r.userId === userId && r.tableId === tableId));
-    console.log("Removed registration for user:", userId, "table:", tableId);
-    console.log("Current registrations:", mockRegistrations);
+    if (mockRegistrations.length < initialLength) {
+        console.log("Removed registration for user:", userId, "table:", tableId);
+        console.log("Current registrations:", mockRegistrations);
+    } else {
+         console.log("No registration found to remove for user:", userId, "table:", tableId);
+    }
 }
+
+// --- Utility to find icon name from component ---
+// This might be needed if the component itself is stored and you need the name back
+// For now, we primarily work from name -> component in add/update
+export const getIconNameFromComponent = (component?: React.ElementType): string | undefined => {
+    if (!component) return undefined;
+    return Object.keys(iconMap).find(key => iconMap[key] === component);
+};
