@@ -1,6 +1,7 @@
 
 import type { GameTable, User, Registration, TicketType, GameTableInput } from '@/lib/types';
-import { registrationPhases } from '@/lib/types'; // Import registrationPhases
+// Correctly import registrationPhases from types.ts
+import { registrationPhases as importedRegistrationPhases } from '@/lib/types';
 import { Swords, Castle, Flag } from 'lucide-react';
 import React from 'react'; // Import React for createElement
 
@@ -42,6 +43,10 @@ export let mockGameTables: GameTable[] = [
 export let mockRegistrations: Registration[] = [
   // Example: { userId: 'user-123', tableId: 'table-2' }
 ];
+
+// Re-export registrationPhases for use in components
+export const registrationPhases = importedRegistrationPhases;
+
 
 // --- Data Mutation Functions (Mock Backend) ---
 
@@ -131,9 +136,11 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
         const newSlot = parseTimeSlot(newTable.timeSlot);
 
         if (!registeredSlot || !newSlot) {
+            // Fallback to exact string match if parsing fails
             return registeredTable.timeSlot === newTable.timeSlot;
         }
 
+        // Check for overlap: !(endA <= startB || startA >= endB)
         const overlaps = !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
         return overlaps;
     });
@@ -142,11 +149,8 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
 
 // Helper function to check registration eligibility based on ticket type and current phase
 export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhaseIndex: number): boolean => {
-    if (!registrationPhases) {
-        console.error("registrationPhases is not defined or imported correctly!");
-        return false; // Or handle the error appropriately
-    }
     if (userTicketType === 'None') return false;
+    // Use the exported registrationPhases constant
     const userPhaseIndex = registrationPhases.indexOf(userTicketType);
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };

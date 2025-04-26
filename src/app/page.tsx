@@ -18,9 +18,11 @@ import {
     getAvailableSeats,
     hasTimeConflict,
     canRegisterBasedOnTicket,
+    registrationPhases // Import registrationPhases here
 } from '@/lib/data';
 import type { GameTable, User, Registration, TicketType } from '@/lib/types';
-import { registrationPhases } from '@/lib/types';
+// Remove direct import of registrationPhases from types if it's already imported from data
+// import { registrationPhases } from '@/lib/types';
 import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw } from 'lucide-react';
 
 export default function Home() {
@@ -214,7 +216,7 @@ export default function Home() {
               <SelectValue placeholder="Select User" />
             </SelectTrigger>
             <SelectContent>
-               <SelectItem value="" disabled>Select a user...</SelectItem>
+               {/* Removed SelectItem with empty value - placeholder is handled by SelectValue */}
               {Object.values(users).map(user => (
                 <SelectItem key={user.id} value={user.id}>
                   {user.name}
