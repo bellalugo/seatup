@@ -26,29 +26,50 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
+    // --- IMPORTANT ---
+    // 1. Check your .env.local file and Firebase Project settings.
+    //    Ensure NEXT_PUBLIC_FIREBASE_API_KEY and other config variables are correctly set.
+    //    The "auth/invalid-api-key" error means the key is missing or wrong.
+    // 2. Ensure the user 'admin@example.com' exists in your Firebase project's
+    //    Authentication section and has the password 'admin123'.
+    //    Firebase doesn't create users automatically.
+    // --- --- --- ---
+
     try {
-      // --- IMPORTANT ---
-      // Check your .env.local file and Firebase Project settings
-      // Ensure NEXT_PUBLIC_FIREBASE_API_KEY is correctly set.
-      // The "auth/invalid-api-key" error means the key is missing or wrong.
       await signInWithEmailAndPassword(auth, email, password);
       toast({ title: 'Login Successful', description: 'Redirecting to admin...' });
       router.push('/admin'); // Redirect to admin page on successful login
     } catch (err) {
       console.error('Login failed:', err);
-      let errorMessage = 'Login failed. Please check your credentials.';
-      // Improve error messages based on Firebase error codes if needed
+      let errorMessage = 'Login failed. Please check your credentials or console for details.';
+      // Improve error messages based on Firebase error codes
       if (err instanceof Error) {
-        // Example: Customize based on common Firebase Auth error codes
-        if ('code' in err) {
-           const firebaseError = err as { code: string; message: string };
-           if (firebaseError.code === 'auth/user-not-found' || firebaseError.code === 'auth/wrong-password' || firebaseError.code === 'auth/invalid-credential') {
-             errorMessage = 'Invalid email or password.';
-           } else if (firebaseError.code === 'auth/invalid-email') {
-              errorMessage = 'Invalid email format.';
-           } else if (firebaseError.code === 'auth/invalid-api-key') {
-             errorMessage = 'Firebase API key is invalid. Please check configuration in .env.local.';
+        // Check if the error object has a 'code' property (common in Firebase errors)
+        if (typeof err === 'object' && err !== null && 'code' in err) {
+           const firebaseError = err as { code: string; message: string }; // Type assertion
+           switch (firebaseError.code) {
+             case 'auth/user-not-found':
+             case 'auth/wrong-password':
+             case 'auth/invalid-credential': // Often covers both wrong email/password
+               errorMessage = 'Invalid email or password.';
+               break;
+             case 'auth/invalid-email':
+                errorMessage = 'Invalid email format.';
+                break;
+             case 'auth/invalid-api-key':
+               errorMessage = 'Firebase API key is invalid. Please check configuration in .env.local.';
+               break;
+             case 'auth/network-request-failed':
+                errorMessage = 'Network error. Please check your internet connection.';
+                break;
+             default:
+                // Keep generic message but log the specific code
+                console.error('Firebase Auth Error Code:', firebaseError.code);
+                errorMessage = `Login failed (${firebaseError.code}). Please check credentials or console.`;
            }
+        } else {
+          // Generic error if no code is present
+          errorMessage = err.message || errorMessage;
         }
       }
       setError(errorMessage);
@@ -90,6 +111,8 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
+                aria-invalid={!!error} // Indicate error state for accessibility
+                aria-describedby={error ? "login-error" : undefined}
               />
             </div>
             <div className="space-y-2">
@@ -104,6 +127,8 @@ export default function LoginPage() {
                     required
                     disabled={loading}
                     className="pr-10" // Add padding for the icon button
+                    aria-invalid={!!error} // Indicate error state for accessibility
+                    aria-describedby={error ? "login-error" : undefined}
                   />
                   <Button
                     type="button" // Important: type="button" prevents form submission
@@ -120,7 +145,7 @@ export default function LoginPage() {
                   </Button>
               </div>
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p id="login-error" className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                  <>
