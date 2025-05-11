@@ -119,6 +119,7 @@ export default function TableManager() {
                 description: "Cette table a des joueurs inscrits et ne peut pas être supprimée.",
                 action: <AlertTriangle className="text-destructive-foreground" />,
             });
+            setIsDeleting(null); // Clear loading state if deletion is aborted
             return;
         }
 
@@ -159,7 +160,7 @@ export default function TableManager() {
         day: formData.day,
         timeSlot: formData.timeSlot,
         totalSeats: formData.totalSeats,
-        imageUrl: formData.imageUrl || undefined, // Ensure it's undefined if empty
+        imageUrl: formData.imageUrl || undefined, 
     };
 
     try {
@@ -332,7 +333,7 @@ export default function TableManager() {
                         variant="destructive" 
                         size="icon" 
                         onClick={() => handleDelete(table.id)} 
-                        disabled={isSubmitting || (isDeleting !== null && isDeleting !== table.id)} 
+                        disabled={isSubmitting || (isDeleting !== null && isDeleting !== table.id) || isDeleting === table.id}
                         className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
                     >
                         {isDeleting === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -350,4 +351,3 @@ export default function TableManager() {
     </Card>
   );
 }
-
