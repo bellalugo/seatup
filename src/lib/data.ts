@@ -1,5 +1,5 @@
 
-import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput } from '@/lib/types';
+import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant } from '@/lib/types';
 import { registrationPhases as importedRegistrationPhases } from '@/lib/types';
 import { db } from '@/firebase/clientApp';
 import {
@@ -14,6 +14,7 @@ import {
     writeBatch,
     orderBy,
     getDoc,
+    setDoc, // Added for saving participants with specific ID
 } from 'firebase/firestore';
 
 export const mockUsers: Record<string, User> = {
@@ -28,6 +29,8 @@ export const registrationPhases = importedRegistrationPhases;
 const GAMES_COLLECTION = 'games';
 const TABLES_COLLECTION = 'gameTables';
 const REGISTRATIONS_COLLECTION = 'registrations';
+const PARTICIPANTS_COLLECTION = 'Liste participants';
+
 
 // --- Games CRUD Functions ---
 
@@ -207,7 +210,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
         };
         
         const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
-            if (value !== undefined) {
+            if (value !== undefined) { // Ensure imageUrl is not explicitly set to undefined
                 acc[key as keyof typeof firestorePayload] = value;
             }
             return acc;
@@ -339,6 +342,34 @@ export const removeRegistration = async (userId: string, tableId: string): Promi
         throw new Error("Impossible de supprimer l'inscription de Firestore.");
     }
 };
+
+
+// --- Participant Functions ---
+/** Saves a list of participants to Firestore, overwriting if ID exists */
+export const saveParticipants = async (participants: Participant[]): Promise<void> => {
+  if (!db) {
+    console.error("Firestore DB instance is not initialized for saveParticipants.");
+    throw new Error("La connexion à Firestore n'est pas initialisée pour sauvegarder les participants.");
+  }
+  try {
+    const batch = writeBatch(db);
+    const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
+
+    for (const participant of participants) {
+      // Use participant.id (from Billetweb) as the document ID in Firestore
+      const participantRef = doc(participantsCollectionRef, participant.id);
+      // Using setDoc with merge: true will create the document if it doesn't exist,
+      // or update it if it does. If you want to strictly overwrite, remove { merge: true }.
+      batch.set(participantRef, participant, { merge: true });
+    }
+    await batch.commit();
+    console.log(`${participants.length} participant(s) sauvegardé(s) dans Firestore.`);
+  } catch (error) {
+    console.error("Firestore - Erreur lors de la sauvegarde des participants:", error);
+    throw new Error("Impossible de sauvegarder les participants dans Firestore.");
+  }
+};
+
 
 // --- Utility Functions ---
 

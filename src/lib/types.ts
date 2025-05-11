@@ -66,4 +66,13 @@ export interface Registration {
 // Define registration phases based on ticket priority
 export const registrationPhases: TicketType[] = ['Stratège', 'Maréchal', 'Général'];
 
-
+// Represents a participant fetched from Billetweb
+export interface Participant {
+  id: string; // Billetweb ID or unique ID from Billetweb
+  nom: string;
+  prenom: string;
+  email: string;
+  typeBillet: TicketType;
+  // Add other relevant fields from Billetweb as needed
+  // e.g., dateAchat?: string; numeroCommande?: string;
+}

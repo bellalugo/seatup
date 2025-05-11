@@ -1,4 +1,4 @@
-import type { TicketType } from '@/lib/types';
+import type { TicketType, Participant } from '@/lib/types';
 
 /**
  * Represents a ticket retrieved from Billetweb (or mock).
@@ -32,7 +32,7 @@ export async function getTicketInfo(userId: string): Promise<TicketInfo | null> 
   const { mockUsers } = await import('@/lib/data'); // Import dynamically if needed or move mock data access
   const user = mockUsers[userId];
 
-  if (user && user.ticketType !== 'None') {
+  if (user && user.ticketType !== 'Aucun') { // Corrected from 'None' to 'Aucun'
      // Simulate finding a valid ticket
     await new Promise(resolve => setTimeout(resolve, 100)); // Simulate network delay
     return {
@@ -45,4 +45,58 @@ export async function getTicketInfo(userId: string): Promise<TicketInfo | null> 
     return null;
   }
   // --- END MOCK IMPLEMENTATION ---
+}
+
+
+/**
+ * Asynchronously retrieves a list of participants from Billetweb.
+ * THIS IS CURRENTLY A MOCK.
+ *
+ * @returns A promise that resolves to an array of Participant objects.
+ */
+export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
+  console.log('Mock: Récupération des participants depuis Billetweb...');
+  await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
+
+  // TODO: Replace with actual API call to Billetweb
+  // This mock data should match the Participant type
+  const mockParticipants: Participant[] = [
+    {
+      id: 'bw-participant-1', // Unique ID from Billetweb
+      nom: 'Dupont',
+      prenom: 'Jean',
+      email: 'jean.dupont@example.com',
+      typeBillet: 'Stratège',
+    },
+    {
+      id: 'bw-participant-2',
+      nom: 'Martin',
+      prenom: 'Sophie',
+      email: 'sophie.martin@example.com',
+      typeBillet: 'Maréchal',
+    },
+    {
+      id: 'bw-participant-3',
+      nom: 'Bernard',
+      prenom: 'Luc',
+      email: 'luc.bernard@example.com',
+      typeBillet: 'Général',
+    },
+     {
+      id: 'bw-participant-4',
+      nom: 'Petit',
+      prenom: 'Alice',
+      email: 'alice.petit@example.com',
+      typeBillet: 'Stratège',
+    },
+    {
+      id: 'user-456', // Example matching an existing mockUser for testing
+      nom: 'Bob (Maréchal)',
+      prenom: '',
+      email: 'bob.marechal@example.com',
+      typeBillet: 'Maréchal',
+    }
+  ];
+  console.log(`Mock: ${mockParticipants.length} participants récupérés.`);
+  return mockParticipants;
 }
