@@ -20,11 +20,11 @@ if (useMock) {
 /* ------------------------------------------------------------------ */
 function mapTicketName(name?: string): TicketType { // name can be undefined
   if (!name || name.trim() === '') { // Handle empty or whitespace-only strings as well
-    console.log('[Billetweb Service] mapTicketName: Nom de billet non fourni ou vide, retour "Aucun".');
+    // console.log('[Billetweb Service] mapTicketName: Nom de billet non fourni ou vide, retour "Aucun".');
     return 'Aucun';
   }
   const trimmedName = name.trim();
-  console.log(`[Billetweb Service] mapTicketName: Cartographie du nom de billet "${trimmedName}"`);
+  // console.log(`[Billetweb Service] mapTicketName: Cartographie du nom de billet "${trimmedName}"`);
   if (/strat[eè]ge/i.test(trimmedName))   return 'Stratège';
   if (/mar[eé]chal/i.test(trimmedName))   return 'Maréchal';
   if (/g[eé]n[eé]ral/i.test(trimmedName)) return 'Général';
@@ -63,6 +63,7 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
           nom = realNameWords[realNameWords.length - 1];
         } else {
           prenom = realNameWords[0];
+          // nom remains NomMockX+1, which is intended for mock.
         }
       }
 
@@ -80,29 +81,23 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
 
   console.log('[Billetweb Service] Tentative de récupération des participants depuis l\'API Billetweb réelle...');
   type BilletwebAttendee = {
-    id?: string; // Attendee's unique ID from Billetweb
-    order_id: string; // Order ID
-    firstname?: string; // Attendee's first name
-    lastname?: string;  // Attendee's last name
-    email?: string;     // Attendee's email
-    ticket_name?: string; // Name of the ticket as defined in Billetweb (e.g., "Pass ASYNCONV - Stratège")
-    ticket_id?: string; // ID of the ticket type
-    rate_name?: string; // Specific rate name, could be more detailed than ticket_name
-    // 'answers' field can contain custom form data collected during booking
+    id?: string; 
+    order_id: string; 
+    firstname?: string; 
+    name?: string;  // Billetweb API often uses 'name' for last name.
+    email?: string;     
+    ticket?: string; // Name of the ticket as defined in Billetweb (e.g., "Pass ASYNCONV - Stratège")
+    ticket_id?: string; 
+    rate_name?: string; 
     answers?: Array<{ 
-        id?: string; // ID of the form field
-        label?: string; // Label of the form field (e.g., "Nom", "Prénom", "Email", "Tarif")
-        value?: string | string[] | number | boolean | null; // Value entered by the user
-        type?: string; // Type of the form field
+        id?: string; 
+        label?: string; 
+        value?: string | string[] | number | boolean | null; 
+        type?: string; 
     }>;
-    // Other fields that might be present in the Billetweb API response
-    // barcode?: string;
-    // price?: string;
-    // date?: string; // Purchase date
   };
 
   try {
-    // Use the correct endpoint as per the user's image: /api/event/:id/attendees
     const attendees = await callBilletweb<BilletwebAttendee[]>(
       `event/${BILLETWEB_EVENT}/attendees`
     );
@@ -110,68 +105,56 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
     console.log(`[Billetweb Service] ${attendees.length} participant(s) brut(s) récupéré(s) de Billetweb.`);
 
     return attendees.map((a, index) => {
-      // Use Billetweb's 'id' field directly if available, otherwise generate one.
       const uniqueParticipantId = a.id || `${a.order_id}_attendee_${index}`;
-      if (!a.id) {
-        console.warn(`[Billetweb Service] Participant avec order_id ${a.order_id} (index ${index}) n'a pas d'ID Billetweb unique. ID généré : ${uniqueParticipantId}`);
-      }
-
-      // Log the raw data for this specific attendee for better debugging
-      // console.log(`[Billetweb Service] Traitement du participant brut (order_id: ${a.order_id}, billetweb_id: ${a.id || 'N/A'}) :`, JSON.stringify(a, null, 2));
       
-      // Default to empty strings for names and email to avoid undefined issues
-      let mappedNom = a.lastname || '';
+      if (index < 2 && !useMock) { // Log details for the first two non-mock participants
+        console.log(`[Billetweb Service] Raw data for attendee ${index + 1} (ID: ${uniqueParticipantId}):`, JSON.stringify(a, null, 2));
+        if (a.answers) {
+          console.log(`[Billetweb Service] Answers for attendee ${index + 1} (ID: ${uniqueParticipantId}):`, JSON.stringify(a.answers, null, 2));
+        }
+      }
+      
+      let mappedNom = a.name || ''; // Default to Billetweb's 'name' field (likely last name)
       let mappedPrenom = a.firstname || '';
       let mappedEmail = a.email || '';
       
-      // Override with answers if "Nom" or "Prénom" labels are present in custom fields
       if (a.answers && Array.isArray(a.answers)) {
-        const nomAnswer = a.answers.find(ans => ans.label?.toLowerCase() === 'nom');
+        const nomAnswer = a.answers.find(ans => ans.label?.toLowerCase().includes('nom'));
         if (nomAnswer && typeof nomAnswer.value === 'string' && nomAnswer.value.trim() !== '') {
             mappedNom = nomAnswer.value.trim();
-            // console.log(`[Billetweb Service] Nom trouvé dans answers: "${mappedNom}" pour billetweb_id: ${uniqueParticipantId}`);
         }
 
-        const prenomAnswer = a.answers.find(ans => ans.label?.toLowerCase() === 'prénom');
+        const prenomAnswer = a.answers.find(ans => ans.label?.toLowerCase().includes('prénom')); // Using 'prénom' with é
          if (prenomAnswer && typeof prenomAnswer.value === 'string' && prenomAnswer.value.trim() !== '') {
             mappedPrenom = prenomAnswer.value.trim();
-            // console.log(`[Billetweb Service] Prénom trouvé dans answers: "${mappedPrenom}" pour billetweb_id: ${uniqueParticipantId}`);
         }
         
-        const emailAnswer = a.answers.find(ans => ans.label?.toLowerCase() === 'email');
+        const emailAnswer = a.answers.find(ans => ans.label?.toLowerCase().includes('email'));
         if (emailAnswer && typeof emailAnswer.value === 'string' && emailAnswer.value.trim() !== '') {
             mappedEmail = emailAnswer.value.trim();
-            // console.log(`[Billetweb Service] Email trouvé dans answers: "${mappedEmail}" pour billetweb_id: ${uniqueParticipantId}`);
         }
       }
-
 
       let ticketNameToMap: string | undefined = undefined;
 
-      // Attempt 1: Look in answers for "Tarif" (user's request)
+      // Attempt 1: Look in answers for "Tarif"
       if (a.answers && Array.isArray(a.answers)) {
         const tarifAnswer = a.answers.find(ans => ans.label?.toLowerCase().includes('tarif'));
         if (tarifAnswer && typeof tarifAnswer.value === 'string' && tarifAnswer.value.trim() !== '') {
-          ticketNameToMap = tarifAnswer.value;
-          // console.log(`[Billetweb Service] Type de billet trouvé dans answers.label contenant "tarif": "${ticketNameToMap}" pour billetweb_id: ${uniqueParticipantId}`);
-        } else if (tarifAnswer) {
-            // console.log(`[Billetweb Service] Réponse "tarif" trouvée mais valeur non chaîne ou vide:`, tarifAnswer.value, `pour billetweb_id: ${uniqueParticipantId}`);
+          ticketNameToMap = tarifAnswer.value.trim();
         }
       }
 
-      // Attempt 2: Look for a direct rate_name field (if not found in answers)
-      if (!ticketNameToMap && a.rate_name && a.rate_name.trim() !== '') {
-        ticketNameToMap = a.rate_name;
-        // console.log(`[Billetweb Service] Type de billet trouvé dans rate_name: "${ticketNameToMap}" pour billetweb_id: ${uniqueParticipantId}`);
+      // Attempt 2: Use direct 'ticket' field if not found in answers
+      if (!ticketNameToMap && a.ticket && typeof a.ticket === 'string' && a.ticket.trim() !== '') {
+        ticketNameToMap = a.ticket.trim();
       }
 
-      // Attempt 3: Fallback to ticket_name (if other methods fail)
-      if (!ticketNameToMap && a.ticket_name && a.ticket_name.trim() !== '') {
-        ticketNameToMap = a.ticket_name;
-        // console.log(`[Billetweb Service] Type de billet utilisant ticket_name en fallback: "${ticketNameToMap}" pour billetweb_id: ${uniqueParticipantId}`);
+      // Attempt 3: Fallback to 'rate_name'
+      if (!ticketNameToMap && a.rate_name && typeof a.rate_name === 'string' && a.rate_name.trim() !== '') {
+        ticketNameToMap = a.rate_name.trim();
       }
       
-      // console.log(`[Billetweb Service] Valeur finale utilisée pour mapTicketName: "${ticketNameToMap || 'undefined'}" pour billetweb_id: ${uniqueParticipantId}`);
       const mappedTicketType = mapTicketName(ticketNameToMap);
       
       const participantData: Participant = {
@@ -181,8 +164,11 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
         email     : mappedEmail,     
         typeBillet: mappedTicketType, 
       };
-
-      // console.log(`[Billetweb Service] Données participant mappées (id: ${uniqueParticipantId}):`, JSON.stringify(participantData, null, 2));
+      
+      if (index < 5 || mappedTicketType === 'Aucun' || !mappedNom) { // Log more for problematic cases
+        console.log(`[Billetweb Service DEBUG] For ID=${uniqueParticipantId}: API_Name='${a.name}', API_FirstName='${a.firstname}', API_Ticket='${a.ticket}', API_RateName='${a.rate_name}'`);
+        console.log(`[Billetweb Service DEBUG] Mapped: nom='${mappedNom}', prenom='${mappedPrenom}', ticketToMap='${ticketNameToMap}', typeBillet='${mappedTicketType}'`);
+      }
       
       return participantData;
     });
@@ -195,11 +181,16 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
 /* ------------------------------------------------------------------ */
 /*  2. OBTENIR LE TICKET D’UN UTILISATEUR PAR SON EMAIL (userId)      */
 /* ------------------------------------------------------------------ */
+// This interface is defined in Billetweb context, could be different from global TicketInfo if needed
+export interface BilletwebTicketInfo {
+  id  : string;
+  type: TicketType;
+}
 
-export async function getTicketInfo(userId: string): Promise<TicketInfo | null> {
-  const email = userId.trim().toLowerCase(); // Assuming userId is the email for this function for now
 
-  // If using mock data for getParticipantsFromBilletweb, this will also use mock.
+export async function getTicketInfo(userId: string): Promise<BilletwebTicketInfo | null> {
+  const email = userId.trim().toLowerCase(); 
+
   const participants = await getParticipantsFromBilletweb(); 
   const match = participants.find(p => p.email.toLowerCase() === email);
 
@@ -207,15 +198,3 @@ export async function getTicketInfo(userId: string): Promise<TicketInfo | null> 
     ? { id: match.id, type: match.typeBillet }
     : null;
 }
-
-/* ------------------------------------------------------------------ */
-/*  TYPES LOCAUX                                                      */
-/* ------------------------------------------------------------------ */
-
-// TicketInfo is already defined in lib/types.ts, no need to redefine unless it's specific to this service.
-// For now, assume it's the same as the global one.
-// export interface TicketInfo {
-//   id  : string;
-//   type: TicketType;
-// }
-
