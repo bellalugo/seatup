@@ -1,4 +1,3 @@
-
 'use client';
 
 import type React from 'react';
@@ -51,7 +50,7 @@ import {
   getGames,
 } from '@/lib/data';
 import type { GameTable, GameTableInput, Registration, Game } from '@/lib/types';
-import { Pencil, Trash2, Loader2, AlertTriangle, Users, Gamepad2, TableIcon, UserSquare2, UserCircle2 } from 'lucide-react';
+import { Pencil, Trash2, Loader2, AlertTriangle, Users, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy } from 'lucide-react'; // Added Copy
 import GameManager from './game-manager';
 
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
@@ -135,7 +134,6 @@ export default function ConventionManager() {
 
   const handleEditTable = (table: GameTable) => {
     setEditingTable(table);
-    // const selectedGame = allGames.find(g => g.id === table.gameId); // Not needed for edit, keep existing table values
     setTableFormData({
         gameId: table.gameId,
         day: table.day,
@@ -147,17 +145,34 @@ export default function ConventionManager() {
     setIsTableDialogOpen(true);
   };
 
+  const handleDuplicateTable = (table: GameTable) => {
+    setEditingTable(null); // Important: We are creating a new table, not editing
+    setTableFormData({
+      gameId: table.gameId,
+      day: table.day,
+      timeSlot: table.timeSlot, // User will likely change this
+      totalSeats: table.totalSeats,
+      tableNumber: '', // Table number should be unique, prompt user to enter new
+      authorAnimator: table.authorAnimator || '',
+    });
+    setIsTableDialogOpen(true);
+    toast({
+      title: "Table dupliquée",
+      description: `Les informations de la table "${table.gameName}" (N° ${table.tableNumber}) ont été copiées. Modifiez le créneau horaire et/ou le numéro de table, puis enregistrez.`,
+      duration: 7000,
+    });
+  };
+
+
   const openDeleteConfirmationDialog = (table: GameTable) => {
     setTableToDelete(table);
     setIsConfirmDeleteDialogOpen(true);
-    // toast({ title: "Clic !", description: `Tentative de suppression de la table : ${table.gameName}` });
   };
 
   const confirmDeleteTable = async () => {
     if (!tableToDelete) return;
     
     setIsDeletingTable(tableToDelete.id);
-    // setIsConfirmDeleteDialogOpen(false); // Moved to finally block
 
     try {
         const currentTableRegistrations = await getRegistrationsForTable(tableToDelete.id);
@@ -169,8 +184,6 @@ export default function ConventionManager() {
                 action: <AlertTriangle className="text-destructive-foreground h-5 w-5" />,
                 duration: 7000,
             });
-            // setTableToDelete(null); // Moved to finally
-            // setIsDeletingTable(null); // Moved to finally
             return;
         }
         
@@ -182,7 +195,6 @@ export default function ConventionManager() {
         toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) a été supprimée avec succès.` });
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
-         // Avoid re-toast if already handled by the registration check
          if (!(err instanceof Error && err.message.includes("joueur(s) inscrit(s)"))) { 
             toast({ 
                 variant: "destructive", 
@@ -199,12 +211,11 @@ export default function ConventionManager() {
 
   const handleOpenTableDialogForAdd = () => {
     setEditingTable(null);
-    // Reset to default, if a game is selected next, totalSeats will update
     setTableFormData(defaultTableFormData); 
     setIsTableDialogOpen(true);
   };
 
-   const handleSubmit = async (e: React.FormEvent) => { // Renamed to avoid conflict
+   const handleSubmit = async (e: React.FormEvent) => { 
     e.preventDefault();
     setIsSubmittingTable(true);
 
@@ -464,7 +475,11 @@ export default function ConventionManager() {
                             </div>
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                        <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md">
+                        <Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md" title="Dupliquer la table">
+                            <Copy className="h-4 w-4" />
+                            <span className="sr-only">Dupliquer</span>
+                        </Button>
+                        <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md" title="Modifier la table">
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Modifier</span>
                         </Button>
@@ -477,7 +492,9 @@ export default function ConventionManager() {
                                 className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
                                 title={`Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
                                 onClick={(e) => {
-                                    setTableToDelete(table);
+                                    // toast({ title: "Clic !", description: `Tentative de suppression de la table : ${table.gameName}` });
+                                    setTableToDelete(table); // Important: Set tableToDelete for the confirm dialog
+                                    // setIsConfirmDeleteDialogOpen(true); // This is handled by AlertDialogTrigger
                                 }}
                                 >
                                 {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
