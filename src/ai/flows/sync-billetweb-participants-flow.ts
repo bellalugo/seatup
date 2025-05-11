@@ -24,16 +24,16 @@ export type SyncBilletwebParticipantsOutput = z.infer<typeof SyncBilletwebPartic
 
 // Export the async wrapper function
 export async function syncBilletwebParticipants(): Promise<SyncBilletwebParticipantsOutput> {
-  return syncBilletwebParticipantsFlow(undefined); // Pass undefined as input
+  return syncBilletwebParticipantsFlow(); // Call without arguments as inputSchema is z.void()
 }
 
 const syncBilletwebParticipantsFlow = ai.defineFlow(
   {
     name: 'syncBilletwebParticipantsFlow',
-    inputSchema: z.undefined(), // No specific input needed for this trigger
+    inputSchema: z.void(), // Changed from z.undefined() to z.void() for flows with no input.
     outputSchema: SyncBilletwebParticipantsOutputSchema, // Use the unexported schema here
   },
-  async () => {
+  async () => { // This function takes no arguments, matching z.void()
     try {
       console.log('Flow: Démarrage de la synchronisation des participants Billetweb...');
       const participants: Participant[] = await getParticipantsFromBilletweb();

@@ -1,102 +1,93 @@
+// lib/billetweb.ts
 import type { TicketType, Participant } from '@/lib/types';
 
-/**
- * Represents a ticket retrieved from Billetweb (or mock).
- */
-export interface TicketInfo {
-  /**
-   * The ticket id.
-   */
-  id: string;
-  /**
-   * The ticket type (e.g., Strategist, Marshal, General).
-   */
-  type: TicketType;
-}
+/* ------------------------------------------------------------------ */
+/*  CONFIGURATION                                                     */
+/* ------------------------------------------------------------------ */
 
 /**
- * Asynchronously retrieves ticket information for a user.
- * THIS IS CURRENTLY A MOCK.
+ * Les 3 variables sont **cachées côté serveur** (Cloud Functions ou
+ * routes /api de Next.js). Ne jamais les rendre publiques.
  *
- * @param userId The ID of the user.
- * @returns A promise that resolves to a TicketInfo object or null if not found/valid.
+ * • sur Firebase :   firebase functions:config:set billetweb.user="…" ...
+ * • sur Vercel    :  BILLETWEB_USER=… etc.
  */
-export async function getTicketInfo(userId: string): Promise<TicketInfo | null> {
-  // TODO: Implement this by calling the Billetweb API using the userId
-  //       or some other identifier linked to the Billetweb purchase.
+const BILLETWEB_USER   = process.env.BILLETWEB_USER;
+const BILLETWEB_KEY    = process.env.BILLETWEB_KEY;
+const BILLETWEB_EVENT  = process.env.BILLETWEB_EVENT_ID;
 
-  console.log(`Fetching ticket info for user: ${userId}`); // Placeholder log
-
-  // --- MOCK IMPLEMENTATION ---
-  // Simulate fetching based on userId from our mock users
-  const { mockUsers } = await import('@/lib/data'); // Import dynamically if needed or move mock data access
-  const user = mockUsers[userId];
-
-  if (user && user.ticketType !== 'Aucun') { // Corrected from 'None' to 'Aucun'
-     // Simulate finding a valid ticket
-    await new Promise(resolve => setTimeout(resolve, 100)); // Simulate network delay
-    return {
-      id: `bw-${userId}-${Math.random().toString(16).substring(2, 8)}`, // Generate a mock Billetweb ID
-      type: user.ticketType,
-    };
-  } else {
-    // Simulate user not found or has no valid ticket
-    await new Promise(resolve => setTimeout(resolve, 50));
-    return null;
+if (!BILLETWEB_USER || !BILLETWEB_KEY || !BILLETWEB_EVENT) {
+  console.warn('[Billetweb] Variables d’environnement manquantes → fallback mock');
+}
+/* ------------------------------------------------------------------ */
+/*  HELPERS                                                           */
+/* ------------------------------------------------------------------ */
+function mapTicketName(name: string): TicketType {
+  if (/strat[eè]ge/i.test(name))   return 'Stratège';
+  if (/mar[eé]chal/i.test(name))   return 'Maréchal';
+  if (/g[eé]n[eé]ral/i.test(name)) return 'Général';
+  return 'Aucun';                       // billet non reconnu
+}
+async function callBilletweb<T = any>(endpoint: string): Promise<T> {
+  const url = `https://www.billetweb.fr/api/${endpoint}` +
+              `?user=${BILLETWEB_USER}&key=${BILLETWEB_KEY}&version=1`;
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  if (!res.ok) {
+    throw new Error(`Billetweb ${res.status} ${res.statusText}`);
   }
-  // --- END MOCK IMPLEMENTATION ---
+  return res.json() as Promise<T>;
+}
+/* ------------------------------------------------------------------ */
+/*  1. RÉCUPÉRER TOUS LES PARTICIPANTS                                */
+/* ------------------------------------------------------------------ */
+export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
+  if (!BILLETWEB_USER) {
+    const { mockUsers } = await import('@/lib/data');
+    return mockUsers;
+  }  
+
+  type Attendee = {
+    order_id: string;
+    firstname: string;
+    lastname : string;
+    email    : string;
+    ticket   : { name: string };
+  };
+
+  const attendees = await callBilletweb<Attendee[]>(
+    `event/${BILLETWEB_EVENT}/attendees`
+  );
+
+  return attendees.map(a => ({
+    id        : a.order_id,
+    nom       : a.lastname,
+    prenom    : a.firstname,
+    email     : a.email,
+    typeBillet: mapTicketName(a.ticket.name),
+  }));
 }
 
+/* ------------------------------------------------------------------ */
+/*  2. OBTENIR LE TICKET D’UN UTILISATEUR PAR SON EMAIL (userId)      */
+/* ------------------------------------------------------------------ */
 
-/**
- * Asynchronously retrieves a list of participants from Billetweb.
- * THIS IS CURRENTLY A MOCK.
- *
- * @returns A promise that resolves to an array of Participant objects.
- */
-export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
-  console.log('Mock: Récupération des participants depuis Billetweb...');
-  await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
+export async function getTicketInfo(userId: string): Promise<TicketInfo | null> {
+  // userId = email (plus simple). Adapte si tu utilises un autre identifiant.
+  const email = userId.trim().toLowerCase();
 
-  // TODO: Replace with actual API call to Billetweb
-  // This mock data should match the Participant type
-  const mockParticipants: Participant[] = [
-    {
-      id: 'bw-participant-1', // Unique ID from Billetweb
-      nom: 'Dupont',
-      prenom: 'Jean',
-      email: 'jean.dupont@example.com',
-      typeBillet: 'Stratège',
-    },
-    {
-      id: 'bw-participant-2',
-      nom: 'Martin',
-      prenom: 'Sophie',
-      email: 'sophie.martin@example.com',
-      typeBillet: 'Maréchal',
-    },
-    {
-      id: 'bw-participant-3',
-      nom: 'Bernard',
-      prenom: 'Luc',
-      email: 'luc.bernard@example.com',
-      typeBillet: 'Général',
-    },
-     {
-      id: 'bw-participant-4',
-      nom: 'Petit',
-      prenom: 'Alice',
-      email: 'alice.petit@example.com',
-      typeBillet: 'Stratège',
-    },
-    {
-      id: 'user-456', // Example matching an existing mockUser for testing
-      nom: 'Bob (Maréchal)',
-      prenom: '',
-      email: 'bob.marechal@example.com',
-      typeBillet: 'Maréchal',
-    }
-  ];
-  console.log(`Mock: ${mockParticipants.length} participants récupérés.`);
-  return mockParticipants;
+  const participants = await getParticipantsFromBilletweb();
+  const match = participants.find(p => p.email.toLowerCase() === email);
+
+  return match
+    ? { id: match.id, type: match.typeBillet }
+    : null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  TYPES LOCAUX                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface TicketInfo {
+  id  : string;
+  type: TicketType;
 }
