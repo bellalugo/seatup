@@ -410,17 +410,23 @@ export default function ConventionManager() {
             </TableHeader>
             <TableBody>
                  {tables.sort((a, b) => {
-                    const numA = a.tableNumber || '';
-                    const numB = b.tableNumber || '';
-                    const isNumA = !isNaN(parseFloat(numA)) && isFinite(numA as any);
-                    const isNumB = !isNaN(parseFloat(numB)) && isFinite(numB as any);
+                    const tableNumA_raw = a.tableNumber || '';
+                    const tableNumB_raw = b.tableNumber || '';
 
-                    if (isNumA && isNumB) {
-                        if (parseFloat(numA) < parseFloat(numB)) return -1;
-                        if (parseFloat(numA) > parseFloat(numB)) return 1;
+                    const numA_parsed = parseFloat(tableNumA_raw);
+                    const numB_parsed = parseFloat(tableNumB_raw);
+
+                    const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw === numA_parsed.toString();
+                    const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw === numB_parsed.toString();
+
+                    if (isPurelyNumericA && isPurelyNumericB) {
+                        if (numA_parsed < numB_parsed) return -1;
+                        if (numA_parsed > numB_parsed) return 1;
                     } else {
-                        if (numA.toLowerCase() < numB.toLowerCase()) return -1;
-                        if (numA.toLowerCase() > numB.toLowerCase()) return 1;
+                        const strA = tableNumA_raw.toLowerCase();
+                        const strB = tableNumB_raw.toLowerCase();
+                        if (strA < strB) return -1;
+                        if (strA > strB) return 1;
                     }
                     
                     const nameA = a.gameName?.toLowerCase() || '';
@@ -492,9 +498,7 @@ export default function ConventionManager() {
                                 className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
                                 title={`Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
                                 onClick={(e) => {
-                                    // toast({ title: "Clic !", description: `Tentative de suppression de la table : ${table.gameName}` });
-                                    setTableToDelete(table); // Important: Set tableToDelete for the confirm dialog
-                                    // setIsConfirmDeleteDialogOpen(true); // This is handled by AlertDialogTrigger
+                                    setTableToDelete(table); 
                                 }}
                                 >
                                 {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}

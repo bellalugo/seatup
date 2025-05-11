@@ -1,4 +1,3 @@
-
 'use client';
 
 import type React from 'react';
@@ -112,7 +111,8 @@ export default function Home() {
   }, [toast]);
 
   const handleUserChange = (userId: string) => {
-    setCurrentUser(users[userId] || null);
+    const selectedUser = Object.values(users).find(user => user.id === userId);
+    setCurrentUser(selectedUser || null);
   };
 
   const openConfirmationDialog = (table: GameTable) => {
@@ -304,7 +304,29 @@ export default function Home() {
                 </TabsList>
 
                 {conventionDays.map(day => {
-                    const dayTables = tables.filter(table => table.day === day.name).sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+                    const dayTables = tables
+                        .filter(table => table.day === day.name)
+                        .sort((a, b) => {
+                            const tableNumA_raw = a.tableNumber || '';
+                            const tableNumB_raw = b.tableNumber || '';
+
+                            const numA_parsed = parseFloat(tableNumA_raw);
+                            const numB_parsed = parseFloat(tableNumB_raw);
+
+                            const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw === numA_parsed.toString();
+                            const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw === numB_parsed.toString();
+
+                            if (isPurelyNumericA && isPurelyNumericB) {
+                                if (numA_parsed < numB_parsed) return -1;
+                                if (numA_parsed > numB_parsed) return 1;
+                            } else {
+                                const strA = tableNumA_raw.toLowerCase();
+                                const strB = tableNumB_raw.toLowerCase();
+                                if (strA < strB) return -1;
+                                if (strA > strB) return 1;
+                            }
+                            return a.timeSlot.localeCompare(b.timeSlot);
+                        });
                     return (
                         <TabsContent key={day.value} value={day.value}>
                             <Card className="shadow-md rounded-lg">
