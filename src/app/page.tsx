@@ -264,7 +264,7 @@ export default function Home() {
                                             <TableCaption>Liste des jeux disponibles le {day.name} {day.date}.</TableCaption>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead className="w-20">Image</TableHead>
+                                                    <TableHead className="w-64">Image</TableHead>
                                                     <TableHead>Jeu</TableHead>
                                                     <TableHead>Créneau horaire</TableHead>
                                                     <TableHead className="text-center">Places disponibles</TableHead>
@@ -319,18 +319,18 @@ export default function Home() {
 
                                                     return (
                                                         <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
-                                                            <TableCell className="w-20">
+                                                            <TableCell className="w-64 px-4 py-1">
                                                                 {table.imageUrl ? (
                                                                     <Image
                                                                         src={table.imageUrl}
                                                                         alt={`Image du jeu ${table.gameName}`}
-                                                                        width={80}
+                                                                        width={256}
                                                                         height={80}
                                                                         className="rounded object-contain h-20 shadow-sm"
                                                                         data-ai-hint="game icon"
                                                                     />
                                                                 ) : (
-                                                                    <div className="h-20 w-20 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                                                                    <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="font-medium">
@@ -384,7 +384,7 @@ export default function Home() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                            <TableHead className="w-20">Image</TableHead>
+                            <TableHead className="w-64">Image</TableHead>
                             <TableHead>Jour</TableHead>
                             <TableHead>Créneau horaire</TableHead>
                             <TableHead>Jeu</TableHead>
@@ -396,18 +396,18 @@ export default function Home() {
                             const dayInfo = conventionDays.find(d => d.name === table.day);
                             return (
                                 <TableRow key={`schedule-${table.id}`}>
-                                <TableCell className="w-20">
+                                <TableCell className="w-64 px-4 py-1">
                                     {table.imageUrl ? (
                                         <Image
                                             src={table.imageUrl}
                                             alt={`Image du jeu ${table.gameName}`}
-                                            width={80}
+                                            width={256}
                                             height={80}
                                             className="rounded object-contain h-20 shadow-sm"
                                             data-ai-hint="game icon"
                                         />
                                     ) : (
-                                        <div className="h-20 w-20 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                                        <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                                     )}
                                 </TableCell>
                                 <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day} {dayInfo?.date}</TableCell>
