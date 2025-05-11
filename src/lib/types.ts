@@ -37,6 +37,7 @@ export interface GameTable {
   timeSlot: string; // e.g., "09:00 - 13:00"
   totalSeats: number;
   tableNumber: string; // Added field for table number
+  authorAnimator?: string; // Optional field for Author/Animator
   // gameName and gameImageUrl will be populated by joining with the "games" collection
   gameName?: string; // Populated at runtime
   gameImageUrl?: string; // Populated at runtime
@@ -53,6 +54,7 @@ export interface GameTableInput {
     timeSlot: string;
     totalSeats: number;
     tableNumber: string; // Added field for table number
+    authorAnimator?: string; // Optional field for Author/Animator
 }
 
 
@@ -63,4 +65,5 @@ export interface Registration {
 
 // Define registration phases based on ticket priority
 export const registrationPhases: TicketType[] = ['Stratège', 'Maréchal', 'Général'];
+
 

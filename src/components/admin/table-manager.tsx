@@ -51,7 +51,7 @@ import {
   getGames,
 } from '@/lib/data';
 import type { GameTable, GameTableInput, Registration, Game } from '@/lib/types';
-import { Pencil, Trash2, Loader2, AlertTriangle, Users, Gamepad2, TableIcon } from 'lucide-react';
+import { Pencil, Trash2, Loader2, AlertTriangle, Users, Gamepad2, TableIcon, UserSquare2 } from 'lucide-react';
 import GameManager from './game-manager';
 
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
@@ -62,7 +62,8 @@ const defaultTableFormData: GameTableInput = {
   day: 'Jeudi',
   timeSlot: '09:00 - 13:00',
   totalSeats: 4,
-  tableNumber: '', // Added tableNumber
+  tableNumber: '',
+  authorAnimator: '',
 };
 
 export default function ConventionManager() {
@@ -75,6 +76,8 @@ export default function ConventionManager() {
   const [isDeletingTable, setIsDeletingTable] = useState<string | null>(null);
   const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
+  const [tableToDelete, setTableToDelete] = useState<GameTable | null>(null);
+  const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
   
   const [tableFormData, setTableFormData] = useState<GameTableInput>(defaultTableFormData);
   const { toast } = useToast();
@@ -128,21 +131,25 @@ export default function ConventionManager() {
         day: table.day,
         timeSlot: table.timeSlot,
         totalSeats: table.totalSeats,
-        tableNumber: table.tableNumber || '', // Set tableNumber
+        tableNumber: table.tableNumber || '',
+        authorAnimator: table.authorAnimator || '',
     });
     setIsTableDialogOpen(true);
   };
 
-  const handleDeleteTableAttempt = async (tableId: string) => {
-    const tableToDelete = tables.find(t => t.id === tableId);
-    if (!tableToDelete) {
-        toast({ variant: "destructive", title: "Erreur", description: "Table non trouvée."});
-        return;
-    }
-    setIsDeletingTable(tableId); 
+  const openDeleteConfirmationDialog = (table: GameTable) => {
+    setTableToDelete(table);
+    setIsConfirmDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteTable = async () => {
+    if (!tableToDelete) return;
+    
+    setIsDeletingTable(tableToDelete.id);
+    setIsConfirmDeleteDialogOpen(false);
 
     try {
-        const currentTableRegistrations = await getRegistrationsForTable(tableId);
+        const currentTableRegistrations = await getRegistrationsForTable(tableToDelete.id);
         if (currentTableRegistrations.length > 0) {
             toast({ 
                 variant: "destructive", 
@@ -151,19 +158,20 @@ export default function ConventionManager() {
                 action: <AlertTriangle className="text-destructive-foreground h-5 w-5" />,
                 duration: 7000,
             });
+            setTableToDelete(null);
             setIsDeletingTable(null);
             return;
         }
         
-        await deleteGameTable(tableId);
+        await deleteGameTable(tableToDelete.id);
         
-        setTables(prevTables => prevTables.filter(t => t.id !== tableId));
-        setRegistrations(prevRegs => prevRegs.filter(reg => reg.tableId !== tableId));
+        setTables(prevTables => prevTables.filter(t => t.id !== tableToDelete.id));
+        setRegistrations(prevRegs => prevRegs.filter(reg => reg.tableId !== tableToDelete.id));
 
         toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) a été supprimée avec succès.` });
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
-         if (!errorMessage.includes("joueur(s) inscrit(s)")) {
+         if (!errorMessage.includes("joueur(s) inscrit(s)")) { // Avoid re-toast if already handled
             toast({ 
                 variant: "destructive", 
                 title: "Erreur lors de la suppression", 
@@ -172,6 +180,7 @@ export default function ConventionManager() {
          }
     } finally {
         setIsDeletingTable(null); 
+        setTableToDelete(null);
     }
   };
 
@@ -186,7 +195,7 @@ export default function ConventionManager() {
     setIsSubmittingTable(true);
 
     if (!tableFormData.gameId || !tableFormData.day || !tableFormData.timeSlot || tableFormData.totalSeats <= 0 || !tableFormData.tableNumber) {
-        toast({ variant: "destructive", title: "Entrée invalide (Table)", description: "Veuillez remplir tous les champs correctement, y compris le numéro de table, et sélectionner un jeu." });
+        toast({ variant: "destructive", title: "Entrée invalide (Table)", description: "Veuillez remplir tous les champs obligatoires, y compris le numéro de table, et sélectionner un jeu." });
         setIsSubmittingTable(false);
         return;
     }
@@ -271,6 +280,18 @@ export default function ConventionManager() {
                     </Select>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="authorAnimator" className="text-right">Auteur/Animateur</Label>
+                    <Input 
+                        id="authorAnimator" 
+                        name="authorAnimator" 
+                        value={tableFormData.authorAnimator || ''} 
+                        onChange={handleTableNonSelectInputChange} 
+                        className="col-span-3 rounded-md shadow-sm" 
+                        disabled={isSubmittingTable}
+                        placeholder="Nom de l'auteur/animateur (optionnel)"
+                    />
+                 </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="day" className="text-right">Jour</Label>
                      <Select name="day" value={tableFormData.day} onValueChange={handleTableSelectChange('day')} required disabled={isSubmittingTable}>
                         <SelectTrigger className="col-span-3 rounded-md shadow-sm">
@@ -314,6 +335,26 @@ export default function ConventionManager() {
           </DialogContent>
         </Dialog>
 
+        <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Êtes-vous sûr de vouloir supprimer la table "{tableToDelete?.gameName}" (N° {tableToDelete?.tableNumber}) ?
+                        <br/><strong>Cette action est irréversible et ne sera effectuée que si aucune inscription n'est associée à cette table.</strong>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => { setIsConfirmDeleteDialogOpen(false); setTableToDelete(null); }} disabled={isDeletingTable === tableToDelete?.id}>Annuler</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmDeleteTable} disabled={isDeletingTable === tableToDelete?.id} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                        {isDeletingTable === tableToDelete?.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Supprimer
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+
         {tables.length > 0 ? (
             <Table>
             <TableCaption>Une liste des tables de jeu configurées.</TableCaption>
@@ -322,6 +363,7 @@ export default function ConventionManager() {
                 <TableHead className="w-24">N° Table</TableHead>
                 <TableHead className="w-64">Image du jeu</TableHead>
                 <TableHead>Nom du jeu</TableHead>
+                <TableHead>Auteur/Animateur</TableHead>
                 <TableHead>Jour</TableHead>
                 <TableHead>Créneau horaire</TableHead>
                 <TableHead className="text-center">Places</TableHead>
@@ -361,7 +403,7 @@ export default function ConventionManager() {
                     return 0;
                 }).map((table) => {
                   const occupiedSeats = registrations.filter(r => r.tableId === table.id).length;
-                  const imageUrl = table.gameImageUrl || table.imageUrl; // Prioritize gameImageUrl
+                  const imageUrl = table.gameImageUrl || table.imageUrl;
                   return (
                     <TableRow key={table.id}>
                         <TableCell className="font-medium w-24">{table.tableNumber || 'N/A'}</TableCell>
@@ -371,8 +413,8 @@ export default function ConventionManager() {
                                     src={imageUrl}
                                     alt={`Image ${table.gameName || 'Jeu inconnu'}`}
                                     width={256} 
-                                    height={144} // Adjusted for a 16:9 or similar aspect ratio
-                                    className="rounded object-contain h-20 w-auto shadow-sm" // h-20 will maintain height, w-auto respects aspect
+                                    height={144} 
+                                    className="rounded object-contain h-20 w-auto shadow-sm" 
                                     data-ai-hint="game cover"
                                 />
                             ) : (
@@ -380,6 +422,7 @@ export default function ConventionManager() {
                             )}
                         </TableCell>
                         <TableCell className="font-medium">{table.gameName || 'Jeu inconnu'}</TableCell>
+                        <TableCell>{table.authorAnimator || <span className="text-muted-foreground italic">N/A</span>}</TableCell>
                         <TableCell>{table.day}</TableCell>
                         <TableCell>{table.timeSlot}</TableCell>
                         <TableCell className="text-center">
@@ -392,40 +435,17 @@ export default function ConventionManager() {
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Modifier</span>
                         </Button>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button 
-                                    variant="destructive" 
-                                    size="icon" 
-                                    disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id}
-                                    className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
-                                    title={`Supprimer la table ${table.gameName} (N° ${table.tableNumber})`}
-                                >
-                                    {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                    <span className="sr-only">Supprimer</span>
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                <AlertDialogTitle>Êtes-vous absolument sûr(e) ?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Cette action est irréversible. La table "{table.gameName}" (N° {table.tableNumber}, {table.day} - {table.timeSlot}) sera définitivement supprimée.
-                                    <br/><strong>La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.</strong>
-                                </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isDeletingTable === table.id} onClick={() => setIsDeletingTable(null)}>Annuler</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => handleDeleteTableAttempt(table.id)}
-                                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                                    disabled={isDeletingTable === table.id}
-                                >
-                                    {isDeletingTable === table.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    Confirmer la suppression
-                                </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                        <Button 
+                            variant="destructive" 
+                            size="icon" 
+                            onClick={() => openDeleteConfirmationDialog(table)}
+                            disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id}
+                            className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
+                            title={`Supprimer la table ${table.gameName} (N° ${table.tableNumber})`}
+                        >
+                            {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            <span className="sr-only">Supprimer</span>
+                        </Button>
                         </TableCell>
                     </TableRow>
                   );
@@ -462,4 +482,3 @@ export default function ConventionManager() {
     </Card>
   );
 }
-

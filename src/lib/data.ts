@@ -124,14 +124,15 @@ export const getGameTables = async (): Promise<GameTable[]> => {
         const gamesMap = new Map(gamesList.map(game => [game.id, game]));
 
         return rawTablesSnapshot.docs.map(doc => {
-            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'>; // gameId is in tableData
+            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'>; 
             const game = gamesMap.get(tableData.gameId);
             return {
                 id: doc.id,
                 ...tableData,
                 gameName: game?.nom || 'Jeu inconnu (ID: ' + tableData.gameId + ')',
-                gameImageUrl: game?.imageUrl, // For display consistency
-                imageUrl: game?.imageUrl, // Keep if used elsewhere, prefer gameImageUrl
+                gameImageUrl: game?.imageUrl, 
+                imageUrl: game?.imageUrl, 
+                authorAnimator: tableData.authorAnimator || '',
             } as GameTable;
         });
     } catch (error) {
@@ -163,7 +164,8 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
             day: tableInput.day,
             timeSlot: tableInput.timeSlot,
             totalSeats: tableInput.totalSeats,
-            tableNumber: tableInput.tableNumber, // Added tableNumber
+            tableNumber: tableInput.tableNumber,
+            authorAnimator: tableInput.authorAnimator || '',
         };
 
         const docRef = await addDoc(collection(db, TABLES_COLLECTION), dataToSave);
@@ -200,9 +202,10 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             day: dataToUpdate.day,
             timeSlot: dataToUpdate.timeSlot,
             totalSeats: dataToUpdate.totalSeats,
-            tableNumber: dataToUpdate.tableNumber, // Added tableNumber
+            tableNumber: dataToUpdate.tableNumber,
+            authorAnimator: dataToUpdate.authorAnimator || '',
         };
-        // Firestore does not allow undefined values. Ensure they are handled or removed.
+        
         const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
             if (value !== undefined) {
                 acc[key as keyof typeof firestorePayload] = value;
@@ -218,7 +221,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
 
         return {
             id: tableToUpdate.id,
-            ...firestorePayload, // use original payload structure for return type consistency
+            ...firestorePayload, 
             gameName: gameData?.nom || 'Jeu inconnu',
             gameImageUrl: gameData?.imageUrl,
             imageUrl: gameData?.imageUrl,
@@ -371,8 +374,7 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
 };
 
 export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhaseIndex: number): boolean => {
-    if (userTicketType === 'Aucun') return false; // Changed 'None' to 'Aucun' to match TicketType
-    const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType); // Use importedRegistrationPhases
+    if (userTicketType === 'Aucun') return false; 
+    const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType); 
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
-
