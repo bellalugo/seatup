@@ -19,10 +19,16 @@ if (useMock) {
 /*  HELPERS                                                           */
 /* ------------------------------------------------------------------ */
 function mapTicketName(name?: string): TicketType { // name peut être undefined
-  if (!name) return 'Aucun'; // Gérer le cas où name est undefined ou une chaîne vide
+  if (!name || name.trim() === '') { // Gérer aussi les chaînes vides ou composées uniquement d'espaces
+    console.log('[Billetweb Service] mapTicketName: Nom de billet non fourni ou vide, retour "Aucun".');
+    return 'Aucun';
+  }
+  console.log(`[Billetweb Service] mapTicketName: Cartographie du nom de billet "${name}"`);
   if (/strat[eè]ge/i.test(name))   return 'Stratège';
   if (/mar[eé]chal/i.test(name))   return 'Maréchal';
   if (/g[eé]n[eé]ral/i.test(name)) return 'Général';
+  
+  console.warn(`[Billetweb Service] mapTicketName: Nom de billet non reconnu "${name}", retour "Aucun".`);
   return 'Aucun';                       // billet non reconnu
 }
 
@@ -56,8 +62,6 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
           nom = realNameWords[realNameWords.length - 1];
         } else {
           prenom = realNameWords[0];
-          // Si le nom n'a qu'un mot, il est assigné à prenom, nom reste NomMockX.
-          // Cela pourrait être amélioré si nécessaire, mais le problème principal concerne l'API réelle.
         }
       }
 
@@ -81,6 +85,9 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
     lastname?: string;  
     email?: string;     
     ticket?: { name?: string }; 
+    // Ajoutez d'autres champs que vous pourriez attendre de Billetweb ici
+    // par exemple, si le nom du billet est sous un autre champ:
+    // ticket_name?: string; 
   };
 
   try {
@@ -88,33 +95,46 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
       `event/${BILLETWEB_EVENT}/attendees`
     );
 
+    console.log(`[Billetweb Service] ${attendees.length} participant(s) brut(s) récupéré(s) de Billetweb.`);
+
     return attendees.map((a, index) => {
       const uniqueParticipantId = a.id || `${a.order_id}_${index}`;
       if (!a.id) {
         console.warn(`[Billetweb Service] Participant avec order_id ${a.order_id} n'a pas d'ID unique. ID généré : ${uniqueParticipantId}`);
       }
 
-      const participantData = {
+      // Logging des données brutes pour ce participant
+      console.log(`[Billetweb Service] Traitement du participant brut (order_id: ${a.order_id}, id API: ${a.id || 'N/A'}) :`, JSON.stringify(a, null, 2));
+      console.log(`  -> Nom de billet brut depuis API: ${a.ticket?.name}`);
+      console.log(`  -> Nom de famille brut depuis API: ${a.lastname}`);
+      console.log(`  -> Prénom brut depuis API: ${a.firstname}`);
+
+      const mappedTicketType = mapTicketName(a.ticket?.name);
+      const mappedNom = a.lastname || '';
+      const mappedPrenom = a.firstname || '';
+      const mappedEmail = a.email || '';
+      
+      const participantData: Participant = {
         id        : uniqueParticipantId,
-        nom       : a.lastname || '', 
-        prenom    : a.firstname || '', 
-        email     : a.email || '',     
-        typeBillet: mapTicketName(a.ticket?.name), 
+        nom       : mappedNom,
+        prenom    : mappedPrenom,
+        email     : mappedEmail,     
+        typeBillet: mappedTicketType, 
       };
 
-      // Log détaillé pour le participant spécifique
-      if (participantData.email && participantData.email.toLowerCase() === "jean-jacques.sonzini@orange.fr") {
-        console.log(`[Billetweb Service] Données BRUTES pour jean-jacques.sonzini@orange.fr:`, JSON.stringify(a));
-        console.log(`[Billetweb Service] Données MAPPEES pour jean-jacques.sonzini@orange.fr:`, JSON.stringify(participantData));
-      }
+      console.log(`[Billetweb Service] Données participant mappées (id: ${uniqueParticipantId}):`, JSON.stringify(participantData, null, 2));
+      
+      // Commentaire de l'ancien log spécifique
+      // if (participantData.email && participantData.email.toLowerCase() === "jean-jacques.sonzini@orange.fr") {
+      //   console.log(`[Billetweb Service] Données BRUTES pour jean-jacques.sonzini@orange.fr:`, JSON.stringify(a));
+      //   console.log(`[Billetweb Service] Données MAPPEES pour jean-jacques.sonzini@orange.fr:`, JSON.stringify(participantData));
+      // }
       
       return participantData;
     });
   } catch (error) {
-    console.error("[Billetweb Service] Erreur lors de l'appel à l'API Billetweb réelle:", error);
-    // Renvoyer un tableau vide ou relancer l'erreur en fonction de la gestion d'erreur souhaitée
+    console.error("[Billetweb Service] Erreur lors de l'appel à l'API Billetweb réelle ou du mappage:", error);
     return []; 
-    // throw new Error("Échec de la récupération des participants depuis l'API Billetweb.");
   }
 }
 
