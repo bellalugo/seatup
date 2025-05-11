@@ -1,3 +1,4 @@
+
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
@@ -118,7 +119,6 @@ export default function TableManager() {
                 description: "Cette table a des joueurs inscrits et ne peut pas être supprimée.",
                 action: <AlertTriangle className="text-destructive-foreground" />,
             });
-            // setIsDeleting(null); // Moved to finally block
             return;
         }
 
@@ -154,7 +154,13 @@ export default function TableManager() {
         return;
     }
 
-    const tableDataPayload: GameTableInput = formData; 
+    const tableDataPayload: GameTableInput = {
+        gameName: formData.gameName,
+        day: formData.day,
+        timeSlot: formData.timeSlot,
+        totalSeats: formData.totalSeats,
+        imageUrl: formData.imageUrl || undefined, // Ensure it's undefined if empty
+    };
 
     try {
         if (editingTable) {
@@ -227,6 +233,10 @@ export default function TableManager() {
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="gameName" className="text-right">Nom du jeu</Label>
                     <Input id="gameName" name="gameName" value={formData.gameName} onChange={handleInputChange} className="col-span-3 rounded-md shadow-sm" required disabled={isSubmitting} />
+                 </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="imageUrl" className="text-right">URL de l'image (optionnel)</Label>
+                    <Input id="imageUrl" name="imageUrl" value={formData.imageUrl || ''} onChange={handleInputChange} className="col-span-3 rounded-md shadow-sm" disabled={isSubmitting} placeholder="https://exemple.com/image.png ou /game-icons/monjeu.webp"/>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="day" className="text-right">Jour</Label>
@@ -323,7 +333,7 @@ export default function TableManager() {
                         size="icon" 
                         onClick={() => handleDelete(table.id)} 
                         disabled={isSubmitting || (isDeleting !== null && isDeleting !== table.id)} 
-                        className="shadow-sm rounded-md"
+                        className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
                     >
                         {isDeleting === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         <span className="sr-only">Supprimer</span>
@@ -340,3 +350,4 @@ export default function TableManager() {
     </Card>
   );
 }
+
