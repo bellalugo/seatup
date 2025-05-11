@@ -14,8 +14,8 @@ body {
     --card-foreground: 240 10% 3.9%;
     --popover: 60 33% 91%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 122 46% 34%; /* Deep Green */
-    --primary-foreground: 60 33% 98%; /* Light color for contrast on green */
+    --primary: 47 100% 50%; /* ASYNCONV Yellow */
+    --primary-foreground: 0 0% 10%; /* Dark Gray / Off-Black for text */
     --secondary: 122 30% 70%; /* Lighter Green */
     --secondary-foreground: 240 10% 3.9%;
     --muted: 60 33% 85%; /* Muted Beige/Grey */
@@ -26,7 +26,7 @@ body {
     --destructive-foreground: 0 0% 98%;
     --border: 60 33% 80%; /* Border based on beige */
     --input: 60 33% 88%; /* Input based on beige */
-    --ring: 122 46% 34%; /* Ring based on primary green */
+    --ring: 47 100% 50%; /* Ring based on primary yellow */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -51,8 +51,8 @@ body {
     --card-foreground: 60 33% 98%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 60 33% 98%;
-    --primary: 122 46% 45%; /* Slightly lighter green for dark mode */
-    --primary-foreground: 60 33% 98%;
+    --primary: 47 100% 45%; /* Slightly darker yellow for dark mode primary */
+    --primary-foreground: 0 0% 10%; /* Dark Gray / Off-Black for text on yellow */
     --secondary: 122 30% 20%; /* Darker secondary green */
     --secondary-foreground: 60 33% 98%;
     --muted: 240 5% 15%;
@@ -63,7 +63,7 @@ body {
     --destructive-foreground: 0 0% 98%;
     --border: 240 5% 15%;
     --input: 240 5% 15%;
-    --ring: 122 46% 45%;
+    --ring: 47 100% 45%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;

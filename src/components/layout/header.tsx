@@ -33,23 +33,21 @@ export default function Header() {
   return (
     <header className="bg-primary text-primary-foreground shadow-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2 h-full py-1">
           <Image
-            src="https://www.asynconv.fr/wp-content/uploads/2023/10/Logo-ASYNCONV_Couleur_Web.png"
+            src="https://www.asynconv.fr/wp-content/uploads/2025/04/Signature_FR.jpg"
             alt="ASYNCONV Logo"
-            width={150} // Adjust width as needed
-            height={40} // Adjust height as needed
+            width={180} // Adjusted width for better aspect ratio with increased height
+            height={64} // Set to header height (h-16 is 4rem = 64px)
             priority // Load logo quickly
-            className="object-contain"
+            className="object-contain h-full w-auto" // Ensure image scales within its bounds
             data-ai-hint="brand logo"
           />
-          {/* <Swords className="h-6 w-6" /> */}
-          {/* <h1 className="text-xl font-bold tracking-tight">ASYNCONV SIT</h1> */}
         </Link>
         <nav className="flex items-center gap-4">
            {/* Show Admin link only if user is logged in */}
            {user && (
-             <Link href="/admin" className="flex items-center gap-1 text-sm hover:text-accent transition-colors" title="Espace Admin">
+             <Link href="/admin" className="flex items-center gap-1 text-sm text-primary-foreground hover:text-accent transition-colors" title="Espace Admin">
                <ShieldCheck className="h-4 w-4" />
                <span>Admin</span>
              </Link>
@@ -64,7 +62,7 @@ export default function Header() {
               size="sm"
               onClick={handleSignOut}
               disabled={signOutLoading}
-              className="hover:bg-primary/80 hover:text-primary-foreground"
+              className="text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground" // Ensure text remains primary-foreground
             >
               {signOutLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -78,7 +76,7 @@ export default function Header() {
               variant="ghost"
               size="sm"
               onClick={() => router.push('/login')}
-              className="hover:bg-primary/80 hover:text-primary-foreground"
+              className="text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground" // Ensure text remains primary-foreground
             >
               <LogIn className="mr-2 h-4 w-4" />
               Connexion
@@ -89,4 +87,3 @@ export default function Header() {
     </header>
   );
 }
-
