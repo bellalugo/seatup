@@ -1,4 +1,3 @@
-
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
@@ -34,7 +33,7 @@ import {
   addGameTable,
   updateGameTable,
   deleteGameTable,
-  getRegistrationsForTable, // Import de la nouvelle fonction
+  getRegistrationsForTable,
 } from '@/lib/data';
 import type { GameTable, GameTableInput } from '@/lib/types';
 import { Pencil, Trash2, PlusCircle, Loader2, AlertTriangle } from 'lucide-react';
@@ -106,7 +105,7 @@ export default function TableManager() {
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette table ? La suppression ne sera effectuée que si aucune inscription n'y est associée.")) {
         return;
     }
-    setIsDeleting(tableId); // Indicate which table is being processed for deletion
+    setIsDeleting(tableId);
     try {
         const registrationsOnTable = await getRegistrationsForTable(tableId);
         if (registrationsOnTable.length > 0) {
@@ -116,7 +115,8 @@ export default function TableManager() {
                 description: "Cette table a des joueurs inscrits et ne peut pas être supprimée.",
                 action: <AlertTriangle className="text-destructive-foreground" />,
             });
-            return; // Stop deletion process
+            setIsDeleting(null); // Reset deleting state if deletion is blocked
+            return;
         }
 
         await deleteGameTable(tableId);
@@ -125,7 +125,10 @@ export default function TableManager() {
     } catch (error) {
          toast({ variant: "destructive", title: "Erreur lors de la suppression", description: (error as Error).message });
     } finally {
-        setIsDeleting(null); // Reset deleting state
+        // This ensures isDeleting is reset even if an unexpected error occurs before the explicit resets
+        // or if deleteGameTable succeeds (though it's also reset after success toast in the try block)
+        // If the `if` block above returns, this finally will still run.
+        setIsDeleting(null); 
     }
   };
 
@@ -328,3 +331,4 @@ export default function TableManager() {
     </Card>
   );
 }
+
