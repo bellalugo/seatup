@@ -37,8 +37,8 @@ export default function Header() {
           <Image
             src="https://www.asynconv.fr/wp-content/uploads/2025/04/Signature_FR.jpg"
             alt="ASYNCONV Logo"
-            width={180} // Adjusted width for better aspect ratio with increased height
-            height={64} // Set to header height (h-16 is 4rem = 64px)
+            width={1000} // Original width of the image
+            height={328} // Original height of the image
             priority // Load logo quickly
             className="object-contain h-full w-auto" // Ensure image scales within its bounds
             data-ai-hint="brand logo"
@@ -87,3 +87,4 @@ export default function Header() {
     </header>
   );
 }
+
