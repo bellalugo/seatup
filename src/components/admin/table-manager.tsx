@@ -433,7 +433,7 @@ export default function ConventionManager() {
             </TableBody>
             </Table>
         ) : (
-             <p className="text-muted-foreground text-center py-4">Aucune table configurée pour le moment. Cliquez sur 'Ajouter une table' pour en créer une.</p>
+             <p className="text-muted-foreground text-center py-4">Aucune table configurée pour le moment. Cliquez sur <strong>Ajouter une table</strong> pour en créer une.</p>
         )}
       </>
     );
@@ -443,13 +443,13 @@ export default function ConventionManager() {
     <Card className="shadow-lg rounded-lg">
       <CardHeader>
           <CardTitle>Gestion des tables et des jeux</CardTitle>
-          <CardDescription>Ajouter, modifier ou supprimer des jeux et des tables de jeu pour la convention.</CardDescription>
+          <CardDescription>Ajouter, modifier ou supprimer des jeux ou des tables.</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="games">Gestion des Jeux</TabsTrigger>
-            <TabsTrigger value="tables">Gestion des Tables</TabsTrigger>
+            <TabsTrigger value="games">Gestion des jeux</TabsTrigger>
+            <TabsTrigger value="tables">Gestion des tables</TabsTrigger>
           </TabsList>
           <TabsContent value="games" className="mt-4">
             <GameManager />

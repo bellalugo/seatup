@@ -2,10 +2,11 @@
 'use client'; // Needed for hooks (useAuth, useRouter) and onClick
 
 import Link from 'next/link';
+import Image from 'next/image'; // Import Image component
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Swords, ShieldCheck, LogIn, LogOut, Loader2 } from 'lucide-react'; // Import icons
+import { ShieldCheck, LogIn, LogOut, Loader2 } from 'lucide-react'; // Import icons
 import { useToast } from '@/hooks/use-toast';
 import * as React from 'react'; // Import React for useState
 
@@ -33,8 +34,17 @@ export default function Header() {
     <header className="bg-primary text-primary-foreground shadow-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
         <Link href="/" className="flex items-center gap-2">
-          <Swords className="h-6 w-6" />
-          <h1 className="text-xl font-bold tracking-tight">ASYNCONV SIT</h1>
+          <Image
+            src="https://www.asynconv.fr/wp-content/uploads/2023/10/Logo-ASYNCONV_Couleur_Web.png"
+            alt="ASYNCONV Logo"
+            width={150} // Adjust width as needed
+            height={40} // Adjust height as needed
+            priority // Load logo quickly
+            className="object-contain"
+            data-ai-hint="brand logo"
+          />
+          {/* <Swords className="h-6 w-6" /> */}
+          {/* <h1 className="text-xl font-bold tracking-tight">ASYNCONV SIT</h1> */}
         </Link>
         <nav className="flex items-center gap-4">
            {/* Show Admin link only if user is logged in */}

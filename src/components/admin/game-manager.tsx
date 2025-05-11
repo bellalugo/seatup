@@ -322,9 +322,8 @@ export default function GameManager() {
             </TableBody>
             </Table>
         ) : (
-             <p className="text-muted-foreground text-center py-4">Aucun jeu configuré pour le moment. Cliquez sur 'Ajouter un jeu' pour en créer un.</p>
+             <p className="text-muted-foreground text-center py-4">Aucun jeu configuré pour le moment. Cliquez sur <strong>Ajouter un jeu</strong> pour en créer un.</p>
         )}
     </div>
   );
 }
-
