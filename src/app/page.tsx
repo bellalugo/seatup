@@ -20,8 +20,7 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from "@/components/ui/alert-dialog"; // AlertDialogTrigger removed as it's part of AlertDialog
 import {
     mockUsers,
     getGameTables,
@@ -34,7 +33,7 @@ import {
     registrationPhases
 } from '@/lib/data';
 import type { GameTable, User, Registration } from '@/lib/types';
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, Gamepad2 } from 'lucide-react';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash } from 'lucide-react';
 
 const conventionDays = [
     { name: 'Jeudi', date: '03/07', value: 'jeudi' },
@@ -319,7 +318,7 @@ export default function Home() {
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead className="w-24">N° Table</TableHead>
-                                                    <TableHead className="w-64">Image</TableHead>
+                                                    <TableHead className="w-64"></TableHead> {/* Removed "Image" text */}
                                                     <TableHead>Jeu</TableHead>
                                                     <TableHead>Créneau horaire</TableHead>
                                                     <TableHead className="text-center">Places disponibles</TableHead>
@@ -341,7 +340,7 @@ export default function Home() {
 
                                                     let buttonText = "S'inscrire";
                                                     let buttonVariant: "default" | "secondary" | "destructive" = "default";
-                                                    let onClickAction = () => openConfirmationDialog(table); // Updated onClickAction
+                                                    let onClickAction = () => openConfirmationDialog(table); 
                                                     let tooltipText = "";
 
                                                     if (isSubmittingRegistration) {
@@ -442,7 +441,7 @@ export default function Home() {
                         <TableHeader>
                             <TableRow>
                             <TableHead className="w-24">N° Table</TableHead>
-                            <TableHead className="w-64">Image</TableHead>
+                            <TableHead className="w-64"></TableHead> {/* Removed "Image" text */}
                             <TableHead>Jour</TableHead>
                             <TableHead>Créneau horaire</TableHead>
                             <TableHead>Jeu</TableHead>
