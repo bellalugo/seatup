@@ -33,6 +33,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger, // Added missing import
 } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -434,3 +435,4 @@ export default function ConventionManager() {
     </Card>
   );
 }
+
