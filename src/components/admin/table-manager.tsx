@@ -1,4 +1,3 @@
-
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
@@ -106,30 +105,48 @@ export default function TableManager() {
   };
 
   const handleDelete = async (tableId: string) => {
+    console.log(`handleDelete called for tableId: ${tableId}`);
+    // Confirmation dialog
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette table ? La suppression ne sera effectuée que si aucune inscription n'y est associée.")) {
+        console.log("Deletion cancelled by user.");
         return;
     }
-    setIsDeleting(tableId);
+
+    setIsDeleting(tableId); // Set loading state for this specific table's delete button
+
     try {
+        console.log(`Checking registrations for table ${tableId}...`);
+        // Check for existing registrations for this table
         const registrationsOnTable = await getRegistrationsForTable(tableId);
+        console.log(`Found ${registrationsOnTable.length} registrations on table ${tableId}.`);
+
+
         if (registrationsOnTable.length > 0) {
+            console.log(`Deletion prevented: table ${tableId} has ${registrationsOnTable.length} registrations.`);
             toast({
                 variant: "destructive",
                 title: "Suppression impossible",
                 description: "Cette table a des joueurs inscrits et ne peut pas être supprimée.",
                 action: <AlertTriangle className="text-destructive-foreground" />,
             });
-            setIsDeleting(null); // Clear loading state if deletion is aborted
-            return;
+            // No need to setIsDeleting(null) here, finally block will handle it
+            return; // Abort deletion
         }
 
-        await deleteGameTable(tableId);
-        await fetchTables(false); 
-        toast({ title: "Table supprimée", description: "La table de jeu a été supprimée." });
+        // If no registrations, proceed with deletion
+        console.log(`Proceeding to delete table ${tableId} as it has no registrations.`);
+        await deleteGameTable(tableId); // This function now handles deleting associated registrations too
+        console.log(`Table ${tableId} supposedly deleted from Firestore.`);
+        
+        await fetchTables(false); // Refresh table list, don't set global page loading
+        console.log("Table list refreshed after deletion.");
+        toast({ title: "Table supprimée", description: "La table de jeu et ses inscriptions associées ont été supprimées." });
     } catch (error) {
+         console.error(`Error during handleDelete for table ${tableId}:`, error);
          toast({ variant: "destructive", title: "Erreur lors de la suppression", description: (error as Error).message });
     } finally {
-        setIsDeleting(null); 
+        console.log(`Clearing isDeleting state for table ${tableId}.`);
+        setIsDeleting(null); // Clear loading state for this specific table's delete button in all cases
     }
   };
 
