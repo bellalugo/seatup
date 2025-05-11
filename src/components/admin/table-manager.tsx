@@ -2,7 +2,7 @@
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import Image from 'next/image';
 import {
   Table,
@@ -43,7 +43,7 @@ const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00"];
 
 export default function TableManager() {
   const [tables, setTables] = useState<GameTable[]>([]);
-  const [isLoadingPage, setIsLoadingPage] = useState(true); // Renamed for clarity
+  const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
@@ -55,8 +55,11 @@ export default function TableManager() {
   });
   const { toast } = useToast();
 
-  const fetchTables = async (setPageLoadingState = true) => {
-    if (setPageLoadingState) setIsLoadingPage(true);
+  const fetchTables = useCallback(async (setPageLoadingState = true) => {
+    console.log('TableManager: fetchTables called. setPageLoadingState:', setPageLoadingState, 'Current isLoadingPage before fetch:', isLoadingPage); // Debug log
+    if (setPageLoadingState) {
+        setIsLoadingPage(true);
+    }
     try {
       const fetchedTables = await getGameTables();
       setTables(fetchedTables);
@@ -64,14 +67,17 @@ export default function TableManager() {
       console.error("Erreur lors de la récupération des tables:", error);
       toast({ variant: "destructive", title: "Erreur de chargement", description: (error as Error).message });
     } finally {
-      if (setPageLoadingState) setIsLoadingPage(false);
+      if (setPageLoadingState) {
+        setIsLoadingPage(false);
+      }
+      console.log('TableManager: fetchTables finished. Current isLoadingPage after fetch:', isLoadingPage); // Debug log
     }
-  };
+  }, [toast, isLoadingPage]); // Added isLoadingPage to dependencies of useCallback as it's used in log
 
   useEffect(() => {
-    fetchTables(true); // Initial page load
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    fetchTables(true);
+  }, [fetchTables]);
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
@@ -103,7 +109,7 @@ export default function TableManager() {
     setIsSubmitting(true);
     try {
         await deleteGameTable(tableId);
-        await fetchTables(false); // Re-fetch tables without setting page loading
+        await fetchTables(false); 
         toast({ title: "Table supprimée", description: "La table de jeu et ses inscriptions ont été supprimées." });
     } catch (error) {
          toast({ variant: "destructive", title: "Erreur lors de la suppression", description: (error as Error).message });
@@ -145,10 +151,10 @@ export default function TableManager() {
             await addGameTable(tableDataPayload);
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès." });
         }
-        await fetchTables(false); // Re-fetch tables without setting page loading state
+        await fetchTables(false); 
         setIsDialogOpen(false);
-        setEditingTable(null); // Reset editing state
-        setFormData({ // Reset form data to initial values
+        setEditingTable(null); 
+        setFormData({ 
             gameName: '',
             day: 'Jeudi',
             timeSlot: '09:00 - 13:00',
@@ -161,7 +167,7 @@ export default function TableManager() {
     }
   };
 
-  if (isLoadingPage) { // Only show full page loader for initial load
+  if (isLoadingPage) { 
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -179,7 +185,7 @@ export default function TableManager() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
-          if (!open) { // Reset form if dialog is closed by 'x' or 'cancel'
+          if (!open) { 
             setEditingTable(null);
             setFormData({
                 gameName: '',
@@ -298,7 +304,7 @@ export default function TableManager() {
                         <span className="sr-only">Modifier</span>
                     </Button>
                     <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)} disabled={isSubmitting}>
-                        {isSubmitting && tables.find(t => t.id === table.id) /* Only show spinner for the one being deleted, though isSubmitting globally disables buttons */ ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        {isSubmitting && tables.find(t => t.id === table.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         <span className="sr-only">Supprimer</span>
                     </Button>
                     </TableCell>
@@ -313,4 +319,3 @@ export default function TableManager() {
     </Card>
   );
 }
-

@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import Image from 'next/image';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,8 @@ export default function Home() {
   const [currentRegistrationPhaseIndex, setCurrentRegistrationPhaseIndex] = useState(0);
   const { toast } = useToast();
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    console.log('Home: loadData called. Current isLoading before fetch:', isLoading); // Debug log
     setIsLoading(true);
     try {
       const [fetchedTables, fetchedRegistrations] = await Promise.all([
@@ -68,13 +69,13 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
+      console.log('Home: loadData finished. Current isLoading after fetch:', isLoading); // Debug log
     }
-  };
+  }, [toast, isLoading]); // Added isLoading to dependencies of useCallback
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadData]);
 
    useEffect(() => {
     const phaseTimer1 = setTimeout(() => {
@@ -139,7 +140,6 @@ export default function Home() {
     setIsSubmittingRegistration(true);
     try {
         await addRegistrationToDb(currentUser.id, tableId);
-        // Refresh local state after DB operation
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
 
@@ -164,7 +164,6 @@ export default function Home() {
      setIsSubmittingRegistration(true);
      try {
         await removeRegistrationFromDb(currentUser.id, tableId);
-        // Refresh local state after DB operation
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
 
@@ -276,7 +275,7 @@ export default function Home() {
                                                     const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
 
                                                     let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration;
-                                                    if (!isRegisteredByUser) { // If not registered, add more conditions
+                                                    if (!isRegisteredByUser) { 
                                                         isDisabled = isDisabled || availableSeats <= 0 || (conflict && !isRegisteredByUser);
                                                     }
 
