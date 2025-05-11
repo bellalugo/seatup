@@ -36,9 +36,11 @@ export interface GameTable {
   day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
   timeSlot: string; // e.g., "09:00 - 13:00"
   totalSeats: number;
+  tableNumber: string; // Added field for table number
   // gameName and gameImageUrl will be populated by joining with the "games" collection
   gameName?: string; // Populated at runtime
   gameImageUrl?: string; // Populated at runtime
+  imageUrl?: string; // This seems to be a duplicate or legacy field, gameImageUrl is preferred.
 }
 
 /**
@@ -50,6 +52,7 @@ export interface GameTableInput {
     day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
     timeSlot: string;
     totalSeats: number;
+    tableNumber: string; // Added field for table number
 }
 
 

@@ -124,13 +124,14 @@ export const getGameTables = async (): Promise<GameTable[]> => {
         const gamesMap = new Map(gamesList.map(game => [game.id, game]));
 
         return rawTablesSnapshot.docs.map(doc => {
-            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'>; // gameId is in tableData
+            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'>; // gameId is in tableData
             const game = gamesMap.get(tableData.gameId);
             return {
                 id: doc.id,
                 ...tableData,
                 gameName: game?.nom || 'Jeu inconnu (ID: ' + tableData.gameId + ')',
-                gameImageUrl: game?.imageUrl,
+                gameImageUrl: game?.imageUrl, // For display consistency
+                imageUrl: game?.imageUrl, // Keep if used elsewhere, prefer gameImageUrl
             } as GameTable;
         });
     } catch (error) {
@@ -157,11 +158,12 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
         throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter une table.");
     }
     try {
-        const dataToSave: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'> = {
+        const dataToSave: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'> = {
             gameId: tableInput.gameId,
             day: tableInput.day,
             timeSlot: tableInput.timeSlot,
             totalSeats: tableInput.totalSeats,
+            tableNumber: tableInput.tableNumber, // Added tableNumber
         };
 
         const docRef = await addDoc(collection(db, TABLES_COLLECTION), dataToSave);
@@ -174,6 +176,7 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
             ...dataToSave,
             gameName: gameData?.nom || 'Jeu inconnu',
             gameImageUrl: gameData?.imageUrl,
+            imageUrl: gameData?.imageUrl,
         };
 
     } catch (error) {
@@ -192,11 +195,12 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
         const tableRef = doc(db, TABLES_COLLECTION, tableToUpdate.id);
         const { id, ...dataToUpdate } = tableToUpdate;
 
-        const firestorePayload: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'> = {
+        const firestorePayload: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'> = {
             gameId: dataToUpdate.gameId,
             day: dataToUpdate.day,
             timeSlot: dataToUpdate.timeSlot,
             totalSeats: dataToUpdate.totalSeats,
+            tableNumber: dataToUpdate.tableNumber, // Added tableNumber
         };
         // Firestore does not allow undefined values. Ensure they are handled or removed.
         const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
@@ -217,6 +221,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             ...firestorePayload, // use original payload structure for return type consistency
             gameName: gameData?.nom || 'Jeu inconnu',
             gameImageUrl: gameData?.imageUrl,
+            imageUrl: gameData?.imageUrl,
         };
     } catch (error) {
         console.error("Firestore - Erreur lors de la mise à jour de la table de jeu:", error);
@@ -366,8 +371,8 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
 };
 
 export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhaseIndex: number): boolean => {
-    if (userTicketType === 'Aucun') return false;
-    const userPhaseIndex = registrationPhases.indexOf(userTicketType);
+    if (userTicketType === 'Aucun') return false; // Changed 'None' to 'Aucun' to match TicketType
+    const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType); // Use importedRegistrationPhases
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
 
