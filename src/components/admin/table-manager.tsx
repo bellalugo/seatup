@@ -33,7 +33,7 @@ import {
   addGameTable,
   updateGameTable,
   deleteGameTable,
-  getRegistrationsForTable,
+  // getRegistrationsForTable, // No longer directly used in this component for delete check
 } from '@/lib/data';
 import type { GameTable, GameTableInput } from '@/lib/types';
 import { Pencil, Trash2, PlusCircle, Loader2, AlertTriangle } from 'lucide-react';
@@ -119,32 +119,23 @@ export default function TableManager() {
     setIsDeleting(tableId); 
 
     try {
-        console.log(`Checking registrations for table ${tableId}...`);
-        const registrationsOnTable = await getRegistrationsForTable(tableId);
-        console.log(`Found ${registrationsOnTable.length} registrations on table ${tableId}.`);
-
-        if (registrationsOnTable.length > 0) {
-            console.log(`Deletion prevented: table ${tableId} has ${registrationsOnTable.length} registrations.`);
-            toast({
-                variant: "destructive",
-                title: "Suppression impossible",
-                description: "Cette table a des joueurs inscrits et ne peut pas être supprimée.",
-                action: <AlertTriangle className="text-destructive-foreground" />,
-            });
-            return; 
-        }
-
-        console.log(`Proceeding to delete table ${tableId} as it has no registrations.`);
-        await deleteGameTable(tableId); 
+        console.log(`Proceeding to delete table ${tableId}. This will fail if registrations exist (checked server-side).`);
+        await deleteGameTable(tableId); // deleteGameTable in lib/data.ts handles the registration check
         console.log(`Table ${tableId} successfully deleted from Firestore.`);
         
         await fetchTables(false); 
         console.log("Table list refreshed after deletion.");
-        toast({ title: "Table supprimée", description: "La table de jeu et ses inscriptions associées ont été supprimées." });
+        toast({ title: "Table supprimée", description: "La table de jeu a été supprimée avec succès." });
     } catch (err) {
          console.error(`Error during handleDelete for table ${tableId}:`, err);
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la suppression.";
-         toast({ variant: "destructive", title: "Erreur lors de la suppression", description: errorMessage });
+         // If the error is about existing registrations, it will be part of err.message from deleteGameTable
+         toast({ 
+            variant: "destructive", 
+            title: "Erreur lors de la suppression", 
+            description: errorMessage,
+            action: errorMessage.includes("joueurs inscrits") ? <AlertTriangle className="text-destructive-foreground" /> : undefined,
+        });
     } finally {
         console.log(`Clearing isDeleting state for table ${tableId}.`);
         setIsDeleting(null); 
@@ -370,4 +361,3 @@ export default function TableManager() {
     </Card>
   );
 }
-
