@@ -65,7 +65,7 @@ export default function Home() {
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrations);
-      setUsers(mockUsers); 
+      setUsers(mockUsers);
       setCurrentUser(prevUser => {
          if (prevUser && mockUsers[prevUser.id]) {
             return mockUsers[prevUser.id];
@@ -319,7 +319,7 @@ export default function Home() {
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead className="w-24 text-center">Table n°</TableHead>
-                                                    <TableHead className="w-64"></TableHead> {}
+                                                    <TableHead className="w-64" />
                                                     <TableHead>Jeu</TableHead>
                                                     <TableHead>Auteur/Animateur</TableHead>
                                                     <TableHead>Créneau horaire</TableHead>
@@ -342,7 +342,7 @@ export default function Home() {
 
                                                     let buttonText = "S'inscrire";
                                                     let buttonVariant: "default" | "secondary" | "destructive" = "default";
-                                                    let onClickAction = () => openConfirmationDialog(table); 
+                                                    let onClickAction = () => openConfirmationDialog(table);
                                                     let tooltipText = "";
 
                                                     if (isSubmittingRegistration) {
@@ -453,7 +453,7 @@ export default function Home() {
                         <TableHeader>
                             <TableRow>
                             <TableHead className="w-24 text-center">Table n°</TableHead>
-                            <TableHead className="w-64"></TableHead> {}
+                            <TableHead className="w-64" />
                             <TableHead>Jour</TableHead>
                             <TableHead>Créneau horaire</TableHead>
                             <TableHead>Jeu</TableHead>
