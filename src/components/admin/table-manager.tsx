@@ -1,3 +1,4 @@
+
 'use client';
 
 import type React from 'react';
@@ -50,7 +51,7 @@ import {
   getGames,
 } from '@/lib/data';
 import type { GameTable, GameTableInput, Registration, Game } from '@/lib/types';
-import { Pencil, Trash2, Loader2, AlertTriangle, Users, Gamepad2, TableIcon, UserSquare2 } from 'lucide-react';
+import { Pencil, Trash2, Loader2, AlertTriangle, Users, Gamepad2, TableIcon, UserSquare2, UserCircle2 } from 'lucide-react';
 import GameManager from './game-manager';
 
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
@@ -134,12 +135,12 @@ export default function ConventionManager() {
 
   const handleEditTable = (table: GameTable) => {
     setEditingTable(table);
-    const selectedGame = allGames.find(g => g.id === table.gameId);
+    // const selectedGame = allGames.find(g => g.id === table.gameId); // Not needed for edit, keep existing table values
     setTableFormData({
         gameId: table.gameId,
         day: table.day,
         timeSlot: table.timeSlot,
-        totalSeats: table.totalSeats, // Keep existing table's totalSeats on edit
+        totalSeats: table.totalSeats, 
         tableNumber: table.tableNumber || '',
         authorAnimator: table.authorAnimator || '',
     });
@@ -429,7 +430,7 @@ export default function ConventionManager() {
                     return 0;
                 }).map((table) => {
                   const occupiedSeats = registrations.filter(r => r.tableId === table.id).length;
-                  const imageUrl = table.gameImageUrl || table.imageUrl; // Prioritize gameImageUrl
+                  const imageUrl = table.gameImageUrl || table.imageUrl; 
                   return (
                     <TableRow key={table.id}>
                         <TableCell className="font-bold text-center w-24">{table.tableNumber || 'N/A'}</TableCell>
@@ -452,16 +453,21 @@ export default function ConventionManager() {
                         <TableCell>{table.day}</TableCell>
                         <TableCell>{table.timeSlot}</TableCell>
                         <TableCell className="text-center">
-                           <Badge variant={occupiedSeats === table.totalSeats ? "destructive" : "default"} className="bg-accent text-accent-foreground px-2 py-1 shadow-sm">
-                             <Users className="inline h-4 w-4 mr-1" /> {occupiedSeats} / {table.totalSeats}
-                           </Badge>
+                           <div className="flex justify-center items-center space-x-1" title={`${table.totalSeats - occupiedSeats} / ${table.totalSeats} places disponibles`}>
+                                {Array.from({ length: table.totalSeats }).map((_, i) => (
+                                    <UserCircle2
+                                        key={i}
+                                        className={`h-5 w-5 ${i < occupiedSeats ? 'text-red-600' : 'text-emerald-600'}`}
+                                        aria-label={i < occupiedSeats ? 'Place occupée' : 'Place disponible'}
+                                    />
+                                ))}
+                            </div>
                         </TableCell>
                         <TableCell className="text-right space-x-2">
                         <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md">
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Modifier</span>
                         </Button>
-                        {/* AlertDialog directly wrapping the trigger button */}
                         <AlertDialog>
                              <AlertDialogTrigger asChild>
                                 <Button
@@ -471,17 +477,13 @@ export default function ConventionManager() {
                                 className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
                                 title={`Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
                                 onClick={(e) => {
-                                    // Stop propagation if you want to ensure only AlertDialog handles the open
-                                    // e.stopPropagation(); 
-                                    setTableToDelete(table); // Set table to delete before dialog opens
-                                    // setIsConfirmDeleteDialogOpen(true); // No longer needed if AlertDialog handles open state
+                                    setTableToDelete(table);
                                 }}
                                 >
                                 {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                 <span className="sr-only">Supprimer</span>
                                 </Button>
                             </AlertDialogTrigger>
-                            {/* Content is controlled by AlertDialog's open state, linked to trigger */}
                             <AlertDialogContent>
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
@@ -535,4 +537,3 @@ export default function ConventionManager() {
     </Card>
   );
 }
-

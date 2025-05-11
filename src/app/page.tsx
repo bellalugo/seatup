@@ -175,7 +175,7 @@ export default function Home() {
       return;
     }
 
-    const availableSeats = getAvailableSeats(tableId, registrations, tables);
+    const availableSeats = getAvailableSeats(table.id, registrations, tables);
     if (availableSeats <= 0) {
       toast({ variant: "destructive", title: "Table complète", description: "Aucune place disponible à cette table." });
       return;
@@ -330,6 +330,7 @@ export default function Home() {
                                             <TableBody>
                                                 {dayTables.map((table) => {
                                                     const availableSeats = getAvailableSeats(table.id, registrations, tables);
+                                                    const occupiedSeats = table.totalSeats - availableSeats;
                                                     const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
                                                     const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex);
                                                     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
@@ -405,9 +406,15 @@ export default function Home() {
                                                             </TableCell>
                                                             <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
                                                             <TableCell className="text-center">
-                                                                <Badge variant={availableSeats > 0 ? "default" : "destructive"} className="bg-accent text-accent-foreground px-2 py-1 shadow-sm">
-                                                                    <Users className="inline h-4 w-4 mr-1" /> {availableSeats} / {table.totalSeats}
-                                                                </Badge>
+                                                                <div className="flex justify-center items-center space-x-1" title={`${availableSeats} / ${table.totalSeats} places disponibles`}>
+                                                                    {Array.from({ length: table.totalSeats }).map((_, i) => (
+                                                                        <UserCircle2
+                                                                            key={i}
+                                                                            className={`h-5 w-5 ${i < occupiedSeats ? 'text-red-600' : 'text-emerald-600'}`}
+                                                                            aria-label={i < occupiedSeats ? 'Place occupée' : 'Place disponible'}
+                                                                        />
+                                                                    ))}
+                                                                </div>
                                                             </TableCell>
                                                             <TableCell className="text-center">
                                                                 <Button
@@ -540,4 +547,3 @@ export default function Home() {
     </div>
   );
 }
-
