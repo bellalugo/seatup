@@ -1,3 +1,4 @@
+
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
@@ -116,7 +117,7 @@ export default function TableManager() {
     setIsDialogOpen(true);
   };
 
-  const handleDeleteClick = async (tableId: string) => {
+  const confirmDelete = async (tableId: string) => {
      const tableToDelete = tables.find(t => t.id === tableId);
     if (!tableToDelete) {
         toast({ variant: "destructive", title: "Erreur", description: "Table non trouvée."});
@@ -333,7 +334,7 @@ export default function TableManager() {
                     return timeSlotOrder.indexOf(a.timeSlot) - timeSlotOrder.indexOf(b.timeSlot);
                 }).map((table) => (
                 <TableRow key={table.id}>
-                    <TableCell className="w-32">
+                    <TableCell className="w-32 px-4 py-2"> {/* Reduced vertical padding */}
                         {table.imageUrl ? (
                             <Image
                                 src={table.imageUrl}
@@ -344,7 +345,7 @@ export default function TableManager() {
                                 data-ai-hint="game icon"
                             />
                         ) : (
-                            <div className="h-20 w-32 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                            <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                         )}
                     </TableCell>
                     <TableCell className="font-medium">{table.gameName}</TableCell>
@@ -380,7 +381,7 @@ export default function TableManager() {
                             <AlertDialogFooter>
                             <AlertDialogCancel>Annuler</AlertDialogCancel>
                             <AlertDialogAction
-                                onClick={() => handleDeleteClick(table.id)}
+                                onClick={() => confirmDelete(table.id)}
                                 className="bg-destructive hover:bg-destructive/90"
                             >
                                 {isDeleting === table.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
