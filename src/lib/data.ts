@@ -14,7 +14,7 @@ import {
     writeBatch,
     orderBy,
     getDoc,
-    setDoc, // Added for saving participants with specific ID
+    setDoc, 
 } from 'firebase/firestore';
 
 export const mockUsers: Record<string, User> = {
@@ -74,9 +74,8 @@ export const updateGame = async (game: Game): Promise<Game> => {
     }
     try {
         const gameRef = doc(db, GAMES_COLLECTION, game.id);
-        // Make sure we don't try to write the id back into the document data
         const { id, ...gameData } = game;
-        await updateDoc(gameRef, gameData as any); // Use 'as any' to bypass strict type checking if needed for Firestore
+        await updateDoc(gameRef, gameData as any); 
         return game;
     } catch (error) {
         console.error("Firestore - Erreur lors de la mise à jour du jeu:", error);
@@ -91,7 +90,6 @@ export const deleteGame = async (gameId: string): Promise<void> => {
         throw new Error("La connexion à Firestore n'est pas initialisée pour supprimer un jeu.");
     }
     try {
-        // Before deleting a game, check if any game tables are using it.
         const tablesQuery = query(collection(db, TABLES_COLLECTION), where("gameId", "==", gameId));
         const tablesSnapshot = await getDocs(tablesQuery);
         if (!tablesSnapshot.empty) {
@@ -103,16 +101,15 @@ export const deleteGame = async (gameId: string): Promise<void> => {
     } catch (error) {
         console.error("Firestore - Erreur lors de la suppression du jeu:", error);
         if (error instanceof Error) {
-          throw error; // Re-throw specific error
+          throw error; 
         }
         throw new Error("Impossible de supprimer le jeu de Firestore.");
     }
 };
 
 
-// --- GameTables CRUD Functions (Modified) ---
+// --- GameTables CRUD Functions ---
 
-/** Fetches all game tables from Firestore and populates gameName and gameImageUrl */
 export const getGameTables = async (): Promise<GameTable[]> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized. Check Firebase setup and .env.local.");
@@ -121,7 +118,7 @@ export const getGameTables = async (): Promise<GameTable[]> => {
     try {
         const [rawTablesSnapshot, gamesList] = await Promise.all([
             getDocs(query(collection(db, TABLES_COLLECTION))),
-            getGames() // Fetch all games to perform the join
+            getGames() 
         ]);
 
         const gamesMap = new Map(gamesList.map(game => [game.id, game]));
@@ -155,7 +152,6 @@ export const getGameTables = async (): Promise<GameTable[]> => {
     }
 };
 
-/** Adds a new table to Firestore */
 export const addGameTable = async (tableInput: GameTableInput): Promise<GameTable> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for addGameTable.");
@@ -190,7 +186,6 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
     }
 };
 
-/** Updates an existing table in Firestore */
 export const updateGameTable = async (tableToUpdate: GameTableInput & { id: string }): Promise<GameTable> => {
      if (!db) {
         console.error("Firestore DB instance is not initialized for updateGameTable.");
@@ -210,7 +205,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
         };
         
         const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
-            if (value !== undefined) { // Ensure imageUrl is not explicitly set to undefined
+            if (value !== undefined) { 
                 acc[key as keyof typeof firestorePayload] = value;
             }
             return acc;
@@ -230,7 +225,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             imageUrl: gameData?.imageUrl,
         };
     } catch (error) {
-        console.error("Firestore - Erreur lors de la mise à jour de la table de jeu:", error);
+        console.error("Firestore - Erreur détaillée lors de la mise à jour de la table de jeu:", error);
         let baseMessage = "Impossible de mettre à jour la table de jeu dans Firestore.";
         if (error instanceof Error && 'code' in error) {
             const firebaseError = error as { code: string; message: string };
@@ -240,7 +235,6 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
     }
 };
 
-/** Deletes a table from Firestore and its associated registrations */
 export const deleteGameTable = async (tableId: string): Promise<void> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for deleteGameTable.");
@@ -269,7 +263,6 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
 
 // --- Registrations Functions ---
 
-/** Fetches all registrations from Firestore */
 export const getRegistrations = async (): Promise<Registration[]> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for getRegistrations.");
@@ -285,7 +278,6 @@ export const getRegistrations = async (): Promise<Registration[]> => {
     }
 };
 
-/** Fetches registrations for a specific table from Firestore */
 export const getRegistrationsForTable = async (tableId: string): Promise<Registration[]> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for getRegistrationsForTable.");
@@ -301,7 +293,6 @@ export const getRegistrationsForTable = async (tableId: string): Promise<Registr
     }
 };
 
-/** Adds a new registration to Firestore */
 export const addRegistration = async (userId: string, tableId: string): Promise<Registration> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for addRegistration.");
@@ -323,7 +314,6 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
     }
 };
 
-/** Removes a registration from Firestore */
 export const removeRegistration = async (userId: string, tableId: string): Promise<void> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for removeRegistration.");
@@ -345,7 +335,6 @@ export const removeRegistration = async (userId: string, tableId: string): Promi
 
 
 // --- Participant Functions ---
-/** Saves a list of participants to Firestore, overwriting if ID exists */
 export const saveParticipants = async (participants: Participant[]): Promise<void> => {
   if (!db) {
     console.error("Firestore DB instance is not initialized for saveParticipants.");
@@ -356,17 +345,27 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
     const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
 
     for (const participant of participants) {
-      // Use participant.id (from Billetweb) as the document ID in Firestore
+      if (!participant.id || typeof participant.id !== 'string' || participant.id.trim() === '') {
+        console.warn("Participant avec ID invalide ignoré:", participant);
+        continue; // Skip participant with invalid ID
+      }
       const participantRef = doc(participantsCollectionRef, participant.id);
-      // Using setDoc with merge: true will create the document if it doesn't exist,
-      // or update it if it does. If you want to strictly overwrite, remove { merge: true }.
       batch.set(participantRef, participant, { merge: true });
     }
     await batch.commit();
-    console.log(`${participants.length} participant(s) sauvegardé(s) dans Firestore.`);
+    console.log(`${participants.length} participant(s) traité(s) pour sauvegarde dans Firestore.`);
   } catch (error) {
-    console.error("Firestore - Erreur lors de la sauvegarde des participants:", error);
-    throw new Error("Impossible de sauvegarder les participants dans Firestore.");
+    console.error("Firestore - Erreur détaillée lors de la sauvegarde des participants:", error); 
+    let detailedMessage = "Impossible de sauvegarder les participants dans Firestore.";
+    if (error instanceof Error) {
+        detailedMessage += ` Message original: ${error.message}`;
+        // @ts-ignore 
+        if (error.code) {
+            // @ts-ignore
+            detailedMessage += ` Code Firebase: ${error.code}`;
+        }
+    }
+    throw new Error(detailedMessage); 
   }
 };
 
@@ -398,7 +397,7 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
         const newSlot = parseTimeSlot(newTable.timeSlot);
 
         if (!registeredSlot || !newSlot) {
-            return registeredTable.timeSlot === newTable.timeSlot; // Fallback to exact match if parsing fails
+            return registeredTable.timeSlot === newTable.timeSlot; 
         }
         return !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
     });
@@ -409,3 +408,4 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType); 
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
+
