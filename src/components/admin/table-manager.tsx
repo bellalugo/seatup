@@ -117,14 +117,13 @@ export default function TableManager() {
     setIsDialogOpen(true);
   };
 
-  const confirmDelete = async (tableId: string) => {
-     const tableToDelete = tables.find(t => t.id === tableId);
+  const handleDeleteAttempt = async (tableId: string) => {
+    const tableToDelete = tables.find(t => t.id === tableId);
     if (!tableToDelete) {
         toast({ variant: "destructive", title: "Erreur", description: "Table non trouvée."});
         return;
     }
-    
-    setIsDeleting(tableId);
+    setIsDeleting(tableId); // Indicate deletion process has started for this table
 
     try {
         const registrations = await getRegistrationsForTable(tableId);
@@ -134,18 +133,19 @@ export default function TableManager() {
                 title: "Suppression impossible", 
                 description: `La table "${tableToDelete.gameName}" a ${registrations.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`,
                 action: <AlertTriangle className="text-destructive-foreground h-5 w-5" />,
-                duration: 5000,
+                duration: 7000, // Longer duration for important messages
             });
-            setIsDeleting(null);
-            return;
+            setIsDeleting(null); // Reset deleting state
+            return; // Abort deletion
         }
-        // If no registrations, proceed with deletion
+        // If no registrations, proceed with actual deletion
         await deleteGameTable(tableId);
         
+        // Update local state
         setTables(prevTables => prevTables.filter(t => t.id !== tableId));
         toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" a été supprimée avec succès.` });
     } catch (err) {
-         const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la suppression.";
+         const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la tentative de suppression.";
          // Avoid showing the generic error if it's the "has registrations" error we already handled
          if (!errorMessage.includes("joueur(s) inscrit(s)")) {
             toast({ 
@@ -155,7 +155,7 @@ export default function TableManager() {
             });
          }
     } finally {
-        setIsDeleting(null); 
+        setIsDeleting(null); // Reset deleting state regardless of outcome
     }
   };
 
@@ -317,7 +317,7 @@ export default function TableManager() {
             <TableCaption>Une liste des tables de jeu configurées.</TableCaption>
             <TableHeader>
                 <TableRow>
-                <TableHead className="w-32">Image</TableHead>
+                <TableHead className="w-64">Image</TableHead>
                 <TableHead>Nom du jeu</TableHead>
                 <TableHead>Jour</TableHead>
                 <TableHead>Créneau horaire</TableHead>
@@ -326,22 +326,36 @@ export default function TableManager() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {tables.sort((a, b) => { 
-                    if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
+                 {tables.sort((a, b) => {
+                    // Sort by gameName first
+                    const nameA = a.gameName.toLowerCase();
+                    const nameB = b.gameName.toLowerCase();
+                    if (nameA < nameB) return -1;
+                    if (nameA > nameB) return 1;
+
+                    // Then by day
                     const dayAIndex = conventionDayOrder.indexOf(a.day);
                     const dayBIndex = conventionDayOrder.indexOf(b.day);
-                    if (dayAIndex !== dayBIndex) return dayAIndex - dayBIndex;
-                    return timeSlotOrder.indexOf(a.timeSlot) - timeSlotOrder.indexOf(b.timeSlot);
+                    if (dayAIndex < dayBIndex) return -1;
+                    if (dayAIndex > dayBIndex) return 1;
+
+                    // Then by timeSlot
+                    const timeSlotAIndex = timeSlotOrder.indexOf(a.timeSlot);
+                    const timeSlotBIndex = timeSlotOrder.indexOf(b.timeSlot);
+                    if (timeSlotAIndex < timeSlotBIndex) return -1;
+                    if (timeSlotAIndex > timeSlotBIndex) return 1;
+
+                    return 0;
                 }).map((table) => (
                 <TableRow key={table.id}>
-                    <TableCell className="w-32 px-4 py-2"> {/* Reduced vertical padding */}
+                    <TableCell className="w-64 px-4 py-1"> {/* Reduced vertical padding, increased width */}
                         {table.imageUrl ? (
                             <Image
                                 src={table.imageUrl}
                                 alt={`Icône ${table.gameName}`}
-                                width={128} 
+                                width={256} // Increased width for the image component
                                 height={80} 
-                                className="rounded object-contain h-20 shadow-sm"
+                                className="rounded object-contain h-20 shadow-sm" // h-20 (5rem = 80px)
                                 data-ai-hint="game icon"
                             />
                         ) : (
@@ -375,14 +389,15 @@ export default function TableManager() {
                             <AlertDialogTitle>Êtes-vous absolument sûr(e) ?</AlertDialogTitle>
                             <AlertDialogDescription>
                                 Cette action est irréversible. La table "{table.gameName}" ({table.day} - {table.timeSlot}) sera définitivement supprimée.
-                                La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.
+                                <br/><strong>La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.</strong>
                             </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogCancel disabled={isDeleting === table.id}>Annuler</AlertDialogCancel>
                             <AlertDialogAction
-                                onClick={() => confirmDelete(table.id)}
+                                onClick={() => handleDeleteAttempt(table.id)}
                                 className="bg-destructive hover:bg-destructive/90"
+                                disabled={isDeleting === table.id}
                             >
                                 {isDeleting === table.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Confirmer la suppression
