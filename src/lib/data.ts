@@ -369,6 +369,23 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
   }
 };
 
+/** Fetches all participants from Firestore */
+export const getParticipants = async (): Promise<Participant[]> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for getParticipants.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les participants.");
+    }
+    try {
+        const participantsCollection = collection(db, PARTICIPANTS_COLLECTION);
+        const q = query(participantsCollection, orderBy("nom"), orderBy("prenom")); // Sort by last name, then first name
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
+    } catch (error) {
+        console.error("Firestore - Erreur lors de la récupération des participants:", error);
+        throw new Error("Impossible de récupérer les participants depuis Firestore.");
+    }
+};
+
 
 // --- Utility Functions ---
 
@@ -408,4 +425,3 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType); 
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
-
