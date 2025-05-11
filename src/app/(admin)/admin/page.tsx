@@ -27,8 +27,8 @@ export default function AdminPage() {
           <div className="flex flex-row items-center gap-4">
             <Ticket className="h-8 w-8 text-primary" />
             <div>
-              <CardTitle>Intégration Billetweb</CardTitle>
-              <CardDescription>Consulter la plateforme Billetweb.</CardDescription>
+              <CardTitle>Billetweb</CardTitle>
+              <CardDescription>Récupération des participants à L'ASYNCONV</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -37,7 +37,7 @@ export default function AdminPage() {
             <a target="_blank" rel="noopener noreferrer">
               <Button variant="outline" className="w-full sm:w-auto">
                 <ExternalLink className="mr-2 h-4 w-4" />
-                Visiter Billetweb
+                Exécuter
               </Button>
             </a>
           </Link>
@@ -46,4 +46,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
 
