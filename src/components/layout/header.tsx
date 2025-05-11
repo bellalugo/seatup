@@ -47,7 +47,7 @@ export default function Header() {
         <nav className="flex items-center gap-4">
            {/* Show Admin link only if user is logged in */}
            {user && (
-             <Link href="/admin" className="flex items-center gap-1 text-sm text-primary-foreground hover:text-accent transition-colors" title="Espace Admin">
+             <Link href="/admin" className="flex items-center gap-1 text-sm text-primary-foreground hover:text-red-700 transition-colors" title="Espace Admin">
                <ShieldCheck className="h-4 w-4" />
                <span>Admin</span>
              </Link>
@@ -62,7 +62,7 @@ export default function Header() {
               size="sm"
               onClick={handleSignOut}
               disabled={signOutLoading}
-              className="text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground" // Ensure text remains primary-foreground
+              className="text-primary-foreground hover:bg-primary/80 hover:text-red-700"
             >
               {signOutLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -76,7 +76,7 @@ export default function Header() {
               variant="ghost"
               size="sm"
               onClick={() => router.push('/login')}
-              className="text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground" // Ensure text remains primary-foreground
+              className="text-primary-foreground hover:bg-primary/80 hover:text-red-700"
             >
               <LogIn className="mr-2 h-4 w-4" />
               Connexion
