@@ -13,7 +13,8 @@ import {
     where,
     writeBatch,
     orderBy,
-    Timestamp, // Not strictly needed for GameTable but good for other potential date fields
+    // Timestamp, // Not strictly needed for GameTable but good for other potential date fields
+    // deleteField, // Import if you need to explicitly delete fields
 } from 'firebase/firestore';
 
 // --- Game Icons/Images ---
@@ -64,12 +65,11 @@ const REGISTRATIONS_COLLECTION = 'registrations';
 export const getGameTables = async (): Promise<GameTable[]> => {
     try {
         const tablesCollection = collection(db, TABLES_COLLECTION);
-        // Optional: Order by gameName, then day, then timeSlot for consistency
         const q = query(tablesCollection, orderBy("gameName"), orderBy("day"), orderBy("timeSlot"));
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameTable));
     } catch (error) {
-        console.error("Erreur lors de la récupération des tables de jeu:", error);
+        console.error("Firestore - Erreur lors de la récupération des tables de jeu:", error);
         throw new Error("Impossible de récupérer les tables de jeu depuis Firestore.");
     }
 };
@@ -77,15 +77,32 @@ export const getGameTables = async (): Promise<GameTable[]> => {
 /** Adds a new table to Firestore */
 export const addGameTable = async (tableInput: GameTableInput): Promise<GameTable> => {
     try {
-        const newTableData = {
-            ...tableInput,
-            imageUrl: gameImageMap[tableInput.gameName] || tableInput.imageUrl, // Ensure imageUrl is set
+        const dataToSave: Omit<GameTable, 'id'> = {
+            gameName: tableInput.gameName,
+            day: tableInput.day,
+            timeSlot: tableInput.timeSlot,
+            totalSeats: tableInput.totalSeats,
         };
-        const docRef = await addDoc(collection(db, TABLES_COLLECTION), newTableData);
-        return { id: docRef.id, ...newTableData };
+
+        const mappedImageUrl = gameImageMap[tableInput.gameName];
+        if (mappedImageUrl) {
+            dataToSave.imageUrl = mappedImageUrl;
+        } else if (tableInput.imageUrl) { // Fallback if imageUrl is somehow passed in GameTableInput
+            dataToSave.imageUrl = tableInput.imageUrl;
+        }
+        // If imageUrl remains undefined, Firestore omits the field, which is standard for optional fields.
+
+        const docRef = await addDoc(collection(db, TABLES_COLLECTION), dataToSave);
+        
+        const resultTable: GameTable = {
+            id: docRef.id,
+            ...dataToSave, // Spread the data that was actually saved
+        };
+        return resultTable;
+
     } catch (error) {
-        console.error("Erreur lors de l'ajout de la table de jeu:", error);
-        throw new Error("Impossible d'ajouter la table de jeu à Firestore.");
+        console.error("Firestore - Erreur DÉTAILLÉE lors de l'AJOUT de la table de jeu:", error);
+        throw new Error("Impossible d'ajouter la table de jeu à Firestore. Veuillez vérifier la console du navigateur pour les détails techniques de l'erreur Firebase.");
     }
 };
 
@@ -93,17 +110,36 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
 export const updateGameTable = async (tableToUpdate: GameTable): Promise<GameTable> => {
     try {
         const tableRef = doc(db, TABLES_COLLECTION, tableToUpdate.id);
-        const updatedData = {
-            ...tableToUpdate,
-            imageUrl: gameImageMap[tableToUpdate.gameName] || tableToUpdate.imageUrl, // Ensure imageUrl is updated
+        
+        const dataToUpdate: Omit<GameTable, 'id'> = {
+            gameName: tableToUpdate.gameName,
+            day: tableToUpdate.day,
+            timeSlot: tableToUpdate.timeSlot,
+            totalSeats: tableToUpdate.totalSeats,
         };
-        // Firestore's updateDoc doesn't need the id in the data payload
-        const { id, ...dataToSave } = updatedData;
-        await updateDoc(tableRef, dataToSave);
-        return updatedData;
+
+        const mappedImageUrl = gameImageMap[tableToUpdate.gameName];
+        if (mappedImageUrl !== undefined) {
+            dataToUpdate.imageUrl = mappedImageUrl;
+        } else if (tableToUpdate.imageUrl !== undefined) { 
+            // If no image in map, retain existing imageUrl if it was defined
+            dataToUpdate.imageUrl = tableToUpdate.imageUrl;
+        }
+        // If mappedImageUrl is undefined AND tableToUpdate.imageUrl was undefined,
+        // dataToUpdate.imageUrl will be undefined, and the field will be omitted.
+        // To explicitly remove an existing imageUrl from Firestore if it's no longer in the map 
+        // and not otherwise provided, you would use:
+        // else if (dataToUpdate.imageUrl !== undefined) { dataToUpdate.imageUrl = deleteField(); }
+        // For now, this logic means an image URL is set if found in map, or kept if previously existing and not overridden by map.
+
+        await updateDoc(tableRef, dataToUpdate);
+        
+        const returnedTable: GameTable = { id: tableToUpdate.id, ...dataToUpdate };
+        return returnedTable;
+
     } catch (error) {
-        console.error("Erreur lors de la mise à jour de la table de jeu:", error);
-        throw new Error("Impossible de mettre à jour la table de jeu dans Firestore.");
+        console.error("Firestore - Erreur DÉTAILLÉE lors de la MISE À JOUR de la table de jeu:", error);
+        throw new Error("Impossible de mettre à jour la table de jeu dans Firestore. Veuillez vérifier la console du navigateur pour les détails techniques de l'erreur Firebase.");
     }
 };
 
@@ -111,11 +147,9 @@ export const updateGameTable = async (tableToUpdate: GameTable): Promise<GameTab
 export const deleteGameTable = async (tableId: string): Promise<void> => {
     const batch = writeBatch(db);
     try {
-        // Delete the table itself
         const tableRef = doc(db, TABLES_COLLECTION, tableId);
         batch.delete(tableRef);
 
-        // Find and delete associated registrations
         const registrationsQuery = query(collection(db, REGISTRATIONS_COLLECTION), where("tableId", "==", tableId));
         const registrationsSnapshot = await getDocs(registrationsQuery);
         registrationsSnapshot.forEach(doc => {
@@ -124,7 +158,7 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
 
         await batch.commit();
     } catch (error) {
-        console.error("Erreur lors de la suppression de la table de jeu et de ses inscriptions:", error);
+        console.error("Firestore - Erreur lors de la suppression de la table de jeu et de ses inscriptions:", error);
         throw new Error("Impossible de supprimer la table de jeu et ses inscriptions de Firestore.");
     }
 };
@@ -137,7 +171,7 @@ export const getRegistrations = async (): Promise<Registration[]> => {
         const querySnapshot = await getDocs(registrationsCollection);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Registration & { id: string }));
     } catch (error) {
-        console.error("Erreur lors de la récupération des inscriptions:", error);
+        console.error("Firestore - Erreur lors de la récupération des inscriptions:", error);
         throw new Error("Impossible de récupérer les inscriptions depuis Firestore.");
     }
 };
@@ -145,12 +179,10 @@ export const getRegistrations = async (): Promise<Registration[]> => {
 /** Adds a new registration to Firestore */
 export const addRegistration = async (userId: string, tableId: string): Promise<Registration> => {
     try {
-        // Check if registration already exists to prevent duplicates (optional, can be handled by UI/rules)
         const q = query(collection(db, REGISTRATIONS_COLLECTION), where("userId", "==", userId), where("tableId", "==", tableId));
         const existingRegs = await getDocs(q);
         if (!existingRegs.empty) {
             console.warn("L'inscription existe déjà pour:", userId, tableId);
-            // Return the existing registration or throw an error, depending on desired behavior
             return { id: existingRegs.docs[0].id, ...existingRegs.docs[0].data() } as Registration & { id: string };
         }
 
@@ -158,7 +190,7 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
         const docRef = await addDoc(collection(db, REGISTRATIONS_COLLECTION), newRegistrationData);
         return { id: docRef.id, ...newRegistrationData };
     } catch (error) {
-        console.error("Erreur lors de l'ajout de l'inscription:", error);
+        console.error("Firestore - Erreur lors de l'ajout de l'inscription:", error);
         throw new Error("Impossible d'ajouter l'inscription à Firestore.");
     }
 };
@@ -172,11 +204,10 @@ export const removeRegistration = async (userId: string, tableId: string): Promi
             console.warn("Aucune inscription trouvée à supprimer pour l'utilisateur:", userId, "table:", tableId);
             return;
         }
-        // Assuming only one registration per user/table combination
         const registrationDoc = querySnapshot.docs[0];
         await deleteDoc(doc(db, REGISTRATIONS_COLLECTION, registrationDoc.id));
     } catch (error) {
-        console.error("Erreur lors de la suppression de l'inscription:", error);
+        console.error("Firestore - Erreur lors de la suppression de l'inscription:", error);
         throw new Error("Impossible de supprimer l'inscription de Firestore.");
     }
 };
@@ -231,3 +262,4 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = registrationPhases.indexOf(userTicketType);
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
+
