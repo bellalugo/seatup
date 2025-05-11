@@ -57,8 +57,13 @@ export default function Home() {
          if (prevUser && mockUsers[prevUser.id]) {
             return mockUsers[prevUser.id];
          }
-         const firstUserId = Object.keys(mockUsers)[0];
-         return firstUserId ? mockUsers[firstUserId] : null;
+         // Check if mockUsers is not empty before accessing its keys
+         const userKeys = Object.keys(mockUsers);
+         if (userKeys.length > 0) {
+            const firstUserId = userKeys[0];
+            return mockUsers[firstUserId];
+         }
+         return null;
       });
     } catch (error) {
       console.error("Échec du chargement des données:", error);
@@ -81,18 +86,18 @@ export default function Home() {
     const phaseTimer1 = setTimeout(() => {
       setCurrentRegistrationPhaseIndex(1);
       toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Maréchaux et Stratèges." });
-    }, 15000); 
+    }, 15000);
 
     const phaseTimer2 = setTimeout(() => {
-      setCurrentRegistrationPhaseIndex(2); 
+      setCurrentRegistrationPhaseIndex(2);
        toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Généraux, Maréchaux et Stratèges." });
-    }, 30000); 
+    }, 30000);
 
     return () => {
         clearTimeout(phaseTimer1);
         clearTimeout(phaseTimer2);
     }
-  }, [toast]); 
+  }, [toast]);
 
   const handleUserChange = (userId: string) => {
     setCurrentUser(users[userId] || null);
@@ -159,7 +164,7 @@ export default function Home() {
      if (!currentUser) return;
 
      const table = tables.find(t => t.id === tableId);
-     if (!table) return; 
+     if (!table) return;
 
      setIsSubmittingRegistration(true);
      try {
@@ -188,7 +193,7 @@ export default function Home() {
                     if (a.day !== b.day) {
                         return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
                     }
-                    return a.timeSlot.localeCompare(b.timeSlot); 
+                    return a.timeSlot.localeCompare(b.timeSlot);
                  });
   };
 
@@ -208,7 +213,7 @@ export default function Home() {
              </Button>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-4">
-          <Select onValueChange={handleUserChange} value={currentUser?.id} disabled={isLoading || isSubmittingRegistration}>
+          <Select onValueChange={handleUserChange} value={currentUser?.id || ""} disabled={isLoading || isSubmittingRegistration}>
             <SelectTrigger className="w-[280px] rounded-md shadow-sm">
               <SelectValue placeholder="Sélectionner un utilisateur" />
             </SelectTrigger>
@@ -232,7 +237,7 @@ export default function Home() {
       </Card>
 
        {isLoading ? (
-           <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]"> 
+           <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]">
              <Loader2 className="h-12 w-12 animate-spin text-primary" />
              <p className="ml-4 text-muted-foreground">Chargement des tables de jeu...</p>
            </div>
@@ -260,6 +265,7 @@ export default function Home() {
                                             <TableCaption>Liste des jeux disponibles le {day.name} {day.date}.</TableCaption>
                                             <TableHeader>
                                                 <TableRow>
+                                                    <TableHead className="w-20">Image</TableHead>
                                                     <TableHead>Jeu</TableHead>
                                                     <TableHead>Créneau horaire</TableHead>
                                                     <TableHead className="text-center">Places disponibles</TableHead>
@@ -275,7 +281,7 @@ export default function Home() {
                                                     const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
 
                                                     let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration;
-                                                    if (!isRegisteredByUser) { 
+                                                    if (!isRegisteredByUser) {
                                                         isDisabled = isDisabled || availableSeats <= 0 || (conflict && !isRegisteredByUser);
                                                     }
 
@@ -290,17 +296,17 @@ export default function Home() {
                                                     } else if (isRegisteredByUser) {
                                                         buttonText = "Inscrit(e)";
                                                         buttonVariant = "secondary";
-                                                        onClickAction = () => handleUnregister(table.id); 
+                                                        onClickAction = () => handleUnregister(table.id);
                                                         tooltipText = "Cliquez pour vous désinscrire";
                                                     } else if (!currentUser) {
                                                         tooltipText = "Sélectionnez un utilisateur pour vous inscrire";
-                                                        buttonText = "Sélectionner utilisateur"; 
+                                                        buttonText = "Sélectionner utilisateur";
                                                         buttonVariant = "secondary";
                                                     } else if (!canRegisterNow) {
                                                         tooltipText = `Inscription pas encore ouverte pour ${currentUser.ticketType}`;
                                                         buttonText = "Indisponible";
                                                         buttonVariant = "secondary";
-                                                    } else if (conflict) { 
+                                                    } else if (conflict) {
                                                         tooltipText = "Conflit avec votre planning";
                                                         buttonText = "Conflit";
                                                         buttonVariant = "destructive";
@@ -314,18 +320,21 @@ export default function Home() {
 
                                                     return (
                                                         <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
-                                                            <TableCell className="font-medium flex items-center gap-2">
-                                                                {table.imageUrl && (
+                                                            <TableCell className="w-20">
+                                                                {table.imageUrl ? (
                                                                     <Image
                                                                         src={table.imageUrl}
-                                                                        alt={`Icône ${table.gameName}`}
-                                                                        width={24}
-                                                                        height={24}
-                                                                        className="rounded object-contain h-6 w-6 shadow-sm"
+                                                                        alt={`Image du jeu ${table.gameName}`}
+                                                                        width={40}
+                                                                        height={40}
+                                                                        className="rounded object-contain h-10 shadow-sm"
                                                                         data-ai-hint="game icon"
                                                                     />
+                                                                ) : (
+                                                                    <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                                                                 )}
-                                                                {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>}
+                                                            </TableCell>
+                                                            <TableCell className="font-medium">
                                                                 {table.gameName}
                                                             </TableCell>
                                                             <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
@@ -376,6 +385,7 @@ export default function Home() {
                     <Table>
                         <TableHeader>
                             <TableRow>
+                            <TableHead className="w-20">Image</TableHead>
                             <TableHead>Jour</TableHead>
                             <TableHead>Créneau horaire</TableHead>
                             <TableHead>Jeu</TableHead>
@@ -387,21 +397,24 @@ export default function Home() {
                             const dayInfo = conventionDays.find(d => d.name === table.day);
                             return (
                                 <TableRow key={`schedule-${table.id}`}>
+                                <TableCell className="w-20">
+                                    {table.imageUrl ? (
+                                        <Image
+                                            src={table.imageUrl}
+                                            alt={`Image du jeu ${table.gameName}`}
+                                            width={40}
+                                            height={40}
+                                            className="rounded object-contain h-10 shadow-sm"
+                                            data-ai-hint="game icon"
+                                        />
+                                    ) : (
+                                        <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                                    )}
+                                </TableCell>
                                 <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day} {dayInfo?.date}</TableCell>
                                 <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
-                                <TableCell className="font-medium flex items-center gap-2">
-                                        {table.imageUrl && (
-                                                <Image
-                                                    src={table.imageUrl}
-                                                    alt={`Icône ${table.gameName}`}
-                                                    width={24}
-                                                    height={24}
-                                                    className="rounded object-contain h-6 w-6 shadow-sm"
-                                                    data-ai-hint="game icon"
-                                                />
-                                            )}
-                                        {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>}
-                                        {table.gameName}
+                                <TableCell className="font-medium">
+                                    {table.gameName}
                                 </TableCell>
                                 <TableCell className="text-right">
                                         <Button
