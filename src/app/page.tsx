@@ -22,7 +22,7 @@ import {
     registrationPhases
 } from '@/lib/data';
 import type { GameTable, User, Registration } from '@/lib/types';
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2 } from 'lucide-react';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash } from 'lucide-react';
 
 const conventionDays = [
     { name: 'Jeudi', date: '03/07', value: 'jeudi' },
@@ -264,6 +264,7 @@ export default function Home() {
                                             <TableCaption>Liste des jeux disponibles le {day.name} {day.date}.</TableCaption>
                                             <TableHeader>
                                                 <TableRow>
+                                                    <TableHead className="w-24">N° Table</TableHead>
                                                     <TableHead className="w-64">Image</TableHead>
                                                     <TableHead>Jeu</TableHead>
                                                     <TableHead>Créneau horaire</TableHead>
@@ -316,18 +317,19 @@ export default function Home() {
                                                     } else {
                                                         tooltipText = "Cliquez pour vous inscrire à cette table";
                                                     }
-
+                                                    const imageUrl = table.gameImageUrl || table.imageUrl;
                                                     return (
                                                         <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
+                                                            <TableCell className="font-medium w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
                                                             <TableCell className="w-64 px-4 py-1">
-                                                                {table.imageUrl ? (
+                                                                {imageUrl ? (
                                                                     <Image
-                                                                        src={table.imageUrl}
+                                                                        src={imageUrl}
                                                                         alt={`Image du jeu ${table.gameName}`}
                                                                         width={256}
-                                                                        height={80}
-                                                                        className="rounded object-contain h-20 shadow-sm"
-                                                                        data-ai-hint="game icon"
+                                                                        height={144}
+                                                                        className="rounded object-contain h-20 w-auto shadow-sm"
+                                                                        data-ai-hint="game cover"
                                                                     />
                                                                 ) : (
                                                                     <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
@@ -384,6 +386,7 @@ export default function Home() {
                     <Table>
                         <TableHeader>
                             <TableRow>
+                            <TableHead className="w-24">N° Table</TableHead>
                             <TableHead className="w-64">Image</TableHead>
                             <TableHead>Jour</TableHead>
                             <TableHead>Créneau horaire</TableHead>
@@ -394,17 +397,19 @@ export default function Home() {
                         <TableBody>
                         {userSchedule.map(table => {
                             const dayInfo = conventionDays.find(d => d.name === table.day);
+                            const imageUrl = table.gameImageUrl || table.imageUrl;
                             return (
                                 <TableRow key={`schedule-${table.id}`}>
+                                <TableCell className="font-medium w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
                                 <TableCell className="w-64 px-4 py-1">
-                                    {table.imageUrl ? (
+                                    {imageUrl ? (
                                         <Image
-                                            src={table.imageUrl}
+                                            src={imageUrl}
                                             alt={`Image du jeu ${table.gameName}`}
                                             width={256}
-                                            height={80}
-                                            className="rounded object-contain h-20 shadow-sm"
-                                            data-ai-hint="game icon"
+                                            height={144}
+                                            className="rounded object-contain h-20 w-auto shadow-sm"
+                                            data-ai-hint="game cover"
                                         />
                                     ) : (
                                         <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
