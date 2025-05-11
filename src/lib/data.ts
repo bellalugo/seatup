@@ -1,6 +1,7 @@
-import type { GameTable, User, Registration, TicketType, GameTableInput } from '@/lib/types';
+
+import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput } from '@/lib/types';
 import { registrationPhases as importedRegistrationPhases } from '@/lib/types';
-import { db } from '@/firebase/clientApp'; // Ensure db is imported from your Firebase setup
+import { db } from '@/firebase/clientApp';
 import {
     collection,
     getDocs,
@@ -13,35 +14,8 @@ import {
     writeBatch,
     orderBy,
     deleteField,
+    getDoc,
 } from 'firebase/firestore';
-
-// --- Game Icons/Images ---
-const gameImageMap: Record<string, string> = {
-    "Fields of Fire 3": "/game-icons/fields_of_fire_3.webp",
-    "Conquest & Consequence": "/game-icons/conquest_and_consequence.webp",
-    "Next War: Taiwan": "/game-icons/next_war_taiwan.webp",
-    "Empire of the Sun": "/game-icons/empire_of_the_sun.webp",
-    "Salerno '43": "/game-icons/salerno_43.webp",
-    "Littoral Commander: Indo-Pacific": "/game-icons/littoral_commander.webp",
-    "Downfall: Conquest of the Third Reich, 1944-1945": "/game-icons/downfall.webp",
-    "A Gest of Robin Hood": "/game-icons/a_gest_of_robin_hood.webp",
-    "Here I Stand: Wars of the Reformation 1517-1555 (500th Anniversary Edition)": "/game-icons/here_i_stand.webp",
-    "Red Strike: The Soviet Plan for Nuclear War in 1979": "/game-icons/red_strike.webp",
-    "Commands & Colors: Napoleonics": "/game-icons/cc_napoleonics.webp",
-    "Plantagenet: Cousin's War for England, 1459 - 1485": "/game-icons/plantagenet.webp",
-    "Vietnam: Rumor of War": "/game-icons/vietnam_rumor_of_war.webp",
-    "Banish the Snakes": "/game-icons/banish_the_snakes.webp",
-    "Pendragon: The Fall of Roman Britain": "/game-icons/pendragon.webp",
-    "Atlantic Chase": "/game-icons/atlantic_chase.webp",
-    "Imperial Struggle": "/game-icons/imperial_struggle.webp",
-    "Vijayanagara: The Deccan Empires of Medieval India, 1290-1398": "/game-icons/vijayanagara.webp",
-    "Wolfe Tone & The United Irishmen Rebellion of 1798": "/game-icons/wolfe_tone.webp",
-    "Flying Colors (Fleet Actions in the Age of Sail)": "/game-icons/flying_colors.webp",
-    "Bayonets & Tomahawks": "/game-icons/bayonets_and_tomahawks.webp",
-    "Almoravid: Reconquista and Riposte in Spain, 1085-1086": "/game-icons/almoravid.webp",
-    "Twilight Struggle: Red Sea – Conflict in the Horn of Africa": "/game-icons/ts_red_sea.webp",
-    "Fire in the Lake: Insurgency in Vietnam": "/game-icons/fire_in_the_lake.webp"
-};
 
 export const mockUsers: Record<string, User> = {
   'user-123': { id: 'user-123', name: 'Alice (Stratège)', ticketType: 'Stratège' },
@@ -52,34 +26,127 @@ export const mockUsers: Record<string, User> = {
 
 export const registrationPhases = importedRegistrationPhases;
 
+const GAMES_COLLECTION = 'games'; // New collection for games
 const TABLES_COLLECTION = 'gameTables';
 const REGISTRATIONS_COLLECTION = 'registrations';
 
-/** Fetches all game tables from Firestore */
+// --- Games CRUD Functions ---
+
+/** Fetches all games from Firestore */
+export const getGames = async (): Promise<Game[]> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for getGames.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les jeux.");
+    }
+    try {
+        const gamesCollection = collection(db, GAMES_COLLECTION);
+        const q = query(gamesCollection, orderBy("nom"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Game));
+    } catch (error) {
+        console.error("Firestore - Erreur lors de la récupération des jeux:", error);
+        throw new Error("Impossible de récupérer les jeux depuis Firestore.");
+    }
+};
+
+/** Adds a new game to Firestore */
+export const addGame = async (gameInput: GameInput): Promise<Game> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for addGame.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter un jeu.");
+    }
+    try {
+        const docRef = await addDoc(collection(db, GAMES_COLLECTION), gameInput);
+        return { id: docRef.id, ...gameInput };
+    } catch (error) {
+        console.error("Firestore - Erreur lors de l'ajout du jeu:", error);
+        throw new Error("Impossible d'ajouter le jeu à Firestore.");
+    }
+};
+
+/** Updates an existing game in Firestore */
+export const updateGame = async (game: Game): Promise<Game> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for updateGame.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour mettre à jour un jeu.");
+    }
+    try {
+        const gameRef = doc(db, GAMES_COLLECTION, game.id);
+        // Make sure we don't try to write the id back into the document data
+        const { id, ...gameData } = game;
+        await updateDoc(gameRef, gameData);
+        return game;
+    } catch (error) {
+        console.error("Firestore - Erreur lors de la mise à jour du jeu:", error);
+        throw new Error("Impossible de mettre à jour le jeu dans Firestore.");
+    }
+};
+
+/** Deletes a game from Firestore */
+// Note: This function should also check if any GameTable uses this gameId and prevent deletion or handle cascading deletes if necessary.
+// For now, it will just delete the game. A more robust solution would involve checking for dependencies.
+export const deleteGame = async (gameId: string): Promise<void> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for deleteGame.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour supprimer un jeu.");
+    }
+    try {
+        // Before deleting a game, check if any game tables are using it.
+        const tablesQuery = query(collection(db, TABLES_COLLECTION), where("gameId", "==", gameId));
+        const tablesSnapshot = await getDocs(tablesQuery);
+        if (!tablesSnapshot.empty) {
+            throw new Error(`Impossible de supprimer le jeu. Il est utilisé par ${tablesSnapshot.size} table(s) de jeu.`);
+        }
+
+        const gameRef = doc(db, GAMES_COLLECTION, gameId);
+        await deleteDoc(gameRef);
+    } catch (error) {
+        console.error("Firestore - Erreur lors de la suppression du jeu:", error);
+        if (error instanceof Error) {
+          throw error; // Re-throw specific error
+        }
+        throw new Error("Impossible de supprimer le jeu de Firestore.");
+    }
+};
+
+
+// --- GameTables CRUD Functions (Modified) ---
+
+/** Fetches all game tables from Firestore and populates gameName and gameImageUrl */
 export const getGameTables = async (): Promise<GameTable[]> => {
     if (!db) {
-        console.error("Firestore DB instance is not initialized. Check your Firebase setup in src/firebase/clientApp.ts and ensure .env.local variables are correctly loaded.");
+        console.error("Firestore DB instance is not initialized. Check Firebase setup and .env.local.");
         throw new Error("La connexion à Firestore n'est pas initialisée. Vérifiez la configuration Firebase et les variables d'environnement.");
     }
     try {
-        console.log("Attempting to fetch game tables from Firestore...");
-        const tablesCollection = collection(db, TABLES_COLLECTION);
-        const q = query(tablesCollection, orderBy("gameName"));
-        const querySnapshot = await getDocs(q);
-        console.log(`Fetched ${querySnapshot.docs.length} game tables successfully.`);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), imageUrl: doc.data().imageUrl || gameImageMap[doc.data().gameName] || undefined } as GameTable));
+        const [rawTablesSnapshot, gamesList] = await Promise.all([
+            getDocs(query(collection(db, TABLES_COLLECTION))),
+            getGames() // Fetch all games to perform the join
+        ]);
+
+        const gamesMap = new Map(gamesList.map(game => [game.id, game]));
+
+        return rawTablesSnapshot.docs.map(doc => {
+            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'>;
+            const game = gamesMap.get(tableData.gameId);
+            return {
+                id: doc.id,
+                ...tableData,
+                gameName: game?.nom || 'Jeu inconnu',
+                gameImageUrl: game?.imageUrl, // Use game's imageUrl
+            } as GameTable;
+        });
     } catch (error) {
         console.error("<<< IMPORTANT: Detailed Firebase Error (getGameTables) >>>", error);
-        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local (NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_API_KEY, etc. Assurez-vous que le serveur de développement a été redémarré après modification de .env.local).\n2. Règles de sécurité Firestore bloquant l'accès à la collection 'gameTables'. Accédez à la console Firebase > Firestore Database > Règles.\n3. Index Firestore manquants (si la requête est complexe - l'erreur Firebase ci-dessus peut inclure un lien pour créer l'index requis).";
-
+        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local (NEXT_PUBLIC_FIREBASE_PROJECT_ID, etc. Assurez-vous que le serveur de développement a été redémarré après modification de .env.local).\n2. Règles de sécurité Firestore bloquant l'accès.\n3. Index Firestore manquants (l'erreur Firebase ci-dessus peut inclure un lien pour créer l'index requis).";
         if (error instanceof Error && 'code' in error) {
             const firebaseError = error as { code: string; message: string };
             if (firebaseError.code === 'permission-denied') {
-                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé l'accès à la collection 'gameTables'. Vérifiez vos règles de sécurité Firestore. ` + advice;
+                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé l'accès. Vérifiez vos règles de sécurité. ` + advice;
             } else if (firebaseError.code === 'unimplemented' || firebaseError.code === 'failed-precondition') {
-                 advice = `ERREUR D'INDEX Firestore (${firebaseError.code}): La requête nécessite probablement un index composite. L'erreur Firebase détaillée ci-dessus devrait inclure un lien pour créer cet index. ` + advice;
+                 advice = `ERREUR D'INDEX Firestore (${firebaseError.code}): La requête nécessite probablement un index. ` + advice;
             } else if (firebaseError.code === 'unavailable') {
-                advice = `SERVICE FIRESTORE INDISPONIBLE (${firebaseError.code}): Le service Firestore est peut-être temporairement indisponible ou il y a un problème de réseau. ` + advice;
+                advice = `SERVICE FIRESTORE INDISPONIBLE (${firebaseError.code}). ` + advice;
             }
         }
         throw new Error(`Impossible de récupérer les tables de jeu depuis Firestore. ${advice}`);
@@ -93,104 +160,72 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
         throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter une table.");
     }
     try {
-        const dataToSave: { [key: string]: any } = {
-            gameName: tableInput.gameName,
+        // gameName and imageUrl are no longer part of GameTableInput directly
+        // They will be derived from the game associated with gameId
+        const dataToSave: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'> = {
+            gameId: tableInput.gameId,
             day: tableInput.day,
             timeSlot: tableInput.timeSlot,
             totalSeats: tableInput.totalSeats,
         };
-
-        const determinedImageUrl = tableInput.imageUrl || gameImageMap[tableInput.gameName];
-        if (determinedImageUrl && determinedImageUrl.trim() !== "") {
-            dataToSave.imageUrl = determinedImageUrl.trim();
-        }
-        // If imageUrl is empty or undefined, it's not added, so Firestore won't create the field.
 
         const docRef = await addDoc(collection(db, TABLES_COLLECTION), dataToSave);
 
-        const resultTable: GameTable = {
+        // Fetch the associated game to populate gameName and gameImageUrl for the return value
+        const gameDoc = await getDoc(doc(db, GAMES_COLLECTION, tableInput.gameId));
+        const gameData = gameDoc.exists() ? gameDoc.data() as Game : null;
+
+        return {
             id: docRef.id,
-            gameName: tableInput.gameName,
-            day: tableInput.day,
-            timeSlot: tableInput.timeSlot,
-            totalSeats: tableInput.totalSeats,
-            imageUrl: dataToSave.imageUrl || undefined, // Use what was actually saved
+            ...dataToSave,
+            gameName: gameData?.nom || 'Jeu inconnu',
+            gameImageUrl: gameData?.imageUrl,
         };
-        return resultTable;
 
     } catch (error) {
-        console.error("<<< IMPORTANT: Detailed Firebase Error (addGameTable) >>>", error);
-        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local.\n2. Règles de sécurité Firestore bloquant l'écriture dans la collection 'gameTables'.";
-         if (error instanceof Error && 'code' in error) {
-            const firebaseError = error as { code: string; message: string };
-            if (firebaseError.code === 'permission-denied') {
-                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé l'écriture dans 'gameTables'. Vérifiez vos règles de sécurité. ` + advice;
-            }
-        }
-        throw new Error(`Impossible d'ajouter la table de jeu à Firestore. ${advice}`);
+        console.error("Firestore - Erreur lors de l'ajout de la table de jeu:", error);
+        throw new Error("Impossible d'ajouter la table de jeu à Firestore.");
     }
 };
 
 /** Updates an existing table in Firestore */
-export const updateGameTable = async (tableToUpdate: GameTable): Promise<GameTable> => {
+export const updateGameTable = async (tableToUpdate: GameTableInput & { id: string }): Promise<GameTable> => {
      if (!db) {
         console.error("Firestore DB instance is not initialized for updateGameTable.");
         throw new Error("La connexion à Firestore n'est pas initialisée pour mettre à jour une table.");
     }
     try {
         const tableRef = doc(db, TABLES_COLLECTION, tableToUpdate.id);
+        const { id, ...dataToUpdate } = tableToUpdate;
 
-        const updatePayload: { [key: string]: any } = {
-            gameName: tableToUpdate.gameName,
-            day: tableToUpdate.day,
-            timeSlot: tableToUpdate.timeSlot,
-            totalSeats: tableToUpdate.totalSeats,
+        // Create the payload for Firestore, excluding gameName and gameImageUrl as they are derived
+        const firestorePayload: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'> = {
+            gameId: dataToUpdate.gameId,
+            day: dataToUpdate.day,
+            timeSlot: dataToUpdate.timeSlot,
+            totalSeats: dataToUpdate.totalSeats,
         };
 
-        let finalImageUrlToUse: string | undefined = undefined;
-        const providedImageUrl = tableToUpdate.imageUrl;
-        const mappedGameImageUrl = gameImageMap[tableToUpdate.gameName];
+        await updateDoc(tableRef, firestorePayload);
 
-        if (providedImageUrl && providedImageUrl.trim() !== "") {
-            finalImageUrlToUse = providedImageUrl.trim();
-        } else if (mappedGameImageUrl && mappedGameImageUrl.trim() !== "") {
-            finalImageUrlToUse = mappedGameImageUrl.trim();
-        }
+        // Fetch the associated game to populate gameName and gameImageUrl for the return value
+        const gameDoc = await getDoc(doc(db, GAMES_COLLECTION, dataToUpdate.gameId));
+        const gameData = gameDoc.exists() ? gameDoc.data() as Game : null;
 
-        if (finalImageUrlToUse) {
-            updatePayload.imageUrl = finalImageUrlToUse;
-        } else {
-            updatePayload.imageUrl = deleteField(); // Explicitly remove the field if no valid URL
-        }
-
-        await updateDoc(tableRef, updatePayload);
-
-        const returnedTable: GameTable = {
+        return {
             id: tableToUpdate.id,
-            gameName: tableToUpdate.gameName,
-            day: tableToUpdate.day,
-            timeSlot: tableToUpdate.timeSlot,
-            totalSeats: tableToUpdate.totalSeats,
-            imageUrl: finalImageUrlToUse, // This will be the trimmed string or undefined
+            ...firestorePayload,
+            gameName: gameData?.nom || 'Jeu inconnu',
+            gameImageUrl: gameData?.imageUrl,
         };
-        return returnedTable;
-
     } catch (error) {
-        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        console.error("!!! IMPORTANT: Detailed Firebase Error (updateGameTable) !!!");
-        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        console.error(error);
+        console.error("Firestore - Erreur lors de la mise à jour de la table de jeu:", error);
         let baseMessage = "Impossible de mettre à jour la table de jeu dans Firestore.";
-        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus (regardez pour 'code' et 'message'). Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local.\n2. Règles de sécurité Firestore bloquant la mise à jour de la collection 'gameTables'.";
-
         if (error instanceof Error && 'code' in error) {
             const firebaseError = error as { code: string; message: string };
             baseMessage = `Impossible de mettre à jour. Erreur Firebase: ${firebaseError.message} (Code: ${firebaseError.code}).`;
-            if (firebaseError.code === 'permission-denied') {
-                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé la mise à jour de 'gameTables'. Vérifiez vos règles de sécurité Firestore. ` + advice;
-            }
         }
-        throw new Error(`${baseMessage} ${advice}`);
+        throw new Error(`${baseMessage}`);
     }
 };
 
@@ -202,42 +237,26 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
     }
     const batch = writeBatch(db);
     try {
-        console.log(`Attempting to delete table ${tableId} and its registrations...`);
         const tableRef = doc(db, TABLES_COLLECTION, tableId);
-
-
         const registrationsQuery = query(collection(db, REGISTRATIONS_COLLECTION), where("tableId", "==", tableId));
         const registrationsSnapshot = await getDocs(registrationsQuery);
 
         if (registrationsSnapshot.docs.length > 0) {
-            console.warn(`Table ${tableId} has ${registrationsSnapshot.docs.length} registrations. Deletion aborted as per requirement.`);
-            throw new Error(`La table ${tableId} a des joueurs inscrits et ne peut pas être supprimée.`);
+            throw new Error(`La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`);
         }
         
-        // If we reach here, there are no registrations, so proceed with deletion
         batch.delete(tableRef);
-        console.log(`Table ${tableId} has no registrations. Adding table deletion to batch.`);
-        
         await batch.commit();
-        console.log(`Successfully deleted table ${tableId}.`);
     } catch (error) {
-        // Check if it's the specific error we threw, or a Firestore error
-        if (error instanceof Error && error.message.startsWith("La table")) {
-            console.log("Deletion prevented due to existing registrations:", error.message);
-            throw error; // Re-throw the specific error for the UI
+        if (error instanceof Error && error.message.includes("joueur(s) inscrit(s)")) {
+            throw error; 
         }
-
-        console.error("<<< IMPORTANT: Detailed Firebase Error (deleteGameTable) >>>", error);
-        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte.\n2. Règles de sécurité Firestore bloquant la suppression.";
-         if (error instanceof Error && 'code' in error) {
-            const firebaseError = error as { code: string; message: string };
-            if (firebaseError.code === 'permission-denied') {
-                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé la suppression. Vérifiez vos règles de sécurité. ` + advice;
-            }
-        }
-        throw new Error(`Impossible de supprimer la table de jeu de Firestore. ${advice}`);
+        console.error("Firestore - Erreur lors de la suppression de la table de jeu:", error);
+        throw new Error("Impossible de supprimer la table de jeu de Firestore.");
     }
 };
+
+// --- Registrations Functions (mostly unchanged, but ensure they exist) ---
 
 /** Fetches all registrations from Firestore */
 export const getRegistrations = async (): Promise<Registration[]> => {
@@ -246,21 +265,12 @@ export const getRegistrations = async (): Promise<Registration[]> => {
         throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les inscriptions.");
     }
     try {
-        console.log("Attempting to fetch registrations from Firestore...");
         const registrationsCollection = collection(db, REGISTRATIONS_COLLECTION);
         const querySnapshot = await getDocs(registrationsCollection);
-         console.log(`Fetched ${querySnapshot.docs.length} registrations successfully.`);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Registration & { id: string }));
     } catch (error) {
-        console.error("<<< IMPORTANT: Detailed Firebase Error (getRegistrations) >>>", error);
-        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte.\n2. Règles de sécurité Firestore bloquant l'accès à la collection 'registrations'.";
-         if (error instanceof Error && 'code' in error) {
-            const firebaseError = error as { code: string; message: string };
-            if (firebaseError.code === 'permission-denied') {
-                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé l'accès à 'registrations'. Vérifiez vos règles de sécurité. ` + advice;
-            }
-        }
-        throw new Error(`Impossible de récupérer les inscriptions depuis Firestore. ${advice}`);
+        console.error("Firestore - Erreur lors de la récupération des inscriptions:", error);
+        throw new Error("Impossible de récupérer les inscriptions depuis Firestore.");
     }
 };
 
@@ -271,21 +281,12 @@ export const getRegistrationsForTable = async (tableId: string): Promise<Registr
         throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les inscriptions de la table.");
     }
     try {
-        console.log(`Attempting to fetch registrations for table ${tableId} from Firestore...`);
         const q = query(collection(db, REGISTRATIONS_COLLECTION), where("tableId", "==", tableId));
         const querySnapshot = await getDocs(q);
-        console.log(`Fetched ${querySnapshot.docs.length} registrations for table ${tableId} successfully.`);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Registration & { id: string }));
     } catch (error) {
-        console.error(`<<< IMPORTANT: Detailed Firebase Error (getRegistrationsForTable for table ${tableId}) >>>`, error);
-        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte.\n2. Règles de sécurité Firestore bloquant l'accès à la collection 'registrations'.";
-        if (error instanceof Error && 'code' in error) {
-            const firebaseError = error as { code: string; message: string };
-            if (firebaseError.code === 'permission-denied') {
-                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé l'accès aux inscriptions. Vérifiez vos règles de sécurité. ` + advice;
-            }
-        }
-        throw new Error(`Impossible de récupérer les inscriptions pour la table ${tableId} depuis Firestore. ${advice}`);
+        console.error("Firestore - Erreur lors de la récupération des inscriptions pour la table:", error);
+        throw new Error(`Impossible de récupérer les inscriptions pour la table ${tableId} depuis Firestore.`);
     }
 };
 
@@ -299,7 +300,6 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
         const q = query(collection(db, REGISTRATIONS_COLLECTION), where("userId", "==", userId), where("tableId", "==", tableId));
         const existingRegs = await getDocs(q);
         if (!existingRegs.empty) {
-            console.warn("L'inscription existe déjà pour:", userId, tableId);
             return { id: existingRegs.docs[0].id, ...existingRegs.docs[0].data() } as Registration & { id: string };
         }
 
@@ -307,15 +307,8 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
         const docRef = await addDoc(collection(db, REGISTRATIONS_COLLECTION), newRegistrationData);
         return { id: docRef.id, ...newRegistrationData };
     } catch (error) {
-        console.error("<<< IMPORTANT: Detailed Firebase Error (addRegistration) >>>", error);
-        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte.\n2. Règles de sécurité Firestore bloquant l'écriture dans 'registrations'.";
-         if (error instanceof Error && 'code' in error) {
-            const firebaseError = error as { code: string; message: string };
-            if (firebaseError.code === 'permission-denied') {
-                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé l'écriture dans 'registrations'. Vérifiez vos règles de sécurité. ` + advice;
-            }
-        }
-        throw new Error(`Impossible d'ajouter l'inscription à Firestore. ${advice}`);
+        console.error("Firestore - Erreur lors de l'ajout de l'inscription:", error);
+        throw new Error("Impossible d'ajouter l'inscription à Firestore.");
     }
 };
 
@@ -329,23 +322,17 @@ export const removeRegistration = async (userId: string, tableId: string): Promi
         const q = query(collection(db, REGISTRATIONS_COLLECTION), where("userId", "==", userId), where("tableId", "==", tableId));
         const querySnapshot = await getDocs(q);
         if (querySnapshot.empty) {
-            console.warn("Aucune inscription trouvée à supprimer pour l'utilisateur:", userId, "table:", tableId);
             return;
         }
         const registrationDoc = querySnapshot.docs[0];
         await deleteDoc(doc(db, REGISTRATIONS_COLLECTION, registrationDoc.id));
     } catch (error) {
-        console.error("<<< IMPORTANT: Detailed Firebase Error (removeRegistration) >>>", error);
-         let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte.\n2. Règles de sécurité Firestore bloquant la suppression.";
-         if (error instanceof Error && 'code' in error) {
-            const firebaseError = error as { code: string; message: string };
-            if (firebaseError.code === 'permission-denied') {
-                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé la suppression. Vérifiez vos règles de sécurité. ` + advice;
-            }
-        }
-        throw new Error(`Impossible de supprimer l'inscription de Firestore. ${advice}`);
+        console.error("Firestore - Erreur lors de la suppression de l'inscription:", error);
+        throw new Error("Impossible de supprimer l'inscription de Firestore.");
     }
 };
+
+// --- Utility Functions (Modified for new structure if needed) ---
 
 export const getAvailableSeats = (tableId: string, registrations: Registration[], tables: GameTable[]): number => {
     const table = tables.find(t => t.id === tableId);
@@ -359,32 +346,22 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
     const userTables = allTables.filter(t => userTableIds.includes(t.id));
 
     return userTables.some(registeredTable => {
-        if (registeredTable.id === newTable.id) {
-            return false;
-        }
-        if (registeredTable.day !== newTable.day) {
-          return false;
-        }
+        if (registeredTable.id === newTable.id) return false;
+        if (registeredTable.day !== newTable.day) return false;
 
         const parseTimeSlot = (slot: string): { start: number; end: number } | null => {
             const match = slot.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
             if (!match) return null;
-            const startHour = parseInt(match[1], 10);
-            const startMinute = parseInt(match[2], 10);
-            const endHour = parseInt(match[3], 10);
-            const endMinute = parseInt(match[4], 10);
-            return { start: startHour * 60 + startMinute, end: endHour * 60 + endMinute };
+            return { start: parseInt(match[1],10) * 60 + parseInt(match[2],10), end: parseInt(match[3],10) * 60 + parseInt(match[4],10) };
         };
 
         const registeredSlot = parseTimeSlot(registeredTable.timeSlot);
         const newSlot = parseTimeSlot(newTable.timeSlot);
 
         if (!registeredSlot || !newSlot) {
-            console.warn("Impossible d'analyser le créneau horaire pour la vérification des conflits:", registeredTable.timeSlot, newTable.timeSlot);
-            return registeredTable.timeSlot === newTable.timeSlot;
+            return registeredTable.timeSlot === newTable.timeSlot; // Fallback to exact match if parsing fails
         }
-        const overlaps = !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
-        return overlaps;
+        return !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
     });
 };
 
@@ -393,5 +370,3 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = registrationPhases.indexOf(userTicketType);
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
-
-    

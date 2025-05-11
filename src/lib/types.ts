@@ -9,26 +9,47 @@ export interface User {
   ticketType: TicketType;
 }
 
+// Represents a game entity from the "games" collection
+export interface Game {
+  id: string;
+  nom: string; // Name of the game
+  description: string;
+  imageUrl: string; // URL for the game's image
+  asynconvURL: string; // URL to AsynConv page for the game
+  nbre_min: number; // Minimum number of players
+  nbre_max: number; // Maximum number of players
+}
+
+// Input type for creating or updating a game
+export interface GameInput {
+  nom: string;
+  description: string;
+  imageUrl: string;
+  asynconvURL: string;
+  nbre_min: number;
+  nbre_max: number;
+}
+
 export interface GameTable {
   id: string;
-  gameName: string;
+  gameId: string; // Foreign key to the "games" collection
   day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
   timeSlot: string; // e.g., "09:00 - 13:00"
   totalSeats: number;
-  imageUrl?: string; // Changed from gameTypeIcon to imageUrl
+  // gameName and gameImageUrl will be populated by joining with the "games" collection
+  gameName?: string; // Populated at runtime
+  gameImageUrl?: string; // Populated at runtime
 }
 
 /**
  * Type definition for the data collected from the add/edit table form.
- * Does not include 'id' as it's generated or comes from the edited item.
- * Uses icon name string for easier selection in the form.
+ * GameTable will now link to a Game entity via gameId.
  */
 export interface GameTableInput {
-    gameName: string;
+    gameId: string;
     day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
     timeSlot: string;
     totalSeats: number;
-    imageUrl?: string;
 }
 
 
@@ -39,4 +60,3 @@ export interface Registration {
 
 // Define registration phases based on ticket priority
 export const registrationPhases: TicketType[] = ['Stratège', 'Maréchal', 'Général'];
-
