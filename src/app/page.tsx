@@ -148,8 +148,8 @@ export default function Home() {
         setRegistrations(updatedRegistrations);
 
         toast({
-        title: "Inscription réussie",
-        description: `${currentUser.name} inscrit(e) avec succès pour ${table.gameName}.`,
+        title: "Inscription réussie!",
+        description: `${currentUser.name}, vous êtes maintenant inscrit(e) pour le jeu : ${table.gameName}.`,
         action: <CheckCircle className="text-green-500" />,
         });
     } catch (error) {
@@ -173,7 +173,7 @@ export default function Home() {
 
         toast({
             title: "Désinscrit(e)",
-            description: `Inscription pour ${table.gameName} supprimée.`,
+            description: `Votre inscription pour ${table.gameName} a été supprimée.`,
             action: <Info className="text-blue-500" />,
         });
     } catch (error) {
