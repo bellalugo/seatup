@@ -1,7 +1,7 @@
 
 'use client';
 
-import * as React from 'react';
+import type React from 'react'; // Ensure React is imported for ElementType
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
@@ -43,7 +43,7 @@ const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00"];
 
 export default function TableManager() {
   const [tables, setTables] = useState<GameTable[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPage, setIsLoadingPage] = useState(true); // Renamed for clarity
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
@@ -55,8 +55,8 @@ export default function TableManager() {
   });
   const { toast } = useToast();
 
-  const fetchTables = async () => {
-    setIsLoading(true);
+  const fetchTables = async (setPageLoadingState = true) => {
+    if (setPageLoadingState) setIsLoadingPage(true);
     try {
       const fetchedTables = await getGameTables();
       setTables(fetchedTables);
@@ -64,12 +64,12 @@ export default function TableManager() {
       console.error("Erreur lors de la récupération des tables:", error);
       toast({ variant: "destructive", title: "Erreur de chargement", description: (error as Error).message });
     } finally {
-      setIsLoading(false);
+      if (setPageLoadingState) setIsLoadingPage(false);
     }
   };
 
   useEffect(() => {
-    fetchTables();
+    fetchTables(true); // Initial page load
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -100,10 +100,10 @@ export default function TableManager() {
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette table ? Cette action supprimera également toutes les inscriptions associées.")) {
         return;
     }
-    setIsSubmitting(true); // Indicate loading for delete operation
+    setIsSubmitting(true);
     try {
         await deleteGameTable(tableId);
-        await fetchTables(); // Re-fetch tables
+        await fetchTables(false); // Re-fetch tables without setting page loading
         toast({ title: "Table supprimée", description: "La table de jeu et ses inscriptions ont été supprimées." });
     } catch (error) {
          toast({ variant: "destructive", title: "Erreur lors de la suppression", description: (error as Error).message });
@@ -127,13 +127,12 @@ export default function TableManager() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    if (!formData.gameName || !formData.timeSlot || formData.totalSeats <= 0) {
+    if (!formData.gameName || !formData.day || !formData.timeSlot || formData.totalSeats <= 0) {
         toast({ variant: "destructive", title: "Entrée invalide", description: "Veuillez remplir tous les champs correctement." });
         setIsSubmitting(false);
         return;
     }
 
-    // The imageUrl will be handled by addGameTable/updateGameTable using gameImageMap
     const tableDataPayload: GameTableInput = {
         ...formData
     };
@@ -146,8 +145,15 @@ export default function TableManager() {
             await addGameTable(tableDataPayload);
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès." });
         }
-        await fetchTables(); // Re-fetch tables
+        await fetchTables(false); // Re-fetch tables without setting page loading state
         setIsDialogOpen(false);
+        setEditingTable(null); // Reset editing state
+        setFormData({ // Reset form data to initial values
+            gameName: '',
+            day: 'Jeudi',
+            timeSlot: '09:00 - 13:00',
+            totalSeats: 4,
+        });
     } catch(error) {
          toast({ variant: "destructive", title: "Opération échouée", description: (error as Error).message });
     } finally {
@@ -155,7 +161,7 @@ export default function TableManager() {
     }
   };
 
-  if (isLoading) {
+  if (isLoadingPage) { // Only show full page loader for initial load
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -171,7 +177,18 @@ export default function TableManager() {
           <CardTitle>Gérer les tables de jeu</CardTitle>
           <CardDescription>Ajouter, modifier ou supprimer des tables de jeu pour la convention.</CardDescription>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) { // Reset form if dialog is closed by 'x' or 'cancel'
+            setEditingTable(null);
+            setFormData({
+                gameName: '',
+                day: 'Jeudi',
+                timeSlot: '09:00 - 13:00',
+                totalSeats: 4,
+            });
+          }
+        }}>
           <DialogTrigger asChild>
             <Button onClick={handleOpenDialogForAdd} disabled={isSubmitting}>
               <PlusCircle className="mr-2 h-4 w-4" /> Ajouter une table
@@ -281,7 +298,7 @@ export default function TableManager() {
                         <span className="sr-only">Modifier</span>
                     </Button>
                     <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)} disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        {isSubmitting && tables.find(t => t.id === table.id) /* Only show spinner for the one being deleted, though isSubmitting globally disables buttons */ ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         <span className="sr-only">Supprimer</span>
                     </Button>
                     </TableCell>
@@ -296,3 +313,4 @@ export default function TableManager() {
     </Card>
   );
 }
+
