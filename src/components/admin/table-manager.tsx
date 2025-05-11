@@ -1,3 +1,4 @@
+
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
@@ -106,6 +107,7 @@ export default function TableManager() {
   };
 
   const handleDelete = async (tableId: string) => {
+    toast({ title: "CLIC", description: "Bouton supprimer cliqué." });
     console.log(`handleDelete called for tableId: ${tableId}`);
     
     const confirmed = confirm("Êtes-vous sûr de vouloir supprimer cette table ? La suppression ne sera effectuée que si aucune inscription n'y est associée.");
@@ -361,3 +363,5 @@ export default function TableManager() {
     </Card>
   );
 }
+
+    
