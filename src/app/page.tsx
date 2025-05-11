@@ -57,11 +57,11 @@ export default function Home() {
          return firstUserId ? mockUsers[firstUserId] : null;
       });
     } catch (error) {
-      console.error("Failed to load data:", error);
+      console.error("Échec du chargement des données:", error);
       toast({
         variant: "destructive",
-        title: "Error Loading Data",
-        description: "Could not fetch game tables and user data.",
+        title: "Erreur de chargement des données",
+        description: "Impossible de récupérer les tables de jeu et les données utilisateur.",
       });
     } finally {
       setIsLoading(false);
@@ -80,12 +80,12 @@ export default function Home() {
     // In a real app, this might be driven by server time or admin action
     const phaseTimer1 = setTimeout(() => {
       setCurrentRegistrationPhaseIndex(1); // Open for Marshals
-      toast({ title: "Registration Phase Update", description: "Registration now open for Marshals and Strategists." });
+      toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Maréchaux et Stratèges." });
     }, 15000); // 15 seconds after load for demo
 
     const phaseTimer2 = setTimeout(() => {
       setCurrentRegistrationPhaseIndex(2); // Open for Generals
-       toast({ title: "Registration Phase Update", description: "Registration now open for Generals, Marshals, and Strategists." });
+       toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Généraux, Maréchaux et Stratèges." });
     }, 30000); // 30 seconds after load for demo
 
     return () => {
@@ -101,13 +101,13 @@ export default function Home() {
 
   const handleRegister = (tableId: string) => {
     if (!currentUser) {
-      toast({ variant: "destructive", title: "No User Selected", description: "Please select a user." });
+      toast({ variant: "destructive", title: "Aucun utilisateur sélectionné", description: "Veuillez sélectionner un utilisateur." });
       return;
     }
 
     const table = tables.find(t => t.id === tableId);
     if (!table) {
-      toast({ variant: "destructive", title: "Table Not Found" });
+      toast({ variant: "destructive", title: "Table non trouvée" });
       return;
     }
 
@@ -115,8 +115,8 @@ export default function Home() {
     if (!canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex)) {
        toast({
         variant: "destructive",
-        title: "Registration Not Yet Open",
-        description: `Registration for your ticket type (${currentUser.ticketType}) opens later. Current phase: ${registrationPhases[currentRegistrationPhaseIndex]}.`,
+        title: "Inscription pas encore ouverte",
+        description: `L'inscription pour votre type de billet (${currentUser.ticketType}) ouvre plus tard. Phase actuelle : ${registrationPhases[currentRegistrationPhaseIndex]}.`,
       });
       return;
     }
@@ -124,21 +124,21 @@ export default function Home() {
     // 2. Check Available Seats (using current registrations state)
     const availableSeats = getAvailableSeats(tableId, registrations, tables);
     if (availableSeats <= 0) {
-      toast({ variant: "destructive", title: "Table Full", description: "No available seats at this table." });
+      toast({ variant: "destructive", title: "Table complète", description: "Aucune place disponible à cette table." });
       return;
     }
 
     // 3. Check if Already Registered for this Table
     const isAlreadyRegistered = registrations.some(r => r.userId === currentUser.id && r.tableId === tableId);
     if (isAlreadyRegistered) {
-      toast({ variant: "destructive", title: "Already Registered", description: "You are already registered for this table." });
+      toast({ variant: "destructive", title: "Déjà inscrit(e)", description: "Vous êtes déjà inscrit(e) à cette table." });
       return;
     }
 
     // 4. Check for Time Conflicts
     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser.id);
     if (hasTimeConflict(table, userCurrentRegistrations, tables)) {
-       toast({ variant: "destructive", title: "Time Slot Conflict", description: "You are already registered for a game during this time slot." });
+       toast({ variant: "destructive", title: "Conflit de créneau horaire", description: "Vous êtes déjà inscrit(e) à un jeu pendant ce créneau horaire." });
        return;
     }
 
@@ -150,12 +150,12 @@ export default function Home() {
         setRegistrations(getCurrentRegistrations());
 
         toast({
-        title: "Registration Successful",
-        description: `Successfully registered ${currentUser.name} for ${table.gameName}.`,
+        title: "Inscription réussie",
+        description: `${currentUser.name} inscrit(e) avec succès pour ${table.gameName}.`,
         action: <CheckCircle className="text-green-500" />,
         });
     } catch (error) {
-         toast({ variant: "destructive", title: "Registration Failed", description: (error as Error).message });
+         toast({ variant: "destructive", title: "Échec de l'inscription", description: (error as Error).message });
     }
   };
 
@@ -171,12 +171,12 @@ export default function Home() {
         setRegistrations(getCurrentRegistrations());
 
         toast({
-            title: "Unregistered",
-            description: `Removed registration for ${table.gameName}.`,
+            title: "Désinscrit(e)",
+            description: `Inscription pour ${table.gameName} supprimée.`,
             action: <Info className="text-blue-500" />,
         });
     } catch (error) {
-        toast({ variant: "destructive", title: "Unregistration Failed", description: (error as Error).message });
+        toast({ variant: "destructive", title: "Échec de la désinscription", description: (error as Error).message });
     }
   }
 
@@ -187,7 +187,7 @@ export default function Home() {
     // Filter from the current state of tables
     return tables.filter(t => userTableIds.includes(t.id))
                  .sort((a, b) => { // Sort schedule by day then time
-                    const dayOrder = ['Thursday', 'Friday', 'Saturday', 'Sunday'];
+                    const dayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
                     if (a.day !== b.day) {
                         return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
                     }
@@ -196,26 +196,26 @@ export default function Home() {
   };
 
   const userSchedule = getUserSchedule();
-  const days = ['Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const days = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
   return (
     <div className="space-y-6">
       <Card className="shadow-lg">
         <CardHeader className="flex flex-row items-center justify-between">
             <div>
-                <CardTitle>User Selection & Info</CardTitle>
-                <CardDescription>Select a user to view tables and manage registrations.</CardDescription>
+                <CardTitle>Sélection utilisateur & Infos</CardTitle>
+                <CardDescription>Sélectionnez un utilisateur pour voir les tables et gérer les inscriptions.</CardDescription>
             </div>
              {/* Manual Refresh Button - Useful for mock data setup */}
              <Button onClick={loadData} variant="outline" size="sm" disabled={isLoading}>
                  <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                 Refresh Data
+                 Actualiser les données
              </Button>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-4">
           <Select onValueChange={handleUserChange} value={currentUser?.id ?? ""}>
             <SelectTrigger className="w-[280px]">
-              <SelectValue placeholder="Select User" />
+              <SelectValue placeholder="Sélectionner un utilisateur" />
             </SelectTrigger>
             <SelectContent>
               {Object.values(users).map(user => (
@@ -226,21 +226,21 @@ export default function Home() {
             </SelectContent>
           </Select>
           {currentUser && (
-            <Badge variant={currentUser.ticketType === 'None' ? 'destructive' : 'secondary'}>
-              Ticket: {currentUser.ticketType}
+            <Badge variant={currentUser.ticketType === 'Aucun' ? 'destructive' : 'secondary'}>
+              Billet : {currentUser.ticketType}
             </Badge>
           )}
            <Badge variant="outline" className="ml-auto">
-             Current Registration Phase: <span className="font-semibold ml-1">{registrationPhases[currentRegistrationPhaseIndex]}</span>
+             Phase d'inscription actuelle : <span className="font-semibold ml-1">{registrationPhases[currentRegistrationPhaseIndex]}</span>
            </Badge>
         </CardContent>
       </Card>
 
        {isLoading ? (
-           <div className="flex justify-center items-center h-64"><p>Loading game tables...</p></div>
+           <div className="flex justify-center items-center h-64"><p>Chargement des tables de jeu...</p></div>
        ) : (
           <>
-            <Tabs defaultValue="thursday" className="w-full">
+            <Tabs defaultValue="jeudi" className="w-full">
                 <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
                 {days.map(day => (
                     <TabsTrigger key={day} value={day.toLowerCase()}>{day}</TabsTrigger>
@@ -253,18 +253,18 @@ export default function Home() {
                         <TabsContent key={day} value={day.toLowerCase()}>
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>{day} Game Tables</CardTitle>
-                                    <CardDescription>Available games for {day}. Registration priority: Strategist {'>'} Marshal {'>'} General.</CardDescription>
+                                    <CardTitle>Tables de jeu du {day}</CardTitle>
+                                    <CardDescription>Jeux disponibles pour {day}. Priorité d'inscription : Stratège &gt; Maréchal &gt; Général.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     {dayTables.length > 0 ? (
                                         <Table>
-                                            <TableCaption>List of games available on {day}.</TableCaption>
+                                            <TableCaption>Liste des jeux disponibles le {day}.</TableCaption>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead>Game</TableHead>
-                                                    <TableHead>Time Slot</TableHead>
-                                                    <TableHead className="text-center">Available Seats</TableHead>
+                                                    <TableHead>Jeu</TableHead>
+                                                    <TableHead>Créneau horaire</TableHead>
+                                                    <TableHead className="text-center">Places disponibles</TableHead>
                                                     <TableHead className="text-right">Action</TableHead>
                                                 </TableRow>
                                             </TableHeader>
@@ -279,34 +279,34 @@ export default function Home() {
 
                                                     const isDisabled = !currentUser || availableSeats <= 0 || !canRegisterNow || (conflict && !isRegisteredByUser) || (isRegisteredByUser);
 
-                                                    let buttonText = "Register";
+                                                    let buttonText = "S'inscrire";
                                                     let buttonVariant: "default" | "secondary" | "destructive" = "default";
                                                     let onClickAction = () => handleRegister(table.id);
                                                     let tooltipText = "";
 
                                                     if (isRegisteredByUser) {
-                                                        buttonText = "Registered";
+                                                        buttonText = "Inscrit(e)";
                                                         buttonVariant = "secondary";
                                                         onClickAction = () => handleUnregister(table.id); // Change to unregister
-                                                        tooltipText = "Click to unregister";
+                                                        tooltipText = "Cliquez pour vous désinscrire";
                                                     } else if (!currentUser) {
-                                                        tooltipText = "Select a user to register";
-                                                        buttonText = "Select User";
+                                                        tooltipText = "Sélectionnez un utilisateur pour vous inscrire";
+                                                        buttonText = "Sélectionner utilisateur";
                                                         buttonVariant = "secondary";
                                                     } else if (!canRegisterNow) {
-                                                        tooltipText = `Registration not open for ${currentUser.ticketType} yet`;
-                                                        buttonText = "Unavailable";
+                                                        tooltipText = `Inscription pas encore ouverte pour ${currentUser.ticketType}`;
+                                                        buttonText = "Indisponible";
                                                         buttonVariant = "secondary";
                                                     } else if (conflict) {
-                                                        tooltipText = "Conflicts with your schedule";
-                                                        buttonText = "Conflict";
+                                                        tooltipText = "Conflit avec votre planning";
+                                                        buttonText = "Conflit";
                                                         buttonVariant = "destructive";
                                                     } else if (availableSeats <= 0) {
-                                                        tooltipText = "Table is full";
-                                                        buttonText = "Full";
+                                                        tooltipText = "Table est complète";
+                                                        buttonText = "Complet";
                                                         buttonVariant = "destructive";
                                                     } else {
-                                                        tooltipText = "Click to register for this table";
+                                                        tooltipText = "Cliquez pour vous inscrire à cette table";
                                                     }
 
                                                     return (
@@ -315,10 +315,11 @@ export default function Home() {
                                                                 {table.imageUrl && (
                                                                     <Image
                                                                         src={table.imageUrl}
-                                                                        alt={`${table.gameName} icon`}
+                                                                        alt={`Icône ${table.gameName}`}
                                                                         width={24} // Adjust size as needed
                                                                         height={24}
                                                                         className="rounded object-cover h-6 w-6" // Style the image
+                                                                        data-ai-hint="game icon"
                                                                     />
                                                                 )}
                                                                 {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div> /* Placeholder */}
@@ -350,7 +351,7 @@ export default function Home() {
                                             </TableBody>
                                         </Table>
                                     ) : (
-                                        <p className="text-muted-foreground text-center py-4">No tables available for {day}.</p>
+                                        <p className="text-muted-foreground text-center py-4">Aucune table disponible pour {day}.</p>
                                     )}
                                 </CardContent>
                             </Card>
@@ -362,17 +363,17 @@ export default function Home() {
             {currentUser && (
                 <Card className="mt-6 shadow-lg">
                 <CardHeader>
-                    <CardTitle>{currentUser.name}'s Schedule</CardTitle>
-                    <CardDescription>Tables you are currently registered for.</CardDescription>
+                    <CardTitle>Planning de {currentUser.name}</CardTitle>
+                    <CardDescription>Tables auxquelles vous êtes actuellement inscrit(e).</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {userSchedule.length > 0 ? (
                     <Table>
                         <TableHeader>
                             <TableRow>
-                            <TableHead>Day</TableHead>
-                            <TableHead>Time Slot</TableHead>
-                            <TableHead>Game</TableHead>
+                            <TableHead>Jour</TableHead>
+                            <TableHead>Créneau horaire</TableHead>
+                            <TableHead>Jeu</TableHead>
                             <TableHead className="text-right">Action</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -385,10 +386,11 @@ export default function Home() {
                                     {table.imageUrl && (
                                             <Image
                                                 src={table.imageUrl}
-                                                alt={`${table.gameName} icon`}
+                                                alt={`Icône ${table.gameName}`}
                                                 width={24} // Adjust size as needed
                                                 height={24}
                                                 className="rounded object-cover h-6 w-6" // Style the image
+                                                data-ai-hint="game icon"
                                             />
                                         )}
                                     {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div> /* Placeholder */}
@@ -399,9 +401,9 @@ export default function Home() {
                                     onClick={() => handleUnregister(table.id)}
                                     size="sm"
                                     variant="outline"
-                                    title="Unregister from this table"
+                                    title="Se désinscrire de cette table"
                                     >
-                                    Unregister
+                                    Se désinscrire
                                     </Button>
                             </TableCell>
                             </TableRow>
@@ -409,7 +411,7 @@ export default function Home() {
                         </TableBody>
                     </Table>
                     ) : (
-                    <p className="text-muted-foreground text-center py-4">You are not registered for any tables yet.</p>
+                    <p className="text-muted-foreground text-center py-4">Vous n'êtes inscrit(e) à aucune table pour le moment.</p>
                     )}
                 </CardContent>
                 </Card>
@@ -419,3 +421,4 @@ export default function Home() {
     </div>
   );
 }
+

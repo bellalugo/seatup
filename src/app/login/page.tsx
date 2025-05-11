@@ -38,11 +38,11 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      toast({ title: 'Login Successful', description: 'Redirecting to admin...' });
+      toast({ title: 'Connexion réussie', description: 'Redirection vers l\'admin...' });
       router.push('/admin'); // Redirect to admin page on successful login
     } catch (err) {
-      console.error('Login failed:', err);
-      let errorMessage = 'Login failed. Please check your credentials or console for details.';
+      console.error('Échec de la connexion:', err);
+      let errorMessage = 'Échec de la connexion. Veuillez vérifier vos identifiants ou la console pour plus de détails.';
       // Improve error messages based on Firebase error codes
       if (err instanceof Error) {
         // Check if the error object has a 'code' property (common in Firebase errors)
@@ -52,25 +52,25 @@ export default function LoginPage() {
              case 'auth/user-not-found':
              case 'auth/wrong-password':
              case 'auth/invalid-credential': // Often covers both wrong email/password
-               errorMessage = 'Invalid email or password.';
+               errorMessage = 'Email ou mot de passe invalide.';
                break;
              case 'auth/invalid-email':
-                errorMessage = 'Invalid email format.';
+                errorMessage = 'Format d\'email invalide.';
                 break;
              case 'auth/invalid-api-key':
              case 'auth/api-key-not-valid': // Handle variations of the API key error
-               errorMessage = 'Firebase API key is invalid. Please check configuration in .env.local and restart the server.';
+               errorMessage = 'La clé API Firebase est invalide. Veuillez vérifier la configuration dans .env.local et redémarrer le serveur.';
                break;
              case 'auth/network-request-failed':
-                errorMessage = 'Network error. Please check your internet connection.';
+                errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion internet.';
                 break;
               case 'auth/operation-not-allowed':
-                 errorMessage = 'Email/password authentication is not enabled in your Firebase project.';
+                 errorMessage = 'L\'authentification par email/mot de passe n\'est pas activée dans votre projet Firebase.';
                  break;
              default:
                 // Keep generic message but log the specific code
-                console.error('Firebase Auth Error Code:', firebaseError.code);
-                errorMessage = `Login failed (${firebaseError.code}). Please check credentials or console.`;
+                console.error('Code d\'erreur Firebase Auth:', firebaseError.code);
+                errorMessage = `Échec de la connexion (${firebaseError.code}). Veuillez vérifier les identifiants ou la console.`;
            }
         } else {
           // Generic error if no code is present
@@ -78,7 +78,7 @@ export default function LoginPage() {
         }
       }
       setError(errorMessage);
-      toast({ variant: 'destructive', title: 'Login Error', description: errorMessage });
+      toast({ variant: 'destructive', title: 'Erreur de connexion', description: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -97,11 +97,11 @@ export default function LoginPage() {
            <div className="mx-auto bg-primary rounded-full p-3 w-fit mb-4">
              <LogIn className="h-6 w-6 text-primary-foreground" />
            </div>
-          <CardTitle>Admin Login</CardTitle>
-          <CardDescription>Enter your credentials to access the admin area.</CardDescription>
+          <CardTitle>Connexion Admin</CardTitle>
+          <CardDescription>Entrez vos identifiants pour accéder à l'espace admin.</CardDescription>
            {/* Display default credentials for easy access during development/demo */}
            <CardDescription className="text-xs text-muted-foreground pt-2">
-             (Demo: admin@example.com / admin123)
+             (Démo : admin@example.com / admin123)
            </CardDescription>
         </CardHeader>
         <CardContent>
@@ -121,7 +121,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Mot de passe</Label>
               <div className="relative">
                   <Input
                     id="password"
@@ -142,8 +142,8 @@ export default function LoginPage() {
                     className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
                     onClick={togglePasswordVisibility} // Correct handler attached
                     disabled={loading}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    title={showPassword ? "Hide password" : "Show password"}
+                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                   >
                     {/* Conditional rendering of the icon */}
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -155,10 +155,10 @@ export default function LoginPage() {
               {loading ? (
                  <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
+                    Connexion en cours...
                  </>
               ) : (
-                 'Login'
+                 'Connexion'
               )}
 
             </Button>
@@ -168,3 +168,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

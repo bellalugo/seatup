@@ -1,7 +1,7 @@
 
 import type React from 'react'; // Ensure React is imported for ElementType
 
-export type TicketType = 'Strategist' | 'Marshal' | 'General' | 'None';
+export type TicketType = 'Stratège' | 'Maréchal' | 'Général' | 'Aucun';
 
 export interface User {
   id: string;
@@ -12,10 +12,10 @@ export interface User {
 export interface GameTable {
   id: string;
   gameName: string;
-  day: 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+  day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
   timeSlot: string; // e.g., "09:00 - 13:00"
   totalSeats: number;
-  gameTypeIcon?: React.ElementType; // Optional icon component
+  imageUrl?: string; // Changed from gameTypeIcon to imageUrl
 }
 
 /**
@@ -25,10 +25,10 @@ export interface GameTable {
  */
 export interface GameTableInput {
     gameName: string;
-    day: 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+    day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
     timeSlot: string;
     totalSeats: number;
-    gameTypeIconName?: string; // Use string name for form selection
+    imageUrl?: string;
 }
 
 
@@ -38,4 +38,5 @@ export interface Registration {
 }
 
 // Define registration phases based on ticket priority
-export const registrationPhases: TicketType[] = ['Strategist', 'Marshal', 'General'];
+export const registrationPhases: TicketType[] = ['Stratège', 'Maréchal', 'Général'];
+

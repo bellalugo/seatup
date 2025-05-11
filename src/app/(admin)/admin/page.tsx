@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,7 @@ export default function AdminPage() {
           <ShieldCheck className="h-8 w-8 text-primary" />
           <div>
             <CardTitle>Administration</CardTitle>
-            <CardDescription>Manage game tables and convention settings.</CardDescription>
+            <CardDescription>Gérer les tables de jeu et les paramètres de la convention.</CardDescription>
           </div>
         </CardHeader>
       </Card>

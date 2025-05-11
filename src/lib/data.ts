@@ -3,16 +3,7 @@
 import type { GameTable, User, Registration, TicketType, GameTableInput } from '@/lib/types';
 // Correctly import registrationPhases from types.ts
 import { registrationPhases as importedRegistrationPhases } from '@/lib/types';
-import { Swords, Castle, Flag } from 'lucide-react';
-import type React from 'react'; // Import React for ElementType
-import Image from 'next/image';
 
-// Map icon names to components
-const iconMap: Record<string, React.ElementType> = {
-  Swords: Swords,
-  Castle: Castle,
-  Flag: Flag,
-};
 
 // --- Game Icons/Images ---
 // We'll store image URLs directly in the table data instead of mapping components
@@ -44,76 +35,17 @@ const gameImageMap: Record<string, string> = {
 };
 
 
-// Helper to get icon component from name - NO LONGER USED FOR GAME ICONS
-export const getIconComponent = (iconName?: string): React.ElementType | undefined => {
-  return iconName ? iconMap[iconName] : undefined;
-};
-
-
 // Mock Users
 export const mockUsers: Record<string, User> = {
-  'user-123': { id: 'user-123', name: 'Alice (Strategist)', ticketType: 'Strategist' },
-  'user-456': { id: 'user-456', name: 'Bob (Marshal)', ticketType: 'Marshal' },
-  'user-789': { id: 'user-789', name: 'Charlie (General)', ticketType: 'General' },
-  'user-000': { id: 'user-000', name: 'David (No Ticket)', ticketType: 'None' },
+  'user-123': { id: 'user-123', name: 'Alice (Stratège)', ticketType: 'Stratège' },
+  'user-456': { id: 'user-456', name: 'Bob (Maréchal)', ticketType: 'Maréchal' },
+  'user-789': { id: 'user-789', name: 'Charlie (Général)', ticketType: 'Général' },
+  'user-000': { id: 'user-000', name: 'David (Pas de billet)', ticketType: 'Aucun' },
 };
 
-// --- Generate Mock Game Tables based on ASYNCONV programme ---
-const gameNamesFromSite = [
-    "Fields of Fire 3",
-    "Conquest & Consequence",
-    "Next War: Taiwan",
-    "Empire of the Sun",
-    "Salerno '43",
-    "Littoral Commander: Indo-Pacific",
-    "Downfall: Conquest of the Third Reich, 1944-1945",
-    "A Gest of Robin Hood",
-    "Here I Stand: Wars of the Reformation 1517-1555 (500th Anniversary Edition)",
-    "Red Strike: The Soviet Plan for Nuclear War in 1979",
-    "Commands & Colors: Napoleonics",
-    "Plantagenet: Cousin's War for England, 1459 - 1485",
-    "Vietnam: Rumor of War",
-    "Banish the Snakes",
-    "Pendragon: The Fall of Roman Britain",
-    "Atlantic Chase",
-    "Imperial Struggle",
-    "Vijayanagara: The Deccan Empires of Medieval India, 1290-1398",
-    "Wolfe Tone & The United Irishmen Rebellion of 1798",
-    "Flying Colors (Fleet Actions in the Age of Sail)",
-    "Bayonets & Tomahawks",
-    "Almoravid: Reconquista and Riposte in Spain, 1085-1086",
-    "Twilight Struggle: Red Sea – Conflict in the Horn of Africa",
-    "Fire in the Lake: Insurgency in Vietnam"
-];
-
-const days: GameTable['day'][] = ['Thursday', 'Friday', 'Saturday', 'Sunday'];
-const timeSlots = [
-    { name: 'AM', slot: '09:00 - 13:00' },
-    { name: 'PM', slot: '14:00 - 19:00' }
-];
-const defaultSeats = 4; // Default seats per table
-
-const generatedTables: GameTable[] = [];
-// let tableCounter = 1;
-
-// gameNamesFromSite.forEach(gameName => {
-//     days.forEach(day => {
-//         timeSlots.forEach(timeSlotInfo => {
-//             const tableId = `table-${gameName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${day.toLowerCase()}-${timeSlotInfo.name.toLowerCase()}`;
-//             generatedTables.push({
-//                 id: tableId,
-//                 gameName: gameName,
-//                 day: day,
-//                 timeSlot: timeSlotInfo.slot,
-//                 totalSeats: defaultSeats,
-//                 imageUrl: gameImageMap[gameName] || undefined // Use the image URL map
-//             });
-//         });
-//     });
-// });
 
 // Mock Game Tables Data - Initialize with an empty array
-export let mockGameTables: GameTable[] = []; // REMOVED ALL TABLES
+export let mockGameTables: GameTable[] = [];
 
 // Mock initial registrations (can be empty) - Make this mutable
 export let mockRegistrations: Registration[] = [
@@ -135,15 +67,11 @@ export const addMockTable = (tableInput: GameTableInput): GameTable => {
         day: tableInput.day,
         timeSlot: tableInput.timeSlot,
         totalSeats: tableInput.totalSeats,
-        // Resolve imageUrl from input (assuming input might have imageUrl directly or a name to lookup)
-        // For simplicity now, let's assume imageUrl comes directly if needed or is manually set later.
-        // Or lookup based on gameName:
         imageUrl: gameImageMap[tableInput.gameName] || tableInput.imageUrl,
-        // Removed gameTypeIcon/gameTypeIconName as we use imageUrl now
     };
     mockGameTables.push(newTable);
-    console.log("Added table:", newTable);
-    console.log("Current tables:", mockGameTables);
+    console.log("Table ajoutée:", newTable);
+    console.log("Tables actuelles:", mockGameTables);
     return newTable;
 };
 
@@ -151,22 +79,21 @@ export const addMockTable = (tableInput: GameTableInput): GameTable => {
 export const updateMockTable = (updatedTableData: GameTableInput & { id: string }): GameTable => {
     const index = mockGameTables.findIndex(t => t.id === updatedTableData.id);
     if (index === -1) {
-        throw new Error(`Table with ID ${updatedTableData.id} not found.`);
+        throw new Error(`Table avec ID ${updatedTableData.id} non trouvée.`);
     }
 
-    // Create the updated table object
     const updatedTable: GameTable = {
         id: updatedTableData.id,
         gameName: updatedTableData.gameName,
         day: updatedTableData.day,
         timeSlot: updatedTableData.timeSlot,
         totalSeats: updatedTableData.totalSeats,
-        imageUrl: gameImageMap[updatedTableData.gameName] || updatedTableData.imageUrl, // Update image URL based on name or direct input
+        imageUrl: gameImageMap[updatedTableData.gameName] || updatedTableData.imageUrl,
     };
 
     mockGameTables[index] = updatedTable;
-    console.log("Updated table:", updatedTable);
-    console.log("Current tables:", mockGameTables);
+    console.log("Table mise à jour:", updatedTable);
+    console.log("Tables actuelles:", mockGameTables);
     return updatedTable;
 };
 
@@ -176,18 +103,16 @@ export const deleteMockTable = (tableId: string): void => {
     const initialLength = mockGameTables.length;
     mockGameTables = mockGameTables.filter(t => t.id !== tableId);
     if (mockGameTables.length === initialLength) {
-         throw new Error(`Table with ID ${tableId} not found for deletion.`);
+         throw new Error(`Table avec ID ${tableId} non trouvée pour suppression.`);
     }
-    // Also remove any registrations associated with this table
     mockRegistrations = mockRegistrations.filter(r => r.tableId !== tableId);
-    console.log("Deleted table:", tableId);
-    console.log("Current tables:", mockGameTables);
-    console.log("Current registrations:", mockRegistrations);
+    console.log("Table supprimée:", tableId);
+    console.log("Tables actuelles:", mockGameTables);
+    console.log("Inscriptions actuelles:", mockRegistrations);
 };
 
 // --- Read Functions (Remain mostly the same) ---
 
-// Helper function to get available seats
 export const getAvailableSeats = (tableId: string, registrations: Registration[], tables: GameTable[]): number => {
     const table = tables.find(t => t.id === tableId);
     if (!table) return 0;
@@ -195,17 +120,16 @@ export const getAvailableSeats = (tableId: string, registrations: Registration[]
     return table.totalSeats - currentRegistrations;
 };
 
-// Helper to check time slot conflict
 export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registration[], allTables: GameTable[]): boolean => {
     const userTableIds = userRegistrations.map(r => r.tableId);
     const userTables = allTables.filter(t => userTableIds.includes(t.id));
 
     return userTables.some(registeredTable => {
         if (registeredTable.id === newTable.id) {
-            return false; // Don't conflict with the table itself if editing/re-registering
+            return false; 
         }
         if (registeredTable.day !== newTable.day) {
-          return false; // Different days, no conflict
+          return false; 
         }
 
         const parseTimeSlot = (slot: string): { start: number; end: number } | null => {
@@ -215,7 +139,6 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
             const startMinute = parseInt(match[2], 10);
             const endHour = parseInt(match[3], 10);
             const endMinute = parseInt(match[4], 10);
-            // Simple numeric representation (minutes from midnight)
             return { start: startHour * 60 + startMinute, end: endHour * 60 + endMinute };
         };
 
@@ -223,73 +146,60 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
         const newSlot = parseTimeSlot(newTable.timeSlot);
 
         if (!registeredSlot || !newSlot) {
-             console.warn("Could not parse time slot for conflict check:", registeredTable.timeSlot, newTable.timeSlot);
-            // Fallback to exact string match if parsing fails, though less reliable for overlapping times
+            console.warn("Impossible d'analyser le créneau horaire pour la vérification des conflits:", registeredTable.timeSlot, newTable.timeSlot);
             return registeredTable.timeSlot === newTable.timeSlot;
         }
-
-        // Check for overlap: !(endA <= startB || startA >= endB)
         const overlaps = !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
-        // console.log(`Conflict Check: ${newTable.gameName} (${newSlot.start}-${newSlot.end}) vs ${registeredTable.gameName} (${registeredSlot.start}-${registeredSlot.end}) = ${overlaps}`);
         return overlaps;
     });
 };
 
 
-// Helper function to check registration eligibility based on ticket type and current phase
 export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhaseIndex: number): boolean => {
-    if (userTicketType === 'None') return false;
-    // Use the exported registrationPhases constant
+    if (userTicketType === 'Aucun') return false;
     const userPhaseIndex = registrationPhases.indexOf(userTicketType);
-    // Check if the user's ticket type is found in the phases array AND if their phase index is less than or equal to the current phase index
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
 
-// Function to fetch the current state of tables (useful if data could change)
 export const getCurrentTables = (): GameTable[] => {
-    // Return a deep copy to prevent accidental modification of the original mock data
-    // No need to re-assign icons after JSON parse/stringify as we are using URLs
     return JSON.parse(JSON.stringify(mockGameTables));
 };
 
-// Function to fetch the current state of registrations
 export const getCurrentRegistrations = (): Registration[] => {
-     // Return a deep copy
     return JSON.parse(JSON.stringify(mockRegistrations));
 }
 
-// Function to add a registration (simulates backend update)
 export const addRegistration = (userId: string, tableId: string): Registration => {
     const newRegistration = { userId, tableId };
-    // Prevent duplicate registrations (basic check)
     if (!mockRegistrations.some(r => r.userId === userId && r.tableId === tableId)) {
         mockRegistrations.push(newRegistration);
-        console.log("Added registration:", newRegistration);
-        console.log("Current registrations:", mockRegistrations);
+        console.log("Inscription ajoutée:", newRegistration);
+        console.log("Inscriptions actuelles:", mockRegistrations);
     } else {
-        console.log("Registration already exists for:", userId, tableId);
+        console.log("L'inscription existe déjà pour:", userId, tableId);
     }
-    // Return a copy of the new/existing registration
     return { ...newRegistration };
 }
 
-// Function to remove a registration (simulates backend update)
 export const removeRegistration = (userId: string, tableId: string): void => {
     const initialLength = mockRegistrations.length;
     mockRegistrations = mockRegistrations.filter(r => !(r.userId === userId && r.tableId === tableId));
     if (mockRegistrations.length < initialLength) {
-        console.log("Removed registration for user:", userId, "table:", tableId);
-        console.log("Current registrations:", mockRegistrations);
+        console.log("Inscription supprimée pour l'utilisateur:", userId, "table:", tableId);
+        console.log("Inscriptions actuelles:", mockRegistrations);
     } else {
-         console.log("No registration found to remove for user:", userId, "table:", tableId);
+         console.log("Aucune inscription trouvée à supprimer pour l'utilisateur:", userId, "table:", tableId);
     }
 }
 
-// --- Utility to find icon name from component ---
-// This might be needed if the component itself is stored and you need the name back
-// For now, we primarily work from name -> component in add/update
 // THIS IS NO LONGER USED FOR GAME ICONS
 export const getIconNameFromComponent = (component?: React.ElementType): string | undefined => {
     if (!component) return undefined;
-    return Object.keys(iconMap).find(key => iconMap[key] === component);
+    // This part needs adjustment if iconMap is removed or changed
+    // For now, assuming iconMap might be used for other purposes or was meant to be removed.
+    // If iconMap is truly gone for game icons, this function is less relevant for them.
+    // const iconMap: Record<string, React.ElementType> = { Swords: Swords, Castle: Castle, Flag: Flag };
+    // return Object.keys(iconMap).find(key => iconMap[key] === component);
+    return undefined; // Placeholder if iconMap is fully deprecated for game icons
 };
+

@@ -34,8 +34,6 @@ import {
   addMockTable,
   updateMockTable,
   deleteMockTable,
-  // getIconComponent, // No longer needed for game icons
-  // getIconNameFromComponent // No longer needed for game icons
 } from '@/lib/data'; // Adjust import path if needed
 import type { GameTable, GameTableInput } from '@/lib/types';
 import { Pencil, Trash2, PlusCircle } from 'lucide-react'; // Import icons
@@ -46,9 +44,9 @@ export default function TableManager() {
   const [tables, setTables] = useState<GameTable[]>([]); // Initialize empty, fetch in useEffect
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
-  const [formData, setFormData] = useState<Omit<GameTableInput, 'gameTypeIconName' | 'imageUrl'>>({ // Exclude icon/image fields from direct form state
+  const [formData, setFormData] = useState<Omit<GameTableInput, 'imageUrl'>>({
     gameName: '',
-    day: 'Thursday',
+    day: 'Jeudi',
     timeSlot: '09:00 - 13:00', // Set default time slot
     totalSeats: 4,
   });
@@ -69,12 +67,12 @@ export default function TableManager() {
   };
 
   const handleSelectChange = (name: keyof typeof formData) => (value: string) => {
-     setFormData(prev => ({ ...prev, [name]: value }));
+     setFormData(prev => ({ ...prev, [name]: value as GameTable['day'] | GameTable['timeSlot'] })); // Cast value
   };
 
   const handleEdit = (table: GameTable) => {
     setEditingTable(table);
-    setFormData({ // Populate form, image URL is handled separately based on game name
+    setFormData({ 
         gameName: table.gameName,
         day: table.day,
         timeSlot: table.timeSlot,
@@ -84,23 +82,22 @@ export default function TableManager() {
   };
 
   const handleDelete = (tableId: string) => {
-    // Consider adding a confirmation dialog here in a real app
     try {
-        deleteMockTable(tableId); // Mutate mock data
-        setTables(getCurrentTables()); // Refresh local state from the source
-        toast({ title: "Table Deleted", description: "The game table has been removed." });
+        deleteMockTable(tableId); 
+        setTables(getCurrentTables()); 
+        toast({ title: "Table supprimée", description: "La table de jeu a été supprimée." });
     } catch (error) {
-         toast({ variant: "destructive", title: "Error Deleting Table", description: (error as Error).message });
+         toast({ variant: "destructive", title: "Erreur lors de la suppression de la table", description: (error as Error).message });
     }
   };
 
   const handleOpenDialogForAdd = () => {
     setEditingTable(null);
-    setFormData({ // Reset form for adding
+    setFormData({ 
       gameName: '',
-      day: 'Thursday',
-      timeSlot: '09:00 - 13:00', // Reset to default time slot
-      totalSeats: 4, // Sensible default
+      day: 'Jeudi',
+      timeSlot: '09:00 - 13:00', 
+      totalSeats: 4, 
     });
     setIsDialogOpen(true);
   };
@@ -108,33 +105,28 @@ export default function TableManager() {
    const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Basic validation (add more robust validation as needed)
     if (!formData.gameName || !formData.timeSlot || formData.totalSeats <= 0) {
-        toast({ variant: "destructive", title: "Invalid Input", description: "Please fill all fields correctly." });
+        toast({ variant: "destructive", title: "Entrée invalide", description: "Veuillez remplir tous les champs correctement." });
         return;
     }
-
-    // Construct the data payload, imageUrl will be derived in the mock functions
+    
     const tableDataPayload: GameTableInput = {
         ...formData
-        // imageUrl will be added by add/updateMockTable based on gameName
     };
 
 
     try {
         if (editingTable) {
-            // Update existing table - Pass ID along with form data
             updateMockTable({ ...tableDataPayload, id: editingTable.id });
-            toast({ title: "Table Updated", description: "Game table details saved." });
+            toast({ title: "Table mise à jour", description: "Détails de la table de jeu enregistrés." });
         } else {
-            // Add new table
             addMockTable(tableDataPayload);
-            toast({ title: "Table Added", description: "New game table created successfully." });
+            toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès." });
         }
-        setTables(getCurrentTables()); // Refresh local state from the source
-        setIsDialogOpen(false); // Close dialog on success
+        setTables(getCurrentTables()); 
+        setIsDialogOpen(false); 
     } catch(error) {
-         toast({ variant: "destructive", title: "Operation Failed", description: (error as Error).message });
+         toast({ variant: "destructive", title: "Opération échouée", description: (error as Error).message });
     }
 
   };
@@ -144,66 +136,65 @@ export default function TableManager() {
     <Card className="shadow-lg">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Manage Game Tables</CardTitle>
-          <CardDescription>Add, edit, or delete game tables for the convention.</CardDescription>
+          <CardTitle>Gérer les tables de jeu</CardTitle>
+          <CardDescription>Ajouter, modifier ou supprimer des tables de jeu pour la convention.</CardDescription>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={handleOpenDialogForAdd}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Table
+              <PlusCircle className="mr-2 h-4 w-4" /> Ajouter une table
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>{editingTable ? 'Edit Game Table' : 'Add New Game Table'}</DialogTitle>
+              <DialogTitle>{editingTable ? 'Modifier la table de jeu' : 'Ajouter une nouvelle table de jeu'}</DialogTitle>
               <DialogDescription>
-                {editingTable ? 'Modify the details of the existing table.' : 'Enter the details for the new game table. The game image will be set automatically based on the name if available.'}
+                {editingTable ? 'Modifier les détails de la table existante.' : 'Entrez les détails de la nouvelle table de jeu. L\'image du jeu sera définie automatiquement en fonction du nom si disponible.'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
                  {/* Form Fields */}
                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="gameName" className="text-right">Game Name</Label>
+                    <Label htmlFor="gameName" className="text-right">Nom du jeu</Label>
                     <Input id="gameName" name="gameName" value={formData.gameName} onChange={handleInputChange} className="col-span-3" required />
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="day" className="text-right">Day</Label>
+                    <Label htmlFor="day" className="text-right">Jour</Label>
                      <Select name="day" value={formData.day} onValueChange={handleSelectChange('day')} required>
                         <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="Select Day" />
+                            <SelectValue placeholder="Sélectionner le jour" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="Thursday">Thursday</SelectItem>
-                            <SelectItem value="Friday">Friday</SelectItem>
-                            <SelectItem value="Saturday">Saturday</SelectItem>
-                            <SelectItem value="Sunday">Sunday</SelectItem>
+                            <SelectItem value="Jeudi">Jeudi</SelectItem>
+                            <SelectItem value="Vendredi">Vendredi</SelectItem>
+                            <SelectItem value="Samedi">Samedi</SelectItem>
+                            <SelectItem value="Dimanche">Dimanche</SelectItem>
                         </SelectContent>
                     </Select>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="timeSlot" className="text-right">Time Slot</Label>
+                    <Label htmlFor="timeSlot" className="text-right">Créneau horaire</Label>
                      <Select name="timeSlot" value={formData.timeSlot} onValueChange={handleSelectChange('timeSlot')} required>
                          <SelectTrigger className="col-span-3">
-                             <SelectValue placeholder="Select Time Slot" />
+                             <SelectValue placeholder="Sélectionner le créneau horaire" />
                          </SelectTrigger>
                          <SelectContent>
-                             <SelectItem value="09:00 - 13:00">AM (09:00 - 13:00)</SelectItem>
-                             <SelectItem value="14:00 - 19:00">PM (14:00 - 19:00)</SelectItem>
+                             <SelectItem value="09:00 - 13:00">Matin (09:00 - 13:00)</SelectItem>
+                             <SelectItem value="14:00 - 19:00">Après-midi (14:00 - 19:00)</SelectItem>
                          </SelectContent>
                      </Select>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="totalSeats" className="text-right">Total Seats</Label>
+                    <Label htmlFor="totalSeats" className="text-right">Nombre total de places</Label>
                     <Input id="totalSeats" name="totalSeats" type="number" value={formData.totalSeats} onChange={handleInputChange} className="col-span-3" min="1" required />
                  </div>
-                 {/* Icon Selection Removed */}
               </div>
               <DialogFooter>
                  <DialogClose asChild>
-                    <Button type="button" variant="outline">Cancel</Button>
+                    <Button type="button" variant="outline">Annuler</Button>
                  </DialogClose>
-                <Button type="submit">{editingTable ? 'Save Changes' : 'Add Table'}</Button>
+                <Button type="submit">{editingTable ? 'Enregistrer les modifications' : 'Ajouter la table'}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -212,21 +203,21 @@ export default function TableManager() {
       <CardContent>
         {tables.length > 0 ? (
             <Table>
-            <TableCaption>A list of configured game tables.</TableCaption>
+            <TableCaption>Une liste des tables de jeu configurées.</TableCaption>
             <TableHeader>
                 <TableRow>
                 <TableHead>Image</TableHead>
-                <TableHead>Game Name</TableHead>
-                <TableHead>Day</TableHead>
-                <TableHead>Time Slot</TableHead>
-                <TableHead className="text-center">Seats</TableHead>
+                <TableHead>Nom du jeu</TableHead>
+                <TableHead>Jour</TableHead>
+                <TableHead>Créneau horaire</TableHead>
+                <TableHead className="text-center">Places</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {tables.sort((a, b) => { // Sort for consistent display
-                    const dayOrder = ['Thursday', 'Friday', 'Saturday', 'Sunday'];
-                    const timeOrder = ["09:00 - 13:00", "14:00 - 19:00"]; // AM then PM
+                {tables.sort((a, b) => { 
+                    const dayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+                    const timeOrder = ["09:00 - 13:00", "14:00 - 19:00"]; 
                     if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
                     if (a.day !== b.day) return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
                     return timeOrder.indexOf(a.timeSlot) - timeOrder.indexOf(b.timeSlot);
@@ -236,10 +227,11 @@ export default function TableManager() {
                         {table.imageUrl ? (
                             <Image
                                 src={table.imageUrl}
-                                alt={`${table.gameName} icon`}
-                                width={32} // Slightly larger icon in admin view
+                                alt={`Icône ${table.gameName}`}
+                                width={32} 
                                 height={32}
                                 className="rounded object-cover h-8 w-8"
+                                data-ai-hint="game icon"
                             />
                         ) : (
                             <div className="h-8 w-8 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div>
@@ -252,11 +244,11 @@ export default function TableManager() {
                     <TableCell className="text-right space-x-2">
                     <Button variant="outline" size="icon" onClick={() => handleEdit(table)}>
                         <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Edit</span>
+                        <span className="sr-only">Modifier</span>
                     </Button>
                     <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)}>
                         <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete</span>
+                        <span className="sr-only">Supprimer</span>
                     </Button>
                     </TableCell>
                 </TableRow>
@@ -264,9 +256,10 @@ export default function TableManager() {
             </TableBody>
             </Table>
         ) : (
-             <p className="text-muted-foreground text-center py-4">No tables configured yet. Click 'Add Table' to create one.</p>
+             <p className="text-muted-foreground text-center py-4">Aucune table configurée pour le moment. Cliquez sur 'Ajouter une table' pour en créer une.</p>
         )}
       </CardContent>
     </Card>
   );
 }
+

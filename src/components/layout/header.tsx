@@ -19,11 +19,11 @@ export default function Header() {
     setSignOutLoading(true);
     try {
       await signOut();
-      toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
+      toast({ title: 'Déconnecté(e)', description: 'Vous avez été déconnecté(e) avec succès.' });
       router.push('/'); // Redirect to home page after logout
     } catch (error) {
-      console.error("Sign out failed:", error);
-      toast({ variant: 'destructive', title: 'Logout Failed', description: 'Could not log you out. Please try again.' });
+      console.error("La déconnexion a échoué:", error);
+      toast({ variant: 'destructive', title: 'Échec de la déconnexion', description: 'Impossible de vous déconnecter. Veuillez réessayer.' });
     } finally {
       setSignOutLoading(false);
     }
@@ -39,7 +39,7 @@ export default function Header() {
         <nav className="flex items-center gap-4">
            {/* Show Admin link only if user is logged in */}
            {user && (
-             <Link href="/admin" className="flex items-center gap-1 text-sm hover:text-accent transition-colors" title="Admin Area">
+             <Link href="/admin" className="flex items-center gap-1 text-sm hover:text-accent transition-colors" title="Espace Admin">
                <ShieldCheck className="h-4 w-4" />
                <span>Admin</span>
              </Link>
@@ -61,7 +61,7 @@ export default function Header() {
               ) : (
                 <LogOut className="mr-2 h-4 w-4" />
               )}
-              Logout
+              Déconnexion
             </Button>
           ) : (
             <Button
@@ -71,7 +71,7 @@ export default function Header() {
               className="hover:bg-primary/80 hover:text-primary-foreground"
             >
               <LogIn className="mr-2 h-4 w-4" />
-              Login
+              Connexion
             </Button>
           )}
         </nav>
@@ -79,3 +79,4 @@ export default function Header() {
     </header>
   );
 }
+
