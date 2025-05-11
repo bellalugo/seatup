@@ -2,7 +2,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 // Add other Firebase services like Firestore if needed:
-// import { getFirestore } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 
 
 // --- IMPORTANT ---
@@ -45,14 +45,13 @@ if (
     !firebaseConfig.authDomain ||
     !firebaseConfig.projectId
    ) {
-     console.error(
+     console.warn( // Changed to console.warn to avoid breaking server-side rendering if an env var is temporarily missing during build.
        "Firebase configuration environment variables are missing or incomplete. " +
        "Please ensure NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, " +
        "and NEXT_PUBLIC_FIREBASE_PROJECT_ID are set in your .env.local file and " +
-       "that the development server was restarted after the file was created or modified."
+       "that the development server was restarted after the file was created or modified. " +
+       "This might lead to Firebase features not working correctly."
      );
-     // Optionally throw an error or handle this case as needed
-     // throw new Error("Missing Firebase configuration. Please check your .env.local file.");
 }
 
 
@@ -65,7 +64,6 @@ if (!getApps().length) {
 }
 
 const auth = getAuth(app);
-// const db = getFirestore(app); // Initialize Firestore if needed
+const db = getFirestore(app); // Initialize Firestore
 
-export { app, auth /*, db */ };
-
+export { app, auth, db };

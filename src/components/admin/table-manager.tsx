@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import Image from 'next/image'; // Import next/image
+import Image from 'next/image';
 import {
   Table,
   TableBody,
@@ -30,36 +30,48 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import {
-  getCurrentTables, // Use getCurrentTables to get the initial state
-  addMockTable,
-  updateMockTable,
-  deleteMockTable,
-} from '@/lib/data'; // Adjust import path if needed
+  getGameTables,
+  addGameTable,
+  updateGameTable,
+  deleteGameTable,
+} from '@/lib/data';
 import type { GameTable, GameTableInput } from '@/lib/types';
-import { Pencil, Trash2, PlusCircle } from 'lucide-react'; // Import icons
+import { Pencil, Trash2, PlusCircle, Loader2 } from 'lucide-react';
 
-// Convention days for sorting consistency if dates were part of GameTable type
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00"];
 
-
 export default function TableManager() {
-  const [tables, setTables] = useState<GameTable[]>([]); // Initialize empty, fetch in useEffect
+  const [tables, setTables] = useState<GameTable[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
   const [formData, setFormData] = useState<Omit<GameTableInput, 'imageUrl'>>({
     gameName: '',
     day: 'Jeudi',
-    timeSlot: '09:00 - 13:00', // Set default time slot
+    timeSlot: '09:00 - 13:00',
     totalSeats: 4,
   });
   const { toast } = useToast();
 
-  // Fetch initial data on component mount
-  useEffect(() => {
-    setTables(getCurrentTables());
-  }, []);
+  const fetchTables = async () => {
+    setIsLoading(true);
+    try {
+      const fetchedTables = await getGameTables();
+      setTables(fetchedTables);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des tables:", error);
+      toast({ variant: "destructive", title: "Erreur de chargement", description: (error as Error).message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    fetchTables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
@@ -69,13 +81,13 @@ export default function TableManager() {
     }));
   };
 
-  const handleSelectChange = (name: keyof typeof formData) => (value: string) => {
-     setFormData(prev => ({ ...prev, [name]: value as GameTable['day'] | GameTable['timeSlot'] })); // Cast value
+  const handleSelectChange = (name: keyof Omit<GameTableInput, 'imageUrl' | 'gameName' | 'totalSeats'>) => (value: string) => {
+     setFormData(prev => ({ ...prev, [name]: value as GameTable['day'] | GameTable['timeSlot'] }));
   };
 
   const handleEdit = (table: GameTable) => {
     setEditingTable(table);
-    setFormData({ 
+    setFormData({
         gameName: table.gameName,
         day: table.day,
         timeSlot: table.timeSlot,
@@ -84,56 +96,73 @@ export default function TableManager() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (tableId: string) => {
+  const handleDelete = async (tableId: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette table ? Cette action supprimera également toutes les inscriptions associées.")) {
+        return;
+    }
+    setIsSubmitting(true); // Indicate loading for delete operation
     try {
-        deleteMockTable(tableId); 
-        setTables(getCurrentTables()); 
-        toast({ title: "Table supprimée", description: "La table de jeu a été supprimée." });
+        await deleteGameTable(tableId);
+        await fetchTables(); // Re-fetch tables
+        toast({ title: "Table supprimée", description: "La table de jeu et ses inscriptions ont été supprimées." });
     } catch (error) {
-         toast({ variant: "destructive", title: "Erreur lors de la suppression de la table", description: (error as Error).message });
+         toast({ variant: "destructive", title: "Erreur lors de la suppression", description: (error as Error).message });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
   const handleOpenDialogForAdd = () => {
     setEditingTable(null);
-    setFormData({ 
+    setFormData({
       gameName: '',
       day: 'Jeudi',
-      timeSlot: '09:00 - 13:00', 
-      totalSeats: 4, 
+      timeSlot: '09:00 - 13:00',
+      totalSeats: 4,
     });
     setIsDialogOpen(true);
   };
 
-   const handleSubmit = (e: React.FormEvent) => {
+   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     if (!formData.gameName || !formData.timeSlot || formData.totalSeats <= 0) {
         toast({ variant: "destructive", title: "Entrée invalide", description: "Veuillez remplir tous les champs correctement." });
+        setIsSubmitting(false);
         return;
     }
-    
+
+    // The imageUrl will be handled by addGameTable/updateGameTable using gameImageMap
     const tableDataPayload: GameTableInput = {
         ...formData
     };
 
-
     try {
         if (editingTable) {
-            updateMockTable({ ...tableDataPayload, id: editingTable.id });
+            await updateGameTable({ ...tableDataPayload, id: editingTable.id });
             toast({ title: "Table mise à jour", description: "Détails de la table de jeu enregistrés." });
         } else {
-            addMockTable(tableDataPayload);
+            await addGameTable(tableDataPayload);
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès." });
         }
-        setTables(getCurrentTables()); 
-        setIsDialogOpen(false); 
+        await fetchTables(); // Re-fetch tables
+        setIsDialogOpen(false);
     } catch(error) {
          toast({ variant: "destructive", title: "Opération échouée", description: (error as Error).message });
+    } finally {
+        setIsSubmitting(false);
     }
-
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4 text-muted-foreground">Chargement des tables...</p>
+      </div>
+    );
+  }
 
   return (
     <Card className="shadow-lg">
@@ -144,7 +173,7 @@ export default function TableManager() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={handleOpenDialogForAdd}>
+            <Button onClick={handleOpenDialogForAdd} disabled={isSubmitting}>
               <PlusCircle className="mr-2 h-4 w-4" /> Ajouter une table
             </Button>
           </DialogTrigger>
@@ -157,14 +186,13 @@ export default function TableManager() {
             </DialogHeader>
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
-                 {/* Form Fields */}
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="gameName" className="text-right">Nom du jeu</Label>
-                    <Input id="gameName" name="gameName" value={formData.gameName} onChange={handleInputChange} className="col-span-3" required />
+                    <Input id="gameName" name="gameName" value={formData.gameName} onChange={handleInputChange} className="col-span-3" required disabled={isSubmitting} />
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="day" className="text-right">Jour</Label>
-                     <Select name="day" value={formData.day} onValueChange={handleSelectChange('day')} required>
+                     <Select name="day" value={formData.day} onValueChange={handleSelectChange('day')} required disabled={isSubmitting}>
                         <SelectTrigger className="col-span-3">
                             <SelectValue placeholder="Sélectionner le jour" />
                         </SelectTrigger>
@@ -178,7 +206,7 @@ export default function TableManager() {
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="timeSlot" className="text-right">Créneau horaire</Label>
-                     <Select name="timeSlot" value={formData.timeSlot} onValueChange={handleSelectChange('timeSlot')} required>
+                     <Select name="timeSlot" value={formData.timeSlot} onValueChange={handleSelectChange('timeSlot')} required disabled={isSubmitting}>
                          <SelectTrigger className="col-span-3">
                              <SelectValue placeholder="Sélectionner le créneau horaire" />
                          </SelectTrigger>
@@ -190,14 +218,17 @@ export default function TableManager() {
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="totalSeats" className="text-right">Nombre total de places</Label>
-                    <Input id="totalSeats" name="totalSeats" type="number" value={formData.totalSeats} onChange={handleInputChange} className="col-span-3" min="1" required />
+                    <Input id="totalSeats" name="totalSeats" type="number" value={formData.totalSeats} onChange={handleInputChange} className="col-span-3" min="1" required disabled={isSubmitting} />
                  </div>
               </div>
               <DialogFooter>
                  <DialogClose asChild>
-                    <Button type="button" variant="outline">Annuler</Button>
+                    <Button type="button" variant="outline" disabled={isSubmitting}>Annuler</Button>
                  </DialogClose>
-                <Button type="submit">{editingTable ? 'Enregistrer les modifications' : 'Ajouter la table'}</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {editingTable ? 'Enregistrer les modifications' : 'Ajouter la table'}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -218,9 +249,11 @@ export default function TableManager() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {tables.sort((a, b) => { 
+                {tables.sort((a, b) => {
                     if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
-                    if (a.day !== b.day) return conventionDayOrder.indexOf(a.day) - conventionDayOrder.indexOf(b.day);
+                    const dayAIndex = conventionDayOrder.indexOf(a.day);
+                    const dayBIndex = conventionDayOrder.indexOf(b.day);
+                    if (dayAIndex !== dayBIndex) return dayAIndex - dayBIndex;
                     return timeSlotOrder.indexOf(a.timeSlot) - timeSlotOrder.indexOf(b.timeSlot);
                 }).map((table) => (
                 <TableRow key={table.id}>
@@ -229,7 +262,7 @@ export default function TableManager() {
                             <Image
                                 src={table.imageUrl}
                                 alt={`Icône ${table.gameName}`}
-                                width={32} 
+                                width={32}
                                 height={32}
                                 className="rounded object-cover h-8 w-8"
                                 data-ai-hint="game icon"
@@ -243,12 +276,12 @@ export default function TableManager() {
                     <TableCell>{table.timeSlot}</TableCell>
                     <TableCell className="text-center">{table.totalSeats}</TableCell>
                     <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="icon" onClick={() => handleEdit(table)}>
+                    <Button variant="outline" size="icon" onClick={() => handleEdit(table)} disabled={isSubmitting}>
                         <Pencil className="h-4 w-4" />
                         <span className="sr-only">Modifier</span>
                     </Button>
-                    <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)}>
-                        <Trash2 className="h-4 w-4" />
+                    <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         <span className="sr-only">Supprimer</span>
                     </Button>
                     </TableCell>
@@ -263,4 +296,3 @@ export default function TableManager() {
     </Card>
   );
 }
-

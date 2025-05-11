@@ -1,12 +1,22 @@
 
-
 import type { GameTable, User, Registration, TicketType, GameTableInput } from '@/lib/types';
-// Correctly import registrationPhases from types.ts
 import { registrationPhases as importedRegistrationPhases } from '@/lib/types';
-
+import { db } from '@/firebase/clientApp';
+import {
+    collection,
+    getDocs,
+    addDoc,
+    doc,
+    updateDoc,
+    deleteDoc,
+    query,
+    where,
+    writeBatch,
+    orderBy,
+    Timestamp, // Not strictly needed for GameTable but good for other potential date fields
+} from 'firebase/firestore';
 
 // --- Game Icons/Images ---
-// We'll store image URLs directly in the table data instead of mapping components
 const gameImageMap: Record<string, string> = {
     "Fields of Fire 3": "/game-icons/fields_of_fire_3.webp",
     "Conquest & Consequence": "/game-icons/conquest_and_consequence.webp",
@@ -34,8 +44,7 @@ const gameImageMap: Record<string, string> = {
     "Fire in the Lake: Insurgency in Vietnam": "/game-icons/fire_in_the_lake.webp"
 };
 
-
-// Mock Users
+// Mock Users (remains client-side for now, could be moved to Firestore too)
 export const mockUsers: Record<string, User> = {
   'user-123': { id: 'user-123', name: 'Alice (Stratège)', ticketType: 'Stratège' },
   'user-456': { id: 'user-456', name: 'Bob (Maréchal)', ticketType: 'Maréchal' },
@@ -43,75 +52,137 @@ export const mockUsers: Record<string, User> = {
   'user-000': { id: 'user-000', name: 'David (Pas de billet)', ticketType: 'Aucun' },
 };
 
-
-// Mock Game Tables Data - Initialize with an empty array
-export let mockGameTables: GameTable[] = [];
-
-// Mock initial registrations (can be empty) - Make this mutable
-export let mockRegistrations: Registration[] = [
-  // Example: { userId: 'user-123', tableId: 'table-2' }
-];
-
 // Re-export registrationPhases for use in components
 export const registrationPhases = importedRegistrationPhases;
 
+const TABLES_COLLECTION = 'gameTables';
+const REGISTRATIONS_COLLECTION = 'registrations';
 
-// --- Data Mutation Functions (Mock Backend) ---
+// --- Firestore Data Functions ---
 
-/** Adds a new table to the mock data */
-export const addMockTable = (tableInput: GameTableInput): GameTable => {
-    const newId = `table-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
-    const newTable: GameTable = {
-        id: newId,
-        gameName: tableInput.gameName,
-        day: tableInput.day,
-        timeSlot: tableInput.timeSlot,
-        totalSeats: tableInput.totalSeats,
-        imageUrl: gameImageMap[tableInput.gameName] || tableInput.imageUrl,
-    };
-    mockGameTables.push(newTable);
-    console.log("Table ajoutée:", newTable);
-    console.log("Tables actuelles:", mockGameTables);
-    return newTable;
-};
-
-/** Updates an existing table in the mock data */
-export const updateMockTable = (updatedTableData: GameTableInput & { id: string }): GameTable => {
-    const index = mockGameTables.findIndex(t => t.id === updatedTableData.id);
-    if (index === -1) {
-        throw new Error(`Table avec ID ${updatedTableData.id} non trouvée.`);
+/** Fetches all game tables from Firestore */
+export const getGameTables = async (): Promise<GameTable[]> => {
+    try {
+        const tablesCollection = collection(db, TABLES_COLLECTION);
+        // Optional: Order by gameName, then day, then timeSlot for consistency
+        const q = query(tablesCollection, orderBy("gameName"), orderBy("day"), orderBy("timeSlot"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameTable));
+    } catch (error) {
+        console.error("Erreur lors de la récupération des tables de jeu:", error);
+        throw new Error("Impossible de récupérer les tables de jeu depuis Firestore.");
     }
-
-    const updatedTable: GameTable = {
-        id: updatedTableData.id,
-        gameName: updatedTableData.gameName,
-        day: updatedTableData.day,
-        timeSlot: updatedTableData.timeSlot,
-        totalSeats: updatedTableData.totalSeats,
-        imageUrl: gameImageMap[updatedTableData.gameName] || updatedTableData.imageUrl,
-    };
-
-    mockGameTables[index] = updatedTable;
-    console.log("Table mise à jour:", updatedTable);
-    console.log("Tables actuelles:", mockGameTables);
-    return updatedTable;
 };
 
-
-/** Deletes a table from the mock data */
-export const deleteMockTable = (tableId: string): void => {
-    const initialLength = mockGameTables.length;
-    mockGameTables = mockGameTables.filter(t => t.id !== tableId);
-    if (mockGameTables.length === initialLength) {
-         throw new Error(`Table avec ID ${tableId} non trouvée pour suppression.`);
+/** Adds a new table to Firestore */
+export const addGameTable = async (tableInput: GameTableInput): Promise<GameTable> => {
+    try {
+        const newTableData = {
+            ...tableInput,
+            imageUrl: gameImageMap[tableInput.gameName] || tableInput.imageUrl, // Ensure imageUrl is set
+        };
+        const docRef = await addDoc(collection(db, TABLES_COLLECTION), newTableData);
+        return { id: docRef.id, ...newTableData };
+    } catch (error) {
+        console.error("Erreur lors de l'ajout de la table de jeu:", error);
+        throw new Error("Impossible d'ajouter la table de jeu à Firestore.");
     }
-    mockRegistrations = mockRegistrations.filter(r => r.tableId !== tableId);
-    console.log("Table supprimée:", tableId);
-    console.log("Tables actuelles:", mockGameTables);
-    console.log("Inscriptions actuelles:", mockRegistrations);
 };
 
-// --- Read Functions (Remain mostly the same) ---
+/** Updates an existing table in Firestore */
+export const updateGameTable = async (tableToUpdate: GameTable): Promise<GameTable> => {
+    try {
+        const tableRef = doc(db, TABLES_COLLECTION, tableToUpdate.id);
+        const updatedData = {
+            ...tableToUpdate,
+            imageUrl: gameImageMap[tableToUpdate.gameName] || tableToUpdate.imageUrl, // Ensure imageUrl is updated
+        };
+        // Firestore's updateDoc doesn't need the id in the data payload
+        const { id, ...dataToSave } = updatedData;
+        await updateDoc(tableRef, dataToSave);
+        return updatedData;
+    } catch (error) {
+        console.error("Erreur lors de la mise à jour de la table de jeu:", error);
+        throw new Error("Impossible de mettre à jour la table de jeu dans Firestore.");
+    }
+};
+
+/** Deletes a table from Firestore and its associated registrations */
+export const deleteGameTable = async (tableId: string): Promise<void> => {
+    const batch = writeBatch(db);
+    try {
+        // Delete the table itself
+        const tableRef = doc(db, TABLES_COLLECTION, tableId);
+        batch.delete(tableRef);
+
+        // Find and delete associated registrations
+        const registrationsQuery = query(collection(db, REGISTRATIONS_COLLECTION), where("tableId", "==", tableId));
+        const registrationsSnapshot = await getDocs(registrationsQuery);
+        registrationsSnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+    } catch (error) {
+        console.error("Erreur lors de la suppression de la table de jeu et de ses inscriptions:", error);
+        throw new Error("Impossible de supprimer la table de jeu et ses inscriptions de Firestore.");
+    }
+};
+
+
+/** Fetches all registrations from Firestore */
+export const getRegistrations = async (): Promise<Registration[]> => {
+    try {
+        const registrationsCollection = collection(db, REGISTRATIONS_COLLECTION);
+        const querySnapshot = await getDocs(registrationsCollection);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Registration & { id: string }));
+    } catch (error) {
+        console.error("Erreur lors de la récupération des inscriptions:", error);
+        throw new Error("Impossible de récupérer les inscriptions depuis Firestore.");
+    }
+};
+
+/** Adds a new registration to Firestore */
+export const addRegistration = async (userId: string, tableId: string): Promise<Registration> => {
+    try {
+        // Check if registration already exists to prevent duplicates (optional, can be handled by UI/rules)
+        const q = query(collection(db, REGISTRATIONS_COLLECTION), where("userId", "==", userId), where("tableId", "==", tableId));
+        const existingRegs = await getDocs(q);
+        if (!existingRegs.empty) {
+            console.warn("L'inscription existe déjà pour:", userId, tableId);
+            // Return the existing registration or throw an error, depending on desired behavior
+            return { id: existingRegs.docs[0].id, ...existingRegs.docs[0].data() } as Registration & { id: string };
+        }
+
+        const newRegistrationData = { userId, tableId };
+        const docRef = await addDoc(collection(db, REGISTRATIONS_COLLECTION), newRegistrationData);
+        return { id: docRef.id, ...newRegistrationData };
+    } catch (error) {
+        console.error("Erreur lors de l'ajout de l'inscription:", error);
+        throw new Error("Impossible d'ajouter l'inscription à Firestore.");
+    }
+};
+
+/** Removes a registration from Firestore */
+export const removeRegistration = async (userId: string, tableId: string): Promise<void> => {
+    try {
+        const q = query(collection(db, REGISTRATIONS_COLLECTION), where("userId", "==", userId), where("tableId", "==", tableId));
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+            console.warn("Aucune inscription trouvée à supprimer pour l'utilisateur:", userId, "table:", tableId);
+            return;
+        }
+        // Assuming only one registration per user/table combination
+        const registrationDoc = querySnapshot.docs[0];
+        await deleteDoc(doc(db, REGISTRATIONS_COLLECTION, registrationDoc.id));
+    } catch (error) {
+        console.error("Erreur lors de la suppression de l'inscription:", error);
+        throw new Error("Impossible de supprimer l'inscription de Firestore.");
+    }
+};
+
+
+// --- Utility Functions (mostly unchanged, operate on fetched data) ---
 
 export const getAvailableSeats = (tableId: string, registrations: Registration[], tables: GameTable[]): number => {
     const table = tables.find(t => t.id === tableId);
@@ -126,10 +197,10 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
 
     return userTables.some(registeredTable => {
         if (registeredTable.id === newTable.id) {
-            return false; 
+            return false;
         }
         if (registeredTable.day !== newTable.day) {
-          return false; 
+          return false;
         }
 
         const parseTimeSlot = (slot: string): { start: number; end: number } | null => {
@@ -160,46 +231,3 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = registrationPhases.indexOf(userTicketType);
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
-
-export const getCurrentTables = (): GameTable[] => {
-    return JSON.parse(JSON.stringify(mockGameTables));
-};
-
-export const getCurrentRegistrations = (): Registration[] => {
-    return JSON.parse(JSON.stringify(mockRegistrations));
-}
-
-export const addRegistration = (userId: string, tableId: string): Registration => {
-    const newRegistration = { userId, tableId };
-    if (!mockRegistrations.some(r => r.userId === userId && r.tableId === tableId)) {
-        mockRegistrations.push(newRegistration);
-        console.log("Inscription ajoutée:", newRegistration);
-        console.log("Inscriptions actuelles:", mockRegistrations);
-    } else {
-        console.log("L'inscription existe déjà pour:", userId, tableId);
-    }
-    return { ...newRegistration };
-}
-
-export const removeRegistration = (userId: string, tableId: string): void => {
-    const initialLength = mockRegistrations.length;
-    mockRegistrations = mockRegistrations.filter(r => !(r.userId === userId && r.tableId === tableId));
-    if (mockRegistrations.length < initialLength) {
-        console.log("Inscription supprimée pour l'utilisateur:", userId, "table:", tableId);
-        console.log("Inscriptions actuelles:", mockRegistrations);
-    } else {
-         console.log("Aucune inscription trouvée à supprimer pour l'utilisateur:", userId, "table:", tableId);
-    }
-}
-
-// THIS IS NO LONGER USED FOR GAME ICONS
-export const getIconNameFromComponent = (component?: React.ElementType): string | undefined => {
-    if (!component) return undefined;
-    // This part needs adjustment if iconMap is removed or changed
-    // For now, assuming iconMap might be used for other purposes or was meant to be removed.
-    // If iconMap is truly gone for game icons, this function is less relevant for them.
-    // const iconMap: Record<string, React.ElementType> = { Swords: Swords, Castle: Castle, Flag: Flag };
-    // return Object.keys(iconMap).find(key => iconMap[key] === component);
-    return undefined; // Placeholder if iconMap is fully deprecated for game icons
-};
-
