@@ -1,3 +1,4 @@
+
 'use client';
 
 import type React from 'react';
@@ -11,6 +12,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
     mockUsers,
     getGameTables,
     getRegistrations,
@@ -22,7 +34,7 @@ import {
     registrationPhases
 } from '@/lib/data';
 import type { GameTable, User, Registration } from '@/lib/types';
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash } from 'lucide-react';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, Gamepad2 } from 'lucide-react';
 
 const conventionDays = [
     { name: 'Jeudi', date: '03/07', value: 'jeudi' },
@@ -39,6 +51,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
   const [currentRegistrationPhaseIndex, setCurrentRegistrationPhaseIndex] = useState(0);
+  const [tableToConfirm, setTableToConfirm] = useState<GameTable | null>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const loadData = useCallback(async () => {
@@ -51,12 +65,11 @@ export default function Home() {
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrations);
-      setUsers(mockUsers); // This could also be fetched from a DB if users are managed there
+      setUsers(mockUsers); 
       setCurrentUser(prevUser => {
          if (prevUser && mockUsers[prevUser.id]) {
             return mockUsers[prevUser.id];
          }
-         // Check if mockUsers is not empty before accessing its keys
          const userKeys = Object.keys(mockUsers);
          if (userKeys.length > 0) {
             const firstUserId = userKeys[0];
@@ -102,6 +115,44 @@ export default function Home() {
     setCurrentUser(users[userId] || null);
   };
 
+  const openConfirmationDialog = (table: GameTable) => {
+    if (!currentUser) {
+      toast({ variant: "destructive", title: "Aucun utilisateur sélectionné", description: "Veuillez sélectionner un utilisateur." });
+      return;
+    }
+
+    if (!canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex)) {
+       toast({
+        variant: "destructive",
+        title: "Inscription pas encore ouverte",
+        description: `L'inscription pour votre type de billet (${currentUser.ticketType}) ouvre plus tard. Phase actuelle : ${registrationPhases[currentRegistrationPhaseIndex]}.`,
+      });
+      return;
+    }
+
+    const availableSeats = getAvailableSeats(table.id, registrations, tables);
+    if (availableSeats <= 0) {
+      toast({ variant: "destructive", title: "Table complète", description: "Aucune place disponible à cette table." });
+      return;
+    }
+
+    const isAlreadyRegistered = registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
+    if (isAlreadyRegistered) {
+      toast({ variant: "destructive", title: "Déjà inscrit(e)", description: "Vous êtes déjà inscrit(e) à cette table." });
+      return;
+    }
+
+    const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser.id);
+    if (hasTimeConflict(table, userCurrentRegistrations, tables)) {
+       toast({ variant: "destructive", title: "Conflit de créneau horaire", description: "Vous êtes déjà inscrit(e) à un jeu pendant ce créneau horaire." });
+       return;
+    }
+
+    setTableToConfirm(table);
+    setIsConfirmDialogOpen(true);
+  };
+
+
   const handleRegister = async (tableId: string) => {
     if (!currentUser) {
       toast({ variant: "destructive", title: "Aucun utilisateur sélectionné", description: "Veuillez sélectionner un utilisateur." });
@@ -114,6 +165,7 @@ export default function Home() {
       return;
     }
 
+    // Checks are already done in openConfirmationDialog, but keep them for direct calls or safety
     if (!canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex)) {
        toast({
         variant: "destructive",
@@ -148,7 +200,7 @@ export default function Home() {
         setRegistrations(updatedRegistrations);
 
         toast({
-        title: "Inscription réussie!",
+        title: "Inscription réussie !",
         description: `${currentUser.name}, vous êtes maintenant inscrit(e) pour le jeu : ${table.gameName}.`,
         action: <CheckCircle className="text-green-500" />,
         });
@@ -156,6 +208,8 @@ export default function Home() {
          toast({ variant: "destructive", title: "Échec de l'inscription", description: (error as Error).message });
     } finally {
         setIsSubmittingRegistration(false);
+        setIsConfirmDialogOpen(false);
+        setTableToConfirm(null);
     }
   };
 
@@ -287,7 +341,7 @@ export default function Home() {
 
                                                     let buttonText = "S'inscrire";
                                                     let buttonVariant: "default" | "secondary" | "destructive" = "default";
-                                                    let onClickAction = () => handleRegister(table.id);
+                                                    let onClickAction = () => openConfirmationDialog(table); // Updated onClickAction
                                                     let tooltipText = "";
 
                                                     if (isSubmittingRegistration) {
@@ -354,7 +408,8 @@ export default function Home() {
                                                                     title={tooltipText || buttonText}
                                                                     className="shadow-sm rounded-md"
                                                                 >
-                                                                    {isSubmittingRegistration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                                    {isSubmittingRegistration && isRegisteredByUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                                    {isSubmittingRegistration && !isRegisteredByUser && tableToConfirm?.id === table.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                                                     {!isSubmittingRegistration && isRegisteredByUser && <CheckCircle className="mr-2 h-4 w-4" />}
                                                                     {!isSubmittingRegistration && !isRegisteredByUser && (availableSeats <= 0 || conflict) && <AlertCircle className="mr-2 h-4 w-4" />}
                                                                     {buttonText}
@@ -429,7 +484,7 @@ export default function Home() {
                                         disabled={isSubmittingRegistration}
                                         className="shadow-sm rounded-md"
                                         >
-                                        {isSubmittingRegistration ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        {isSubmittingRegistration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Se désinscrire
                                         </Button>
                                 </TableCell>
@@ -446,6 +501,31 @@ export default function Home() {
             )}
           </>
        )}
+
+        <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Confirmation d'inscription</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Souhaitez-vous vraiment vous inscrire à la table du jeu : <strong className="text-foreground">{tableToConfirm?.gameName}</strong>
+                        {' '} ({tableToConfirm?.day} - {tableToConfirm?.timeSlot}) ?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => {
+                        setIsConfirmDialogOpen(false);
+                        setTableToConfirm(null);
+                    }} disabled={isSubmittingRegistration}>Annuler</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={() => tableToConfirm && handleRegister(tableToConfirm.id)}
+                        disabled={isSubmittingRegistration}
+                    >
+                        {isSubmittingRegistration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Confirmer l'inscription
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }
