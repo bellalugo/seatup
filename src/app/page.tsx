@@ -20,7 +20,7 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "@/components/ui/alert-dialog"; // AlertDialogTrigger removed as it's part of AlertDialog
+} from "@/components/ui/alert-dialog";
 import {
     mockUsers,
     getGameTables,
@@ -30,10 +30,10 @@ import {
     getAvailableSeats,
     hasTimeConflict,
     canRegisterBasedOnTicket,
-    registrationPhases
+    registrationPhases as importedRegistrationPhases // Renamed to avoid conflict
 } from '@/lib/data';
 import type { GameTable, User, Registration } from '@/lib/types';
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash } from 'lucide-react';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2 } from 'lucide-react';
 
 const conventionDays = [
     { name: 'Jeudi', date: '03/07', value: 'jeudi' },
@@ -53,6 +53,7 @@ export default function Home() {
   const [tableToConfirm, setTableToConfirm] = useState<GameTable | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const { toast } = useToast();
+  const registrationPhases = importedRegistrationPhases; // Use the renamed import
 
   const loadData = useCallback(async () => {
     console.log('Home: loadData called. Current isLoading before fetch:', isLoading);
@@ -317,12 +318,13 @@ export default function Home() {
                                             <TableCaption>Liste des jeux disponibles le {day.name} {day.date}.</TableCaption>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead className="w-24">N° Table</TableHead>
-                                                    <TableHead className="w-64"></TableHead> {/* Removed "Image" text */}
+                                                    <TableHead className="w-24 text-center">Table n°</TableHead>
+                                                    <TableHead className="w-64"></TableHead> {}
                                                     <TableHead>Jeu</TableHead>
+                                                    <TableHead>Auteur/Animateur</TableHead>
                                                     <TableHead>Créneau horaire</TableHead>
                                                     <TableHead className="text-center">Places disponibles</TableHead>
-                                                    <TableHead className="text-right">Action</TableHead>
+                                                    <TableHead className="text-center">Action</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -373,7 +375,7 @@ export default function Home() {
                                                     const imageUrl = table.gameImageUrl || table.imageUrl;
                                                     return (
                                                         <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
-                                                            <TableCell className="font-medium w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
+                                                            <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
                                                             <TableCell className="w-64 px-4 py-1">
                                                                 {imageUrl ? (
                                                                     <Image
@@ -388,8 +390,18 @@ export default function Home() {
                                                                     <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                                                                 )}
                                                             </TableCell>
-                                                            <TableCell className="font-medium">
+                                                            <TableCell className="font-bold">
                                                                 {table.gameName}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {table.authorAnimator ? (
+                                                                    <span className="font-bold flex items-center">
+                                                                        <UserCircle2 className="inline h-4 w-4 mr-1 text-muted-foreground" />
+                                                                        {table.authorAnimator}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-muted-foreground italic">N/A</span>
+                                                                )}
                                                             </TableCell>
                                                             <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
                                                             <TableCell className="text-center">
@@ -397,7 +409,7 @@ export default function Home() {
                                                                     <Users className="inline h-4 w-4 mr-1" /> {availableSeats} / {table.totalSeats}
                                                                 </Badge>
                                                             </TableCell>
-                                                            <TableCell className="text-right">
+                                                            <TableCell className="text-center">
                                                                 <Button
                                                                     onClick={onClickAction}
                                                                     size="sm"
@@ -440,12 +452,12 @@ export default function Home() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                            <TableHead className="w-24">N° Table</TableHead>
-                            <TableHead className="w-64"></TableHead> {/* Removed "Image" text */}
+                            <TableHead className="w-24 text-center">Table n°</TableHead>
+                            <TableHead className="w-64"></TableHead> {}
                             <TableHead>Jour</TableHead>
                             <TableHead>Créneau horaire</TableHead>
                             <TableHead>Jeu</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
+                            <TableHead className="text-center">Action</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -454,7 +466,7 @@ export default function Home() {
                             const imageUrl = table.gameImageUrl || table.imageUrl;
                             return (
                                 <TableRow key={`schedule-${table.id}`}>
-                                <TableCell className="font-medium w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
+                                <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
                                 <TableCell className="w-64 px-4 py-1">
                                     {imageUrl ? (
                                         <Image
@@ -471,10 +483,10 @@ export default function Home() {
                                 </TableCell>
                                 <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day} {dayInfo?.date}</TableCell>
                                 <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
-                                <TableCell className="font-medium">
+                                <TableCell className="font-bold">
                                     {table.gameName}
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-center">
                                         <Button
                                         onClick={() => handleUnregister(table.id)}
                                         size="sm"
