@@ -127,7 +127,6 @@ export default function TableManager() {
     setIsDeleting(tableId); 
 
     try {
-        // Check for registrations before attempting to delete
         const registrations = await getRegistrationsForTable(tableId);
         if (registrations.length > 0) {
             toast({ 
@@ -143,13 +142,9 @@ export default function TableManager() {
         await deleteGameTable(tableId);
         
         setTables(prevTables => prevTables.filter(t => t.id !== tableId));
-        // Or await fetchTables(false); for a more robust update
-
         toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" a été supprimée avec succès.` });
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la suppression.";
-         // The specific error for existing registrations is handled above.
-         // This handles other potential errors from deleteGameTable (e.g., Firestore issues).
          if (!errorMessage.includes("joueur(s) inscrit(s)")) {
             toast({ 
                 variant: "destructive", 
@@ -319,7 +314,7 @@ export default function TableManager() {
             <TableCaption>Une liste des tables de jeu configurées.</TableCaption>
             <TableHeader>
                 <TableRow>
-                <TableHead>Image</TableHead>
+                <TableHead className="w-20">Image</TableHead>
                 <TableHead>Nom du jeu</TableHead>
                 <TableHead>Jour</TableHead>
                 <TableHead>Créneau horaire</TableHead>
@@ -336,18 +331,18 @@ export default function TableManager() {
                     return timeSlotOrder.indexOf(a.timeSlot) - timeSlotOrder.indexOf(b.timeSlot);
                 }).map((table) => (
                 <TableRow key={table.id}>
-                    <TableCell>
+                    <TableCell className="w-20">
                         {table.imageUrl ? (
                             <Image
                                 src={table.imageUrl}
                                 alt={`Icône ${table.gameName}`}
-                                width={32}
-                                height={32}
-                                className="rounded object-contain h-8 w-8 shadow-sm"
+                                width={64} 
+                                height={40} 
+                                className="rounded object-contain h-10 shadow-sm"
                                 data-ai-hint="game icon"
                             />
                         ) : (
-                            <div className="h-8 w-8 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                            <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                         )}
                     </TableCell>
                     <TableCell className="font-medium">{table.gameName}</TableCell>
