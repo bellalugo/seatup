@@ -43,8 +43,7 @@ export default function Home() {
   const { toast } = useToast();
 
   const loadData = useCallback(async () => {
-    const currentLoadingState = isLoading; // Capture current state for logging
-    console.log('Home: loadData called. Current isLoading before fetch:', currentLoadingState);
+    console.log('Home: loadData called. Current isLoading before fetch:', isLoading);
     setIsLoading(true);
     try {
       const [fetchedTables, fetchedRegistrations] = await Promise.all([
@@ -55,8 +54,6 @@ export default function Home() {
       setRegistrations(fetchedRegistrations);
       setUsers(mockUsers); // This could also be fetched from a DB if users are managed there
       setCurrentUser(prevUser => {
-         // If there's a previous user and they exist in the new mockUsers, keep them.
-         // Otherwise, default to the first user.
          if (prevUser && mockUsers[prevUser.id]) {
             return mockUsers[prevUser.id];
          }
@@ -72,33 +69,30 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
-      // Log the intended new state. Actual state update might be batched by React.
       console.log('Home: loadData finished. Intended isLoading state after fetch: false');
     }
-  }, [toast]); // isLoading removed from dependencies
+  }, [toast]);
 
   useEffect(() => {
     loadData();
-  }, [loadData]); // loadData will only change if toast changes (which is stable)
+  }, [loadData]);
 
    useEffect(() => {
-    // Simulate registration phase changes
-    // In a real app, this might be driven by server time or admin settings
     const phaseTimer1 = setTimeout(() => {
-      setCurrentRegistrationPhaseIndex(1); // Marshals can now register
+      setCurrentRegistrationPhaseIndex(1);
       toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Maréchaux et Stratèges." });
-    }, 15000); // After 15 seconds
+    }, 15000); 
 
     const phaseTimer2 = setTimeout(() => {
-      setCurrentRegistrationPhaseIndex(2); // Generals can now register
+      setCurrentRegistrationPhaseIndex(2); 
        toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Généraux, Maréchaux et Stratèges." });
-    }, 30000); // After 30 seconds
+    }, 30000); 
 
     return () => {
         clearTimeout(phaseTimer1);
         clearTimeout(phaseTimer2);
     }
-  }, [toast]); // toast is a stable dependency
+  }, [toast]); 
 
   const handleUserChange = (userId: string) => {
     setCurrentUser(users[userId] || null);
@@ -116,7 +110,6 @@ export default function Home() {
       return;
     }
 
-    // Check if user's ticket type allows registration in the current phase
     if (!canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex)) {
        toast({
         variant: "destructive",
@@ -138,7 +131,6 @@ export default function Home() {
       return;
     }
 
-    // Check for time conflicts
     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser.id);
     if (hasTimeConflict(table, userCurrentRegistrations, tables)) {
        toast({ variant: "destructive", title: "Conflit de créneau horaire", description: "Vous êtes déjà inscrit(e) à un jeu pendant ce créneau horaire." });
@@ -147,9 +139,7 @@ export default function Home() {
 
     setIsSubmittingRegistration(true);
     try {
-        // Call Firestore function to add registration
         await addRegistrationToDb(currentUser.id, tableId);
-        // Refresh registrations from Firestore
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
 
@@ -169,13 +159,11 @@ export default function Home() {
      if (!currentUser) return;
 
      const table = tables.find(t => t.id === tableId);
-     if (!table) return; // Should not happen if UI is correct
+     if (!table) return; 
 
      setIsSubmittingRegistration(true);
      try {
-        // Call Firestore function to remove registration
         await removeRegistrationFromDb(currentUser.id, tableId);
-        // Refresh registrations from Firestore
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
 
@@ -196,12 +184,11 @@ export default function Home() {
     const userTableIds = registrations.filter(r => r.userId === currentUser.id).map(r => r.tableId);
     return tables.filter(t => userTableIds.includes(t.id))
                  .sort((a, b) => {
-                    // Sort by day first, then by time slot
                     const dayOrder = conventionDays.map(d => d.name);
                     if (a.day !== b.day) {
                         return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
                     }
-                    return a.timeSlot.localeCompare(b.timeSlot); // Assumes timeSlot is "HH:MM - HH:MM"
+                    return a.timeSlot.localeCompare(b.timeSlot); 
                  });
   };
 
@@ -221,7 +208,7 @@ export default function Home() {
              </Button>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-4">
-          <Select onValueChange={handleUserChange} value={currentUser?.id ?? ""} disabled={isLoading || isSubmittingRegistration}>
+          <Select onValueChange={handleUserChange} value={currentUser?.id} disabled={isLoading || isSubmittingRegistration}>
             <SelectTrigger className="w-[280px] rounded-md shadow-sm">
               <SelectValue placeholder="Sélectionner un utilisateur" />
             </SelectTrigger>
@@ -245,7 +232,7 @@ export default function Home() {
       </Card>
 
        {isLoading ? (
-           <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]"> {/* Adjust height as needed */}
+           <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]"> 
              <Loader2 className="h-12 w-12 animate-spin text-primary" />
              <p className="ml-4 text-muted-foreground">Chargement des tables de jeu...</p>
            </div>
@@ -284,12 +271,10 @@ export default function Home() {
                                                     const availableSeats = getAvailableSeats(table.id, registrations, tables);
                                                     const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
                                                     const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex);
-                                                    // Check for conflicts only if current user exists
                                                     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
                                                     const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
 
                                                     let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration;
-                                                    // Further disable if not registered and (no seats OR conflict)
                                                     if (!isRegisteredByUser) { 
                                                         isDisabled = isDisabled || availableSeats <= 0 || (conflict && !isRegisteredByUser);
                                                     }
@@ -305,17 +290,17 @@ export default function Home() {
                                                     } else if (isRegisteredByUser) {
                                                         buttonText = "Inscrit(e)";
                                                         buttonVariant = "secondary";
-                                                        onClickAction = () => handleUnregister(table.id); // Allow unregistering
+                                                        onClickAction = () => handleUnregister(table.id); 
                                                         tooltipText = "Cliquez pour vous désinscrire";
                                                     } else if (!currentUser) {
                                                         tooltipText = "Sélectionnez un utilisateur pour vous inscrire";
-                                                        buttonText = "Sélectionner utilisateur"; // Or simply keep it "S'inscrire" and disabled
+                                                        buttonText = "Sélectionner utilisateur"; 
                                                         buttonVariant = "secondary";
                                                     } else if (!canRegisterNow) {
                                                         tooltipText = `Inscription pas encore ouverte pour ${currentUser.ticketType}`;
                                                         buttonText = "Indisponible";
                                                         buttonVariant = "secondary";
-                                                    } else if (conflict) { // Conflict only matters if not already registered for this table
+                                                    } else if (conflict) { 
                                                         tooltipText = "Conflit avec votre planning";
                                                         buttonText = "Conflit";
                                                         buttonVariant = "destructive";
@@ -336,7 +321,7 @@ export default function Home() {
                                                                         alt={`Icône ${table.gameName}`}
                                                                         width={24}
                                                                         height={24}
-                                                                        className="rounded object-cover h-6 w-6 shadow-sm"
+                                                                        className="rounded object-contain h-6 w-6 shadow-sm"
                                                                         data-ai-hint="game icon"
                                                                     />
                                                                 )}
@@ -361,7 +346,6 @@ export default function Home() {
                                                                 >
                                                                     {isSubmittingRegistration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                                                     {!isSubmittingRegistration && isRegisteredByUser && <CheckCircle className="mr-2 h-4 w-4" />}
-                                                                    {/* Show AlertCircle only if not registered and (no seats or conflict) */}
                                                                     {!isSubmittingRegistration && !isRegisteredByUser && (availableSeats <= 0 || conflict) && <AlertCircle className="mr-2 h-4 w-4" />}
                                                                     {buttonText}
                                                                 </Button>
@@ -412,7 +396,7 @@ export default function Home() {
                                                     alt={`Icône ${table.gameName}`}
                                                     width={24}
                                                     height={24}
-                                                    className="rounded object-cover h-6 w-6 shadow-sm"
+                                                    className="rounded object-contain h-6 w-6 shadow-sm"
                                                     data-ai-hint="game icon"
                                                 />
                                             )}
@@ -448,4 +432,3 @@ export default function Home() {
     </div>
   );
 }
-

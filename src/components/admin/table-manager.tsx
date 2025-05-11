@@ -1,3 +1,4 @@
+
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
@@ -23,6 +24,17 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -33,6 +45,7 @@ import {
   addGameTable,
   updateGameTable,
   deleteGameTable,
+  getRegistrationsForTable,
 } from '@/lib/data';
 import type { GameTable, GameTableInput } from '@/lib/types';
 import { Pencil, Trash2, PlusCircle, Loader2, AlertTriangle } from 'lucide-react';
@@ -104,38 +117,46 @@ export default function TableManager() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (tableId: string) => {
+  const confirmDelete = async (tableId: string) => {
     const tableToDelete = tables.find(t => t.id === tableId);
     if (!tableToDelete) {
         toast({ variant: "destructive", title: "Erreur", description: "Table non trouvée."});
         return;
     }
 
-    const confirmed = window.confirm(`Êtes-vous sûr de vouloir supprimer la table "${tableToDelete.gameName}" (${tableToDelete.day} - ${tableToDelete.timeSlot}) ? Cette action est irréversible et ne sera effectuée que si aucune inscription n'y est associée.`);
-    
-    if (!confirmed) {
-        return;
-    }
-
     setIsDeleting(tableId); 
 
     try {
-        await deleteGameTable(tableId); // deleteGameTable in lib/data.ts handles the registration check
+        // Check for registrations before attempting to delete
+        const registrations = await getRegistrationsForTable(tableId);
+        if (registrations.length > 0) {
+            toast({ 
+                variant: "destructive", 
+                title: "Suppression impossible", 
+                description: `La table "${tableToDelete.gameName}" a ${registrations.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`,
+                action: <AlertTriangle className="text-destructive-foreground h-5 w-5" />,
+            });
+            setIsDeleting(null);
+            return;
+        }
+
+        await deleteGameTable(tableId);
         
-        // Optimistically update UI or refetch
         setTables(prevTables => prevTables.filter(t => t.id !== tableId));
         // Or await fetchTables(false); for a more robust update
 
         toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" a été supprimée avec succès.` });
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la suppression.";
-         toast({ 
-            variant: "destructive", 
-            title: "Erreur lors de la suppression", 
-            description: errorMessage,
-            // Show alert icon specifically if the error is about existing registrations
-            action: errorMessage.includes("joueurs inscrits") || errorMessage.includes("registrations") ? <AlertTriangle className="text-destructive-foreground h-5 w-5" /> : undefined,
-        });
+         // The specific error for existing registrations is handled above.
+         // This handles other potential errors from deleteGameTable (e.g., Firestore issues).
+         if (!errorMessage.includes("joueur(s) inscrit(s)")) {
+            toast({ 
+                variant: "destructive", 
+                title: "Erreur lors de la suppression", 
+                description: errorMessage,
+            });
+         }
     } finally {
         setIsDeleting(null); 
     }
@@ -322,7 +343,7 @@ export default function TableManager() {
                                 alt={`Icône ${table.gameName}`}
                                 width={32}
                                 height={32}
-                                className="rounded object-cover h-8 w-8 shadow-sm"
+                                className="rounded object-contain h-8 w-8 shadow-sm"
                                 data-ai-hint="game icon"
                             />
                         ) : (
@@ -338,17 +359,39 @@ export default function TableManager() {
                         <Pencil className="h-4 w-4" />
                         <span className="sr-only">Modifier</span>
                     </Button>
-                    <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        onClick={() => handleDelete(table.id)} 
-                        disabled={isSubmitting || (isDeleting !== null && isDeleting !== table.id) || isDeleting === table.id}
-                        className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
-                        title={`Supprimer la table ${table.gameName}`}
-                    >
-                        {isDeleting === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                        <span className="sr-only">Supprimer</span>
-                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button 
+                                variant="destructive" 
+                                size="icon" 
+                                disabled={isSubmitting || (isDeleting !== null && isDeleting !== table.id) || isDeleting === table.id}
+                                className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
+                                title={`Supprimer la table ${table.gameName}`}
+                            >
+                                {isDeleting === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                <span className="sr-only">Supprimer</span>
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Êtes-vous absolument sûr(e) ?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Cette action est irréversible. La table "{table.gameName}" ({table.day} - {table.timeSlot}) sera définitivement supprimée.
+                                La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() => confirmDelete(table.id)}
+                                className="bg-destructive hover:bg-destructive/90"
+                            >
+                                {isDeleting === table.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Confirmer la suppression
+                            </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                     </TableCell>
                 </TableRow>
                 ))}
