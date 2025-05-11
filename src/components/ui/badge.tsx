@@ -15,6 +15,9 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
+        strategist: "border-transparent bg-[hsl(var(--badge-strategist-background))] text-[hsl(var(--badge-strategist-foreground))] hover:bg-[hsl(var(--badge-strategist-background))]/80",
+        marshal: "border-transparent bg-[hsl(var(--badge-marshal-background))] text-[hsl(var(--badge-marshal-foreground))] hover:bg-[hsl(var(--badge-marshal-background))]/80",
+        general: "border-transparent bg-[hsl(var(--badge-general-background))] text-[hsl(var(--badge-general-foreground))] hover:bg-[hsl(var(--badge-general-background))]/80",
       },
     },
     defaultVariants: {

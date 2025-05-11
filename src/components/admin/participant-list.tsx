@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, Users, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getParticipants } from '@/lib/data';
-import type { Participant } from '@/lib/types';
+import type { Participant, TicketType } from '@/lib/types';
 import { Button } from '../ui/button';
 
 export default function ParticipantList() {
@@ -40,6 +40,21 @@ export default function ParticipantList() {
   useEffect(() => {
     fetchParticipants();
   }, [fetchParticipants]);
+
+  const getBadgeVariant = (ticketType: TicketType): "strategist" | "marshal" | "general" | "secondary" | "destructive" => {
+    switch (ticketType) {
+      case 'Stratège':
+        return 'strategist';
+      case 'Maréchal':
+        return 'marshal';
+      case 'Général':
+        return 'general';
+      case 'Aucun':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
+  };
 
   if (isLoading) {
     return (
@@ -91,7 +106,7 @@ export default function ParticipantList() {
                 <TableCell>{participant.prenom}</TableCell>
                 <TableCell>{participant.email}</TableCell>
                 <TableCell className="text-center">
-                  <Badge variant={participant.typeBillet === 'Aucun' ? 'destructive' : 'secondary'}>
+                  <Badge variant={getBadgeVariant(participant.typeBillet)}>
                     {participant.typeBillet}
                   </Badge>
                 </TableCell>

@@ -42,6 +42,14 @@ body {
     --sidebar-accent-foreground: var(--accent-foreground);
     --sidebar-border: var(--border);
     --sidebar-ring: var(--ring);
+
+    /* Ticket Badge Colors */
+    --badge-strategist-background: var(--primary); /* Yellow */
+    --badge-strategist-foreground: var(--primary-foreground); /* Black */
+    --badge-marshal-background: 222 65% 33%; /* Dark Blue #1E3A8A */
+    --badge-marshal-foreground: 0 0% 100%; /* White */
+    --badge-general-background: 146 62% 24%; /* Dark Green #166534 */
+    --badge-general-foreground: 0 0% 100%; /* White */
   }
   .dark {
     /* Define dark theme if needed, for now use light theme values */
@@ -77,6 +85,14 @@ body {
     --sidebar-accent-foreground: var(--accent-foreground);
     --sidebar-border: var(--border);
     --sidebar-ring: var(--ring);
+
+    /* Ticket Badge Colors - Dark Theme (can be same or adjusted) */
+    --badge-strategist-background: var(--primary);
+    --badge-strategist-foreground: var(--primary-foreground);
+    --badge-marshal-background: 222 65% 33%;
+    --badge-marshal-foreground: 0 0% 100%;
+    --badge-general-background: 146 62% 24%;
+    --badge-general-foreground: 0 0% 100%;
   }
 }
 
