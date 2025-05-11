@@ -49,13 +49,12 @@ export default function TableManager() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
   
-  // Ensure formData type is GameTableInput for consistency
   const [formData, setFormData] = useState<GameTableInput>({
     gameName: '',
     day: 'Jeudi',
     timeSlot: '09:00 - 13:00',
     totalSeats: 4,
-    imageUrl: undefined, // Explicitly set or omit if GameTableInput allows optional properties to be absent
+    imageUrl: undefined, 
   });
   const { toast } = useToast();
 
@@ -89,7 +88,6 @@ export default function TableManager() {
     }));
   };
 
-  // Changed name type to match GameTableInput keys more strictly
   const handleSelectChange = (name: keyof Pick<GameTableInput, 'day' | 'timeSlot'>) => (value: string) => {
      setFormData(prev => ({ ...prev, [name]: value as GameTable['day'] | GameTable['timeSlot'] }));
   };
@@ -101,14 +99,12 @@ export default function TableManager() {
         day: table.day,
         timeSlot: table.timeSlot,
         totalSeats: table.totalSeats,
-        imageUrl: table.imageUrl, // This can be undefined
+        imageUrl: table.imageUrl,
     });
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (tableId: string) => {
-    // Confirmation dialog now uses ShadCN AlertDialog for consistency, but basic confirm is used here for brevity.
-    // Consider replacing with ShadCN AlertDialog.
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette table ? La suppression ne sera effectuée que si aucune inscription n'y est associée.")) {
         return;
     }
@@ -122,12 +118,12 @@ export default function TableManager() {
                 description: "Cette table a des joueurs inscrits et ne peut pas être supprimée.",
                 action: <AlertTriangle className="text-destructive-foreground" />,
             });
-            setIsDeleting(null); 
+            // setIsDeleting(null); // Moved to finally block
             return;
         }
 
         await deleteGameTable(tableId);
-        await fetchTables(false); // Refresh tables without full page loader
+        await fetchTables(false); 
         toast({ title: "Table supprimée", description: "La table de jeu a été supprimée." });
     } catch (error) {
          toast({ variant: "destructive", title: "Erreur lors de la suppression", description: (error as Error).message });
@@ -138,7 +134,7 @@ export default function TableManager() {
 
   const handleOpenDialogForAdd = () => {
     setEditingTable(null);
-    setFormData({ // Reset formData to initial state for adding a new table
+    setFormData({ 
       gameName: '',
       day: 'Jeudi',
       timeSlot: '09:00 - 13:00',
@@ -158,22 +154,19 @@ export default function TableManager() {
         return;
     }
 
-    // formData is already of type GameTableInput
     const tableDataPayload: GameTableInput = formData; 
 
     try {
         if (editingTable) {
-            // For update, we need to pass the full GameTable structure including id
             await updateGameTable({ ...tableDataPayload, id: editingTable.id });
             toast({ title: "Table mise à jour", description: "Détails de la table de jeu enregistrés." });
         } else {
             await addGameTable(tableDataPayload);
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès." });
         }
-        await fetchTables(false); // Refresh tables list without full page loader
+        await fetchTables(false); 
         setIsDialogOpen(false);
         setEditingTable(null);
-        // Reset form data state to initial for GameTableInput
         setFormData({
             gameName: '',
             day: 'Jeudi',
@@ -208,7 +201,6 @@ export default function TableManager() {
           setIsDialogOpen(open);
           if (!open) {
             setEditingTable(null);
-            // Reset form data to initial for GameTableInput when dialog closes
             setFormData({
                 gameName: '',
                 day: 'Jeudi',
@@ -266,7 +258,6 @@ export default function TableManager() {
                     <Label htmlFor="totalSeats" className="text-right">Nombre total de places</Label>
                     <Input id="totalSeats" name="totalSeats" type="number" value={formData.totalSeats} onChange={handleInputChange} className="col-span-3 rounded-md shadow-sm" min="1" required disabled={isSubmitting} />
                  </div>
-                 {/* Note: imageUrl is not directly editable in this form for simplicity, relies on gameName mapping or existing value. */}
               </div>
               <DialogFooter>
                  <DialogClose asChild>
@@ -296,7 +287,7 @@ export default function TableManager() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {tables.sort((a, b) => { // Existing sort logic
+                {tables.sort((a, b) => { 
                     if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
                     const dayAIndex = conventionDayOrder.indexOf(a.day);
                     const dayBIndex = conventionDayOrder.indexOf(b.day);
@@ -327,7 +318,13 @@ export default function TableManager() {
                         <Pencil className="h-4 w-4" />
                         <span className="sr-only">Modifier</span>
                     </Button>
-                    <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)} disabled={isSubmitting || !!isDeleting || isDeleting === table.id} className="shadow-sm rounded-md">
+                    <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        onClick={() => handleDelete(table.id)} 
+                        disabled={isSubmitting || (isDeleting !== null && isDeleting !== table.id)} 
+                        className="shadow-sm rounded-md"
+                    >
                         {isDeleting === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         <span className="sr-only">Supprimer</span>
                     </Button>
