@@ -151,15 +151,21 @@ export const updateGameTable = async (tableToUpdate: GameTable): Promise<GameTab
         return returnedTable;
 
     } catch (error) {
-        console.error("<<< IMPORTANT: Detailed Firebase Error (updateGameTable) >>>", error);
-         let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local.\n2. Règles de sécurité Firestore bloquant la mise à jour de la collection 'gameTables'.";
-         if (error instanceof Error && 'code' in error) {
+        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        console.error("!!! IMPORTANT: Detailed Firebase Error (updateGameTable) !!!");
+        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        console.error(error); // Log the full error object
+        let baseMessage = "Impossible de mettre à jour la table de jeu dans Firestore.";
+        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus (regardez pour 'code' et 'message'). Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local.\n2. Règles de sécurité Firestore bloquant la mise à jour de la collection 'gameTables'.";
+        
+        if (error instanceof Error && 'code' in error) {
             const firebaseError = error as { code: string; message: string };
+            baseMessage = `Impossible de mettre à jour. Erreur Firebase: ${firebaseError.message} (Code: ${firebaseError.code}).`;
             if (firebaseError.code === 'permission-denied') {
-                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé la mise à jour de 'gameTables'. Vérifiez vos règles de sécurité. ` + advice;
+                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé la mise à jour de 'gameTables'. Vérifiez vos règles de sécurité Firestore. ` + advice;
             }
         }
-        throw new Error(`Impossible de mettre à jour la table de jeu dans Firestore. ${advice}`);
+        throw new Error(`${baseMessage} ${advice}`);
     }
 };
 
@@ -357,3 +363,6 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = registrationPhases.indexOf(userTicketType); 
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
+
+
+    
