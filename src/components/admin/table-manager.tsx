@@ -2,7 +2,7 @@
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
-import { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import {
   Table,
@@ -34,9 +34,10 @@ import {
   addGameTable,
   updateGameTable,
   deleteGameTable,
+  getRegistrationsForTable, // Import de la nouvelle fonction
 } from '@/lib/data';
 import type { GameTable, GameTableInput } from '@/lib/types';
-import { Pencil, Trash2, PlusCircle, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, Loader2, AlertTriangle } from 'lucide-react';
 
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00"];
@@ -45,6 +46,7 @@ export default function TableManager() {
   const [tables, setTables] = useState<GameTable[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null); // Track which table is being deleted
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
   const [formData, setFormData] = useState<Omit<GameTableInput, 'imageUrl'>>({
@@ -56,8 +58,6 @@ export default function TableManager() {
   const { toast } = useToast();
 
   const fetchTables = useCallback(async (setPageLoadingState = true) => {
-    const currentLoadingState = isLoadingPage; // Capture for logging
-    console.log('TableManager: fetchTables called. setPageLoadingState:', setPageLoadingState, 'Current isLoadingPage before fetch:', currentLoadingState);
     if (setPageLoadingState) {
         setIsLoadingPage(true);
     }
@@ -71,14 +71,12 @@ export default function TableManager() {
       if (setPageLoadingState) {
         setIsLoadingPage(false);
       }
-      // Log the intended new state. Actual state update might be batched by React.
-      console.log('TableManager: fetchTables finished. Intended isLoadingPage state after fetch: false (if setPageLoadingState was true)');
     }
-  }, [toast]); // isLoadingPage removed from dependencies
+  }, [toast]);
 
   useEffect(() => {
     fetchTables(true);
-  }, [fetchTables]); // fetchTables will only change if toast changes (which is stable)
+  }, [fetchTables]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,19 +103,29 @@ export default function TableManager() {
   };
 
   const handleDelete = async (tableId: string) => {
-    // Consider using a confirmation dialog component instead of window.confirm for better UX
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cette table ? Cette action supprimera également toutes les inscriptions associées.")) {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette table ? La suppression ne sera effectuée que si aucune inscription n'y est associée.")) {
         return;
     }
-    setIsSubmitting(true);
+    setIsDeleting(tableId); // Indicate which table is being processed for deletion
     try {
+        const registrationsOnTable = await getRegistrationsForTable(tableId);
+        if (registrationsOnTable.length > 0) {
+            toast({
+                variant: "destructive",
+                title: "Suppression impossible",
+                description: "Cette table a des joueurs inscrits et ne peut pas être supprimée.",
+                action: <AlertTriangle className="text-destructive-foreground" />,
+            });
+            return; // Stop deletion process
+        }
+
         await deleteGameTable(tableId);
-        await fetchTables(false); // Fetch tables without setting page loading state
-        toast({ title: "Table supprimée", description: "La table de jeu et ses inscriptions ont été supprimées." });
+        await fetchTables(false);
+        toast({ title: "Table supprimée", description: "La table de jeu a été supprimée." });
     } catch (error) {
          toast({ variant: "destructive", title: "Erreur lors de la suppression", description: (error as Error).message });
     } finally {
-        setIsSubmitting(false);
+        setIsDeleting(null); // Reset deleting state
     }
   };
 
@@ -142,25 +150,20 @@ export default function TableManager() {
         return;
     }
 
-    // Construct payload. Image URL will be handled by the data function.
-    const tableDataPayload: GameTableInput = {
-        ...formData
-        // imageUrl is intentionally omitted here, addGameTable/updateGameTable will handle it.
-    };
+    const tableDataPayload: GameTableInput = { ...formData };
 
     try {
         if (editingTable) {
-            // Pass the full GameTable structure for update, data function will pick what it needs
             await updateGameTable({ ...tableDataPayload, id: editingTable.id });
             toast({ title: "Table mise à jour", description: "Détails de la table de jeu enregistrés." });
         } else {
             await addGameTable(tableDataPayload);
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès." });
         }
-        await fetchTables(false); // Fetch tables without setting page loading state
+        await fetchTables(false);
         setIsDialogOpen(false);
-        setEditingTable(null); // Reset editing state
-        setFormData({ // Reset form
+        setEditingTable(null);
+        setFormData({
             gameName: '',
             day: 'Jeudi',
             timeSlot: '09:00 - 13:00',
@@ -173,9 +176,9 @@ export default function TableManager() {
     }
   };
 
-  if (isLoadingPage) { // This now only controls initial page load spinner
+  if (isLoadingPage) {
     return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]"> {/* Adjust height as needed */}
+      <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="ml-4 text-muted-foreground">Chargement des tables...</p>
       </div>
@@ -191,7 +194,7 @@ export default function TableManager() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
-          if (!open) { // Reset form when dialog closes, if not submitted
+          if (!open) {
             setEditingTable(null);
             setFormData({
                 gameName: '',
@@ -202,7 +205,7 @@ export default function TableManager() {
           }
         }}>
           <DialogTrigger asChild>
-            <Button onClick={handleOpenDialogForAdd} disabled={isSubmitting} className="shadow-sm rounded-md">
+            <Button onClick={handleOpenDialogForAdd} disabled={isSubmitting || !!isDeleting} className="shadow-sm rounded-md">
               <PlusCircle className="mr-2 h-4 w-4" /> Ajouter une table
             </Button>
           </DialogTrigger>
@@ -278,7 +281,7 @@ export default function TableManager() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {tables.sort((a, b) => { // Sort for consistent display
+                {tables.sort((a, b) => {
                     if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
                     const dayAIndex = conventionDayOrder.indexOf(a.day);
                     const dayBIndex = conventionDayOrder.indexOf(b.day);
@@ -305,13 +308,12 @@ export default function TableManager() {
                     <TableCell>{table.timeSlot}</TableCell>
                     <TableCell className="text-center">{table.totalSeats}</TableCell>
                     <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="icon" onClick={() => handleEdit(table)} disabled={isSubmitting} className="shadow-sm rounded-md">
+                    <Button variant="outline" size="icon" onClick={() => handleEdit(table)} disabled={isSubmitting || !!isDeleting} className="shadow-sm rounded-md">
                         <Pencil className="h-4 w-4" />
                         <span className="sr-only">Modifier</span>
                     </Button>
-                    <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)} disabled={isSubmitting} className="shadow-sm rounded-md">
-                        {/* Show loader only for the specific row being deleted if we track that, otherwise general isSubmitting */}
-                        {isSubmitting && tables.find(t => t.id === table.id) /* Poor check, better to have specific delete loader */ ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)} disabled={isSubmitting || !!isDeleting} className="shadow-sm rounded-md">
+                        {isDeleting === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         <span className="sr-only">Supprimer</span>
                     </Button>
                     </TableCell>
@@ -326,4 +328,3 @@ export default function TableManager() {
     </Card>
   );
 }
-

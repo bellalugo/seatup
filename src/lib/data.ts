@@ -63,20 +63,17 @@ const REGISTRATIONS_COLLECTION = 'registrations';
 
 /** Fetches all game tables from Firestore */
 export const getGameTables = async (): Promise<GameTable[]> => {
-    if (!db) { // Check if db is initialized
+    if (!db) {
         console.error("Firestore DB instance is not initialized. Check your Firebase setup in src/firebase/clientApp.ts and ensure .env.local variables are correctly loaded.");
         throw new Error("La connexion à Firestore n'est pas initialisée. Vérifiez la configuration Firebase et les variables d'environnement.");
     }
     try {
         console.log("Attempting to fetch game tables from Firestore...");
         const tablesCollection = collection(db, TABLES_COLLECTION);
-        // Simplified query to order by gameName only.
-        // Original query with multi-field orderBy: query(tablesCollection, orderBy("gameName"), orderBy("day"), orderBy("timeSlot"));
-        // Such a query requires a composite index in Firestore.
-        const q = query(tablesCollection, orderBy("gameName"));
+        const q = query(tablesCollection, orderBy("gameName")); // Simplified query
         const querySnapshot = await getDocs(q);
         console.log(`Fetched ${querySnapshot.docs.length} game tables successfully.`);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameTable));
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), imageUrl: doc.data().imageUrl || gameImageMap[doc.data().gameName] || undefined } as GameTable));
     } catch (error) {
         console.error("<<< IMPORTANT: Detailed Firebase Error (getGameTables) >>>", error);
         let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local (NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_API_KEY, etc. Assurez-vous que le serveur de développement a été redémarré après modification de .env.local).\n2. Règles de sécurité Firestore bloquant l'accès à la collection 'gameTables'. Accédez à la console Firebase > Firestore Database > Règles.\n3. Index Firestore manquants (si la requête est complexe - l'erreur Firebase ci-dessus peut inclure un lien pour créer l'index requis).";
@@ -107,14 +104,8 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
             day: tableInput.day,
             timeSlot: tableInput.timeSlot,
             totalSeats: tableInput.totalSeats,
+            imageUrl: tableInput.imageUrl || gameImageMap[tableInput.gameName] || undefined,
         };
-
-        const mappedImageUrl = gameImageMap[tableInput.gameName];
-        if (mappedImageUrl) {
-            dataToSave.imageUrl = mappedImageUrl;
-        } else if (tableInput.imageUrl) {
-            dataToSave.imageUrl = tableInput.imageUrl;
-        }
 
         const docRef = await addDoc(collection(db, TABLES_COLLECTION), dataToSave);
         
@@ -151,21 +142,8 @@ export const updateGameTable = async (tableToUpdate: GameTable): Promise<GameTab
             day: tableToUpdate.day,
             timeSlot: tableToUpdate.timeSlot,
             totalSeats: tableToUpdate.totalSeats,
+            imageUrl: tableToUpdate.imageUrl || gameImageMap[tableToUpdate.gameName] || undefined,
         };
-
-        const mappedImageUrl = gameImageMap[tableToUpdate.gameName];
-        if (mappedImageUrl !== undefined) {
-            dataToUpdate.imageUrl = mappedImageUrl;
-        } else if (tableToUpdate.imageUrl !== undefined) { 
-            dataToUpdate.imageUrl = tableToUpdate.imageUrl;
-        } else {
-            // If no image is found or provided, explicitly remove it if you want to ensure it's deleted.
-            // Otherwise, Firestore update will leave existing imageUrl if not in dataToUpdate.
-            // For this app, if it's not in gameImageMap and not provided, we assume no image.
-            // To delete a field: dataToUpdate.imageUrl = deleteField(); (requires importing deleteField)
-            // For simplicity, we'll just let it be omitted if not found.
-        }
-
 
         await updateDoc(tableRef, dataToUpdate);
         
@@ -193,6 +171,8 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
     }
     const batch = writeBatch(db);
     try {
+        // Note: The check for existing registrations is now done in the component before calling this.
+        // This function will delete the table and any associated registrations if it's called.
         const tableRef = doc(db, TABLES_COLLECTION, tableId);
         batch.delete(tableRef);
 
@@ -241,6 +221,33 @@ export const getRegistrations = async (): Promise<Registration[]> => {
         throw new Error(`Impossible de récupérer les inscriptions depuis Firestore. ${advice}`);
     }
 };
+
+
+/** Fetches registrations for a specific table from Firestore */
+export const getRegistrationsForTable = async (tableId: string): Promise<Registration[]> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for getRegistrationsForTable.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les inscriptions de la table.");
+    }
+    try {
+        console.log(`Attempting to fetch registrations for table ${tableId} from Firestore...`);
+        const q = query(collection(db, REGISTRATIONS_COLLECTION), where("tableId", "==", tableId));
+        const querySnapshot = await getDocs(q);
+        console.log(`Fetched ${querySnapshot.docs.length} registrations for table ${tableId} successfully.`);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Registration & { id: string }));
+    } catch (error) {
+        console.error(`<<< IMPORTANT: Detailed Firebase Error (getRegistrationsForTable for table ${tableId}) >>>`, error);
+        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte.\n2. Règles de sécurité Firestore bloquant l'accès à la collection 'registrations'.";
+        if (error instanceof Error && 'code' in error) {
+            const firebaseError = error as { code: string; message: string };
+            if (firebaseError.code === 'permission-denied') {
+                advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé l'accès aux inscriptions. Vérifiez vos règles de sécurité. ` + advice;
+            }
+        }
+        throw new Error(`Impossible de récupérer les inscriptions pour la table ${tableId} depuis Firestore. ${advice}`);
+    }
+};
+
 
 /** Adds a new registration to Firestore */
 export const addRegistration = async (userId: string, tableId: string): Promise<Registration> => {
@@ -316,7 +323,7 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
 
     return userTables.some(registeredTable => {
         if (registeredTable.id === newTable.id) {
-            return false; // Cannot conflict with itself if re-registering (though UI should prevent this path)
+            return false; 
         }
         if (registeredTable.day !== newTable.day) {
           return false;
@@ -337,10 +344,8 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
 
         if (!registeredSlot || !newSlot) {
             console.warn("Impossible d'analyser le créneau horaire pour la vérification des conflits:", registeredTable.timeSlot, newTable.timeSlot);
-            // Fallback: if parsing fails, assume conflict if the strings are identical on the same day
             return registeredTable.timeSlot === newTable.timeSlot; 
         }
-        // Check for overlap: !(B.end <= A.start || B.start >= A.end)
         const overlaps = !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
         return overlaps;
     });
@@ -348,8 +353,7 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
 
 
 export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhaseIndex: number): boolean => {
-    if (userTicketType === 'Aucun') return false; // 'Aucun' type cannot register
-    const userPhaseIndex = registrationPhases.indexOf(userTicketType); // Find index of user's ticket type
-    // User can register if their ticket type is found in phases AND their phase index is <= current phase index
+    if (userTicketType === 'Aucun') return false;
+    const userPhaseIndex = registrationPhases.indexOf(userTicketType); 
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
