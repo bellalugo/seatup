@@ -1,4 +1,3 @@
-
 import type { GameTable, User, Registration, TicketType, GameTableInput } from '@/lib/types';
 import { registrationPhases as importedRegistrationPhases } from '@/lib/types';
 import { db } from '@/firebase/clientApp'; // Ensure db is imported from your Firebase setup
@@ -13,8 +12,8 @@ import {
     where,
     writeBatch,
     orderBy,
+    deleteField, // Import deleteField
     // Timestamp, // Not strictly needed for GameTable but good for other potential date fields
-    // deleteField, // Import if you need to explicitly delete fields
 } from 'firebase/firestore';
 
 // --- Game Icons/Images ---
@@ -70,7 +69,7 @@ export const getGameTables = async (): Promise<GameTable[]> => {
     try {
         console.log("Attempting to fetch game tables from Firestore...");
         const tablesCollection = collection(db, TABLES_COLLECTION);
-        const q = query(tablesCollection, orderBy("gameName")); // Simplified query
+        const q = query(tablesCollection, orderBy("gameName")); 
         const querySnapshot = await getDocs(q);
         console.log(`Fetched ${querySnapshot.docs.length} game tables successfully.`);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), imageUrl: doc.data().imageUrl || gameImageMap[doc.data().gameName] || undefined } as GameTable));
@@ -99,19 +98,28 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
         throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter une table.");
     }
     try {
-        const dataToSave: Omit<GameTable, 'id'> = {
+        const dataToSave: { [key: string]: any } = { // Use a flexible type for construction
             gameName: tableInput.gameName,
             day: tableInput.day,
             timeSlot: tableInput.timeSlot,
             totalSeats: tableInput.totalSeats,
-            imageUrl: tableInput.imageUrl || gameImageMap[tableInput.gameName] || undefined,
         };
+
+        const determinedImageUrl = tableInput.imageUrl || gameImageMap[tableInput.gameName];
+        if (determinedImageUrl) { // Only add imageUrl if it's a truthy string
+            dataToSave.imageUrl = determinedImageUrl;
+        }
+        // If determinedImageUrl is undefined/null/empty, imageUrl field won't be added to Firestore.
 
         const docRef = await addDoc(collection(db, TABLES_COLLECTION), dataToSave);
         
         const resultTable: GameTable = {
             id: docRef.id,
-            ...dataToSave,
+            gameName: tableInput.gameName, // Use tableInput to ensure original casing
+            day: tableInput.day,
+            timeSlot: tableInput.timeSlot,
+            totalSeats: tableInput.totalSeats,
+            imageUrl: determinedImageUrl || undefined, // Match GameTable type (string | undefined)
         };
         return resultTable;
 
@@ -137,24 +145,41 @@ export const updateGameTable = async (tableToUpdate: GameTable): Promise<GameTab
     try {
         const tableRef = doc(db, TABLES_COLLECTION, tableToUpdate.id);
         
-        const dataToUpdate: Omit<GameTable, 'id'> = {
+        const dataToUpdate: { [key: string]: any } = { // Use a flexible type for construction
             gameName: tableToUpdate.gameName,
             day: tableToUpdate.day,
             timeSlot: tableToUpdate.timeSlot,
             totalSeats: tableToUpdate.totalSeats,
-            imageUrl: tableToUpdate.imageUrl || gameImageMap[tableToUpdate.gameName] || undefined,
         };
+
+        const determinedImageUrl = tableToUpdate.imageUrl || gameImageMap[tableToUpdate.gameName];
+
+        if (determinedImageUrl) { // If we have a valid image URL string
+            dataToUpdate.imageUrl = determinedImageUrl;
+        } else {
+            // If no image URL is determined (it's undefined, null, or empty string),
+            // we use deleteField() to remove the imageUrl field from the Firestore document.
+            dataToUpdate.imageUrl = deleteField();
+        }
 
         await updateDoc(tableRef, dataToUpdate);
         
-        const returnedTable: GameTable = { id: tableToUpdate.id, ...dataToUpdate };
+        // Construct the returned object, ensuring imageUrl matches GameTable type (string | undefined)
+        const returnedTable: GameTable = { 
+            id: tableToUpdate.id, 
+            gameName: tableToUpdate.gameName,
+            day: tableToUpdate.day,
+            timeSlot: tableToUpdate.timeSlot,
+            totalSeats: tableToUpdate.totalSeats,
+            imageUrl: determinedImageUrl || undefined, 
+        };
         return returnedTable;
 
     } catch (error) {
         console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         console.error("!!! IMPORTANT: Detailed Firebase Error (updateGameTable) !!!");
         console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        console.error(error); // Log the full error object
+        console.error(error); 
         let baseMessage = "Impossible de mettre à jour la table de jeu dans Firestore.";
         let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus (regardez pour 'code' et 'message'). Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local.\n2. Règles de sécurité Firestore bloquant la mise à jour de la collection 'gameTables'.";
         
@@ -177,8 +202,6 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
     }
     const batch = writeBatch(db);
     try {
-        // Note: The check for existing registrations is now done in the component before calling this.
-        // This function will delete the table and any associated registrations if it's called.
         const tableRef = doc(db, TABLES_COLLECTION, tableId);
         batch.delete(tableRef);
 
@@ -363,6 +386,3 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = registrationPhases.indexOf(userTicketType); 
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
-
-
-    
