@@ -1,4 +1,3 @@
-
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
@@ -117,14 +116,14 @@ export default function TableManager() {
     setIsDialogOpen(true);
   };
 
-  const confirmDelete = async (tableId: string) => {
-    const tableToDelete = tables.find(t => t.id === tableId);
+  const handleDeleteClick = async (tableId: string) => {
+     const tableToDelete = tables.find(t => t.id === tableId);
     if (!tableToDelete) {
         toast({ variant: "destructive", title: "Erreur", description: "Table non trouvée."});
         return;
     }
-
-    setIsDeleting(tableId); 
+    
+    setIsDeleting(tableId);
 
     try {
         const registrations = await getRegistrationsForTable(tableId);
@@ -134,17 +133,19 @@ export default function TableManager() {
                 title: "Suppression impossible", 
                 description: `La table "${tableToDelete.gameName}" a ${registrations.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`,
                 action: <AlertTriangle className="text-destructive-foreground h-5 w-5" />,
+                duration: 5000,
             });
             setIsDeleting(null);
             return;
         }
-
+        // If no registrations, proceed with deletion
         await deleteGameTable(tableId);
         
         setTables(prevTables => prevTables.filter(t => t.id !== tableId));
         toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" a été supprimée avec succès.` });
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la suppression.";
+         // Avoid showing the generic error if it's the "has registrations" error we already handled
          if (!errorMessage.includes("joueur(s) inscrit(s)")) {
             toast({ 
                 variant: "destructive", 
@@ -156,6 +157,7 @@ export default function TableManager() {
         setIsDeleting(null); 
     }
   };
+
 
   const handleOpenDialogForAdd = () => {
     setEditingTable(null);
@@ -314,7 +316,7 @@ export default function TableManager() {
             <TableCaption>Une liste des tables de jeu configurées.</TableCaption>
             <TableHeader>
                 <TableRow>
-                <TableHead className="w-20">Image</TableHead>
+                <TableHead className="w-32">Image</TableHead>
                 <TableHead>Nom du jeu</TableHead>
                 <TableHead>Jour</TableHead>
                 <TableHead>Créneau horaire</TableHead>
@@ -331,18 +333,18 @@ export default function TableManager() {
                     return timeSlotOrder.indexOf(a.timeSlot) - timeSlotOrder.indexOf(b.timeSlot);
                 }).map((table) => (
                 <TableRow key={table.id}>
-                    <TableCell className="w-20">
+                    <TableCell className="w-32">
                         {table.imageUrl ? (
                             <Image
                                 src={table.imageUrl}
                                 alt={`Icône ${table.gameName}`}
-                                width={64} 
-                                height={40} 
-                                className="rounded object-contain h-10 shadow-sm"
+                                width={128} 
+                                height={80} 
+                                className="rounded object-contain h-20 shadow-sm"
                                 data-ai-hint="game icon"
                             />
                         ) : (
-                            <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                            <div className="h-20 w-32 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                         )}
                     </TableCell>
                     <TableCell className="font-medium">{table.gameName}</TableCell>
@@ -378,7 +380,7 @@ export default function TableManager() {
                             <AlertDialogFooter>
                             <AlertDialogCancel>Annuler</AlertDialogCancel>
                             <AlertDialogAction
-                                onClick={() => confirmDelete(table.id)}
+                                onClick={() => handleDeleteClick(table.id)}
                                 className="bg-destructive hover:bg-destructive/90"
                             >
                                 {isDeleting === table.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

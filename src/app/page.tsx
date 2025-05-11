@@ -1,7 +1,6 @@
-
 'use client';
 
-import * as React from 'react';
+import type React from 'react';
 import { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import Image from 'next/image';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -204,7 +203,7 @@ export default function Home() {
       <Card className="shadow-lg rounded-lg">
         <CardHeader className="flex flex-row items-center justify-between">
             <div>
-                <CardTitle>Sélection utilisateur & Infos</CardTitle>
+                <CardTitle>Sélection utilisateur &amp; Infos</CardTitle>
                 <CardDescription>Sélectionnez un utilisateur pour voir les tables et gérer les inscriptions.</CardDescription>
             </div>
              <Button onClick={() => loadData()} variant="outline" size="sm" disabled={isLoading || isSubmittingRegistration}>
@@ -325,13 +324,13 @@ export default function Home() {
                                                                     <Image
                                                                         src={table.imageUrl}
                                                                         alt={`Image du jeu ${table.gameName}`}
-                                                                        width={40}
-                                                                        height={40}
-                                                                        className="rounded object-contain h-10 shadow-sm"
+                                                                        width={80}
+                                                                        height={80}
+                                                                        className="rounded object-contain h-20 shadow-sm"
                                                                         data-ai-hint="game icon"
                                                                     />
                                                                 ) : (
-                                                                    <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                                                                    <div className="h-20 w-20 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="font-medium">
@@ -402,13 +401,13 @@ export default function Home() {
                                         <Image
                                             src={table.imageUrl}
                                             alt={`Image du jeu ${table.gameName}`}
-                                            width={40}
-                                            height={40}
-                                            className="rounded object-contain h-10 shadow-sm"
+                                            width={80}
+                                            height={80}
+                                            className="rounded object-contain h-20 shadow-sm"
                                             data-ai-hint="game icon"
                                         />
                                     ) : (
-                                        <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                                        <div className="h-20 w-20 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                                     )}
                                 </TableCell>
                                 <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day} {dayInfo?.date}</TableCell>
