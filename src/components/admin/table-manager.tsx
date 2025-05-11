@@ -1,4 +1,3 @@
-
 'use client';
 
 import type React from 'react'; // Ensure React is imported for ElementType
@@ -34,7 +33,6 @@ import {
   addGameTable,
   updateGameTable,
   deleteGameTable,
-  // getRegistrationsForTable, // No longer directly used in this component for delete check
 } from '@/lib/data';
 import type { GameTable, GameTableInput } from '@/lib/types';
 import { Pencil, Trash2, PlusCircle, Loader2, AlertTriangle } from 'lucide-react';
@@ -107,39 +105,38 @@ export default function TableManager() {
   };
 
   const handleDelete = async (tableId: string) => {
-    toast({ title: "CLIC", description: "Bouton supprimer cliqué." });
-    console.log(`handleDelete called for tableId: ${tableId}`);
-    
-    const confirmed = confirm("Êtes-vous sûr de vouloir supprimer cette table ? La suppression ne sera effectuée que si aucune inscription n'y est associée.");
-    console.log(`Confirmation result for table ${tableId}: ${confirmed}`);
+    const tableToDelete = tables.find(t => t.id === tableId);
+    if (!tableToDelete) {
+        toast({ variant: "destructive", title: "Erreur", description: "Table non trouvée."});
+        return;
+    }
 
+    const confirmed = window.confirm(`Êtes-vous sûr de vouloir supprimer la table "${tableToDelete.gameName}" (${tableToDelete.day} - ${tableToDelete.timeSlot}) ? Cette action est irréversible et ne sera effectuée que si aucune inscription n'y est associée.`);
+    
     if (!confirmed) {
-        console.log(`Deletion cancelled by user for table ${tableId}.`);
         return;
     }
 
     setIsDeleting(tableId); 
 
     try {
-        console.log(`Proceeding to delete table ${tableId}. This will fail if registrations exist (checked server-side).`);
         await deleteGameTable(tableId); // deleteGameTable in lib/data.ts handles the registration check
-        console.log(`Table ${tableId} successfully deleted from Firestore.`);
         
-        await fetchTables(false); 
-        console.log("Table list refreshed after deletion.");
-        toast({ title: "Table supprimée", description: "La table de jeu a été supprimée avec succès." });
+        // Optimistically update UI or refetch
+        setTables(prevTables => prevTables.filter(t => t.id !== tableId));
+        // Or await fetchTables(false); for a more robust update
+
+        toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" a été supprimée avec succès.` });
     } catch (err) {
-         console.error(`Error during handleDelete for table ${tableId}:`, err);
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la suppression.";
-         // If the error is about existing registrations, it will be part of err.message from deleteGameTable
          toast({ 
             variant: "destructive", 
             title: "Erreur lors de la suppression", 
             description: errorMessage,
-            action: errorMessage.includes("joueurs inscrits") ? <AlertTriangle className="text-destructive-foreground" /> : undefined,
+            // Show alert icon specifically if the error is about existing registrations
+            action: errorMessage.includes("joueurs inscrits") || errorMessage.includes("registrations") ? <AlertTriangle className="text-destructive-foreground h-5 w-5" /> : undefined,
         });
     } finally {
-        console.log(`Clearing isDeleting state for table ${tableId}.`);
         setIsDeleting(null); 
     }
   };
@@ -347,6 +344,7 @@ export default function TableManager() {
                         onClick={() => handleDelete(table.id)} 
                         disabled={isSubmitting || (isDeleting !== null && isDeleting !== table.id) || isDeleting === table.id}
                         className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
+                        title={`Supprimer la table ${table.gameName}`}
                     >
                         {isDeleting === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         <span className="sr-only">Supprimer</span>
@@ -363,5 +361,3 @@ export default function TableManager() {
     </Card>
   );
 }
-
-    
