@@ -349,8 +349,17 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
         console.warn("Participant avec ID invalide ignoré:", participant);
         continue; // Skip participant with invalid ID
       }
+      // Ensure all fields are defined, providing defaults for optional fields if necessary
+      const participantDataToSave = {
+        nom: participant.nom || '',
+        prenom: participant.prenom || '',
+        email: participant.email || '',
+        typeBillet: participant.typeBillet || 'Aucun', // Default to 'Aucun' if undefined
+      };
+
       const participantRef = doc(participantsCollectionRef, participant.id);
-      batch.set(participantRef, participant, { merge: true });
+      // Use set with merge:true to create or update, ensuring all fields are present
+      batch.set(participantRef, participantDataToSave, { merge: true });
     }
     await batch.commit();
     console.log(`${participants.length} participant(s) traité(s) pour sauvegarde dans Firestore.`);
@@ -381,8 +390,24 @@ export const getParticipants = async (): Promise<Participant[]> => {
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
     } catch (error) {
-        console.error("Firestore - Erreur lors de la récupération des participants:", error);
-        throw new Error("Impossible de récupérer les participants depuis Firestore.");
+        console.error("Firestore - Erreur détaillée lors de la récupération des participants:", error);
+        // Try to provide more specific advice if possible
+        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée. ";
+        if (error instanceof Error && 'code' in error) {
+            const firebaseError = error as { code: string; message: string };
+            if (firebaseError.code === 'permission-denied') {
+                advice += "ERREUR DE PERMISSION: Firestore a refusé l'accès. Vérifiez vos règles de sécurité. ";
+            } else if (firebaseError.code === 'unimplemented' || firebaseError.code === 'failed-precondition') {
+                 advice += "ERREUR D'INDEX Firestore: La requête nécessite probablement un index. Vérifiez la console du navigateur pour un lien permettant de créer l'index manquant (souvent nécessaire pour les clauses `orderBy` multiples ou sur des champs non triés par défaut). ";
+            } else if (firebaseError.code === 'unavailable') {
+                advice += "SERVICE FIRESTORE INDISPONIBLE. Vérifiez l'état de Firebase. ";
+            } else {
+                advice += `Erreur Firebase (${firebaseError.code}): ${firebaseError.message}. `;
+            }
+        } else if (error instanceof Error) {
+            advice += `Message d'erreur: ${error.message}. `;
+        }
+        throw new Error(`Impossible de récupérer les participants depuis Firestore. ${advice}`);
     }
 };
 
@@ -425,3 +450,4 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType); 
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
+
