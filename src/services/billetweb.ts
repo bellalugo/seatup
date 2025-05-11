@@ -23,12 +23,13 @@ function mapTicketName(name?: string): TicketType { // name peut être undefined
     console.log('[Billetweb Service] mapTicketName: Nom de billet non fourni ou vide, retour "Aucun".');
     return 'Aucun';
   }
-  console.log(`[Billetweb Service] mapTicketName: Cartographie du nom de billet "${name}"`);
-  if (/strat[eè]ge/i.test(name))   return 'Stratège';
-  if (/mar[eé]chal/i.test(name))   return 'Maréchal';
-  if (/g[eé]n[eé]ral/i.test(name)) return 'Général';
+  const trimmedName = name.trim();
+  console.log(`[Billetweb Service] mapTicketName: Cartographie du nom de billet "${trimmedName}"`);
+  if (/strat[eè]ge/i.test(trimmedName))   return 'Stratège';
+  if (/mar[eé]chal/i.test(trimmedName))   return 'Maréchal';
+  if (/g[eé]n[eé]ral/i.test(trimmedName)) return 'Général';
   
-  console.warn(`[Billetweb Service] mapTicketName: Nom de billet non reconnu "${name}", retour "Aucun".`);
+  console.warn(`[Billetweb Service] mapTicketName: Nom de billet non reconnu "${trimmedName}", retour "Aucun".`);
   return 'Aucun';                       // billet non reconnu
 }
 
@@ -84,10 +85,9 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
     firstname?: string; 
     lastname?: string;  
     email?: string;     
-    ticket?: { name?: string }; 
-    // Ajoutez d'autres champs que vous pourriez attendre de Billetweb ici
-    // par exemple, si le nom du billet est sous un autre champ:
-    // ticket_name?: string; 
+    ticket?: { name?: string };
+    rate_name?: string; // Field that might contain the ticket type like "Stratège"
+    answers?: Array<{ id?: string, label?: string; value?: string | string[] | number | boolean | null, type?: string }>; // For custom fields like "Tarif"
   };
 
   try {
@@ -103,16 +103,39 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
         console.warn(`[Billetweb Service] Participant avec order_id ${a.order_id} n'a pas d'ID unique. ID généré : ${uniqueParticipantId}`);
       }
 
-      // Logging des données brutes pour ce participant
       console.log(`[Billetweb Service] Traitement du participant brut (order_id: ${a.order_id}, id API: ${a.id || 'N/A'}) :`, JSON.stringify(a, null, 2));
-      console.log(`  -> Nom de billet brut depuis API: ${a.ticket?.name}`);
-      console.log(`  -> Nom de famille brut depuis API: ${a.lastname}`);
-      console.log(`  -> Prénom brut depuis API: ${a.firstname}`);
-
-      const mappedTicketType = mapTicketName(a.ticket?.name);
+      
       const mappedNom = a.lastname || '';
       const mappedPrenom = a.firstname || '';
       const mappedEmail = a.email || '';
+      
+      let ticketNameToMap: string | undefined = undefined;
+
+      // Attempt 1: Look in answers for "Tarif"
+      if (a.answers && Array.isArray(a.answers)) {
+        const tarifAnswer = a.answers.find(ans => ans.label?.toLowerCase().includes('tarif'));
+        if (tarifAnswer && typeof tarifAnswer.value === 'string' && tarifAnswer.value.trim() !== '') {
+          ticketNameToMap = tarifAnswer.value;
+          console.log(`[Billetweb Service] Type de billet trouvé dans answers.label contenant "tarif": "${ticketNameToMap}" pour order_id: ${a.order_id}`);
+        } else if (tarifAnswer) {
+            console.log(`[Billetweb Service] Réponse "tarif" trouvée mais valeur non chaîne ou vide:`, tarifAnswer.value, `pour order_id: ${a.order_id}`);
+        }
+      }
+
+      // Attempt 2: Look for a direct rate_name field (if not found in answers)
+      if (!ticketNameToMap && a.rate_name) {
+        ticketNameToMap = a.rate_name;
+        console.log(`[Billetweb Service] Type de billet trouvé dans rate_name: "${ticketNameToMap}" pour order_id: ${a.order_id}`);
+      }
+
+      // Attempt 3: Fallback to ticket.name (original logic if other methods fail)
+      if (!ticketNameToMap && a.ticket?.name) {
+        ticketNameToMap = a.ticket.name;
+        console.log(`[Billetweb Service] Type de billet utilisant ticket.name en fallback: "${ticketNameToMap}" pour order_id: ${a.order_id}`);
+      }
+      
+      console.log(`[Billetweb Service] Valeur finale utilisée pour mapTicketName: "${ticketNameToMap || 'undefined'}" pour order_id: ${a.order_id}`);
+      const mappedTicketType = mapTicketName(ticketNameToMap);
       
       const participantData: Participant = {
         id        : uniqueParticipantId,
@@ -123,12 +146,6 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
       };
 
       console.log(`[Billetweb Service] Données participant mappées (id: ${uniqueParticipantId}):`, JSON.stringify(participantData, null, 2));
-      
-      // Commentaire de l'ancien log spécifique
-      // if (participantData.email && participantData.email.toLowerCase() === "jean-jacques.sonzini@orange.fr") {
-      //   console.log(`[Billetweb Service] Données BRUTES pour jean-jacques.sonzini@orange.fr:`, JSON.stringify(a));
-      //   console.log(`[Billetweb Service] Données MAPPEES pour jean-jacques.sonzini@orange.fr:`, JSON.stringify(participantData));
-      // }
       
       return participantData;
     });
