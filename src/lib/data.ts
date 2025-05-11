@@ -65,11 +65,16 @@ const REGISTRATIONS_COLLECTION = 'registrations';
 export const getGameTables = async (): Promise<GameTable[]> => {
     try {
         const tablesCollection = collection(db, TABLES_COLLECTION);
-        const q = query(tablesCollection, orderBy("gameName"), orderBy("day"), orderBy("timeSlot"));
+        // Simplified query to order by gameName only.
+        // Original query with multi-field orderBy: query(tablesCollection, orderBy("gameName"), orderBy("day"), orderBy("timeSlot"));
+        // Such a query requires a composite index in Firestore.
+        const q = query(tablesCollection, orderBy("gameName"));
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameTable));
     } catch (error) {
         console.error("Firestore - Erreur lors de la récupération des tables de jeu:", error);
+        // The error message below is generic. The actual Firebase error logged above is more informative.
+        // Check the browser console for details, especially for links to create missing indexes if that's the cause.
         throw new Error("Impossible de récupérer les tables de jeu depuis Firestore.");
     }
 };
@@ -122,15 +127,8 @@ export const updateGameTable = async (tableToUpdate: GameTable): Promise<GameTab
         if (mappedImageUrl !== undefined) {
             dataToUpdate.imageUrl = mappedImageUrl;
         } else if (tableToUpdate.imageUrl !== undefined) { 
-            // If no image in map, retain existing imageUrl if it was defined
             dataToUpdate.imageUrl = tableToUpdate.imageUrl;
         }
-        // If mappedImageUrl is undefined AND tableToUpdate.imageUrl was undefined,
-        // dataToUpdate.imageUrl will be undefined, and the field will be omitted.
-        // To explicitly remove an existing imageUrl from Firestore if it's no longer in the map 
-        // and not otherwise provided, you would use:
-        // else if (dataToUpdate.imageUrl !== undefined) { dataToUpdate.imageUrl = deleteField(); }
-        // For now, this logic means an image URL is set if found in map, or kept if previously existing and not overridden by map.
 
         await updateDoc(tableRef, dataToUpdate);
         
@@ -262,4 +260,3 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = registrationPhases.indexOf(userTicketType);
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
-
