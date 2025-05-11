@@ -46,7 +46,7 @@ export interface GameTable {
  * GameTable will now link to a Game entity via gameId.
  */
 export interface GameTableInput {
-    gameId: string;
+    gameId: string; // User selects a game from the "games" collection
     day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
     timeSlot: string;
     totalSeats: number;
@@ -60,3 +60,4 @@ export interface Registration {
 
 // Define registration phases based on ticket priority
 export const registrationPhases: TicketType[] = ['Stratège', 'Maréchal', 'Général'];
+

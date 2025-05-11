@@ -13,7 +13,6 @@ import {
     where,
     writeBatch,
     orderBy,
-    deleteField,
     getDoc,
 } from 'firebase/firestore';
 
@@ -26,7 +25,7 @@ export const mockUsers: Record<string, User> = {
 
 export const registrationPhases = importedRegistrationPhases;
 
-const GAMES_COLLECTION = 'games'; // New collection for games
+const GAMES_COLLECTION = 'games';
 const TABLES_COLLECTION = 'gameTables';
 const REGISTRATIONS_COLLECTION = 'registrations';
 
@@ -74,7 +73,7 @@ export const updateGame = async (game: Game): Promise<Game> => {
         const gameRef = doc(db, GAMES_COLLECTION, game.id);
         // Make sure we don't try to write the id back into the document data
         const { id, ...gameData } = game;
-        await updateDoc(gameRef, gameData);
+        await updateDoc(gameRef, gameData as any); // Use 'as any' to bypass strict type checking if needed for Firestore
         return game;
     } catch (error) {
         console.error("Firestore - Erreur lors de la mise à jour du jeu:", error);
@@ -83,8 +82,6 @@ export const updateGame = async (game: Game): Promise<Game> => {
 };
 
 /** Deletes a game from Firestore */
-// Note: This function should also check if any GameTable uses this gameId and prevent deletion or handle cascading deletes if necessary.
-// For now, it will just delete the game. A more robust solution would involve checking for dependencies.
 export const deleteGame = async (gameId: string): Promise<void> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for deleteGame.");
@@ -127,19 +124,19 @@ export const getGameTables = async (): Promise<GameTable[]> => {
         const gamesMap = new Map(gamesList.map(game => [game.id, game]));
 
         return rawTablesSnapshot.docs.map(doc => {
-            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'>;
+            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'>; // gameId is in tableData
             const game = gamesMap.get(tableData.gameId);
             return {
                 id: doc.id,
                 ...tableData,
-                gameName: game?.nom || 'Jeu inconnu',
-                gameImageUrl: game?.imageUrl, // Use game's imageUrl
+                gameName: game?.nom || 'Jeu inconnu (ID: ' + tableData.gameId + ')',
+                gameImageUrl: game?.imageUrl,
             } as GameTable;
         });
     } catch (error) {
-        console.error("<<< IMPORTANT: Detailed Firebase Error (getGameTables) >>>", error);
-        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée ci-dessus. Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local (NEXT_PUBLIC_FIREBASE_PROJECT_ID, etc. Assurez-vous que le serveur de développement a été redémarré après modification de .env.local).\n2. Règles de sécurité Firestore bloquant l'accès.\n3. Index Firestore manquants (l'erreur Firebase ci-dessus peut inclure un lien pour créer l'index requis).";
-        if (error instanceof Error && 'code' in error) {
+        console.error("Firestore - Erreur lors de la récupération des tables de jeu:", error);
+        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée. Causes courantes : \n1. Configuration Firebase incorrecte dans .env.local.\n2. Règles de sécurité Firestore bloquant l'accès.\n3. Index Firestore manquants.";
+         if (error instanceof Error && 'code' in error) {
             const firebaseError = error as { code: string; message: string };
             if (firebaseError.code === 'permission-denied') {
                 advice = `ERREUR DE PERMISSION (${firebaseError.code}): Firestore a refusé l'accès. Vérifiez vos règles de sécurité. ` + advice;
@@ -160,8 +157,6 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
         throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter une table.");
     }
     try {
-        // gameName and imageUrl are no longer part of GameTableInput directly
-        // They will be derived from the game associated with gameId
         const dataToSave: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'> = {
             gameId: tableInput.gameId,
             day: tableInput.day,
@@ -171,7 +166,6 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
 
         const docRef = await addDoc(collection(db, TABLES_COLLECTION), dataToSave);
 
-        // Fetch the associated game to populate gameName and gameImageUrl for the return value
         const gameDoc = await getDoc(doc(db, GAMES_COLLECTION, tableInput.gameId));
         const gameData = gameDoc.exists() ? gameDoc.data() as Game : null;
 
@@ -198,23 +192,29 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
         const tableRef = doc(db, TABLES_COLLECTION, tableToUpdate.id);
         const { id, ...dataToUpdate } = tableToUpdate;
 
-        // Create the payload for Firestore, excluding gameName and gameImageUrl as they are derived
         const firestorePayload: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl'> = {
             gameId: dataToUpdate.gameId,
             day: dataToUpdate.day,
             timeSlot: dataToUpdate.timeSlot,
             totalSeats: dataToUpdate.totalSeats,
         };
+        // Firestore does not allow undefined values. Ensure they are handled or removed.
+        const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
+            if (value !== undefined) {
+                acc[key as keyof typeof firestorePayload] = value;
+            }
+            return acc;
+        }, {} as Partial<typeof firestorePayload>);
 
-        await updateDoc(tableRef, firestorePayload);
 
-        // Fetch the associated game to populate gameName and gameImageUrl for the return value
+        await updateDoc(tableRef, cleanedPayload);
+
         const gameDoc = await getDoc(doc(db, GAMES_COLLECTION, dataToUpdate.gameId));
         const gameData = gameDoc.exists() ? gameDoc.data() as Game : null;
 
         return {
             id: tableToUpdate.id,
-            ...firestorePayload,
+            ...firestorePayload, // use original payload structure for return type consistency
             gameName: gameData?.nom || 'Jeu inconnu',
             gameImageUrl: gameData?.imageUrl,
         };
@@ -256,7 +256,7 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
     }
 };
 
-// --- Registrations Functions (mostly unchanged, but ensure they exist) ---
+// --- Registrations Functions ---
 
 /** Fetches all registrations from Firestore */
 export const getRegistrations = async (): Promise<Registration[]> => {
@@ -332,7 +332,7 @@ export const removeRegistration = async (userId: string, tableId: string): Promi
     }
 };
 
-// --- Utility Functions (Modified for new structure if needed) ---
+// --- Utility Functions ---
 
 export const getAvailableSeats = (tableId: string, registrations: Registration[], tables: GameTable[]): number => {
     const table = tables.find(t => t.id === tableId);
@@ -370,3 +370,4 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     const userPhaseIndex = registrationPhases.indexOf(userTicketType);
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
+
