@@ -12,13 +12,17 @@ import { getParticipantsFromBilletweb } from '@/services/billetweb';
 import { saveParticipants } from '@/lib/data';
 import type { Participant } from '@/lib/types';
 
-export const SyncBilletwebParticipantsOutputSchema = z.object({
+// Define the Zod schema but do not export it directly
+const SyncBilletwebParticipantsOutputSchema = z.object({
   message: z.string().describe('A message indicating the result of the synchronization.'),
   participantsSynced: z.number().describe('Number of participants successfully synced.'),
   error: z.string().optional().describe('Error message if synchronization failed.'),
 });
+
+// Export the TypeScript type inferred from the Zod schema
 export type SyncBilletwebParticipantsOutput = z.infer<typeof SyncBilletwebParticipantsOutputSchema>;
 
+// Export the async wrapper function
 export async function syncBilletwebParticipants(): Promise<SyncBilletwebParticipantsOutput> {
   return syncBilletwebParticipantsFlow(undefined); // Pass undefined as input
 }
@@ -27,7 +31,7 @@ const syncBilletwebParticipantsFlow = ai.defineFlow(
   {
     name: 'syncBilletwebParticipantsFlow',
     inputSchema: z.undefined(), // No specific input needed for this trigger
-    outputSchema: SyncBilletwebParticipantsOutputSchema,
+    outputSchema: SyncBilletwebParticipantsOutputSchema, // Use the unexported schema here
   },
   async () => {
     try {
@@ -53,8 +57,6 @@ const syncBilletwebParticipantsFlow = ai.defineFlow(
       if (error instanceof Error) {
         errorMessage += ` Détails: ${error.message}`;
       }
-      // It's often better to re-throw the error or ensure the outputSchema can represent errors.
-      // For now, returning a message within the existing schema.
       return { 
         message: errorMessage, 
         participantsSynced: 0,
