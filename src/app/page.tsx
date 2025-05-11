@@ -403,7 +403,7 @@ export default function Home() {
                                                                     <span className="text-muted-foreground italic">N/A</span>
                                                                 )}
                                                             </TableCell>
-                                                            <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
+                                                            <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
                                                             <TableCell className="text-center">
                                                                 <Badge variant={availableSeats > 0 ? "default" : "destructive"} className="bg-accent text-accent-foreground px-2 py-1 shadow-sm">
                                                                     <Users className="inline h-4 w-4 mr-1" /> {availableSeats} / {table.totalSeats}
@@ -482,7 +482,7 @@ export default function Home() {
                                     )}
                                 </TableCell>
                                 <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day} {dayInfo?.date}</TableCell>
-                                <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
+                                <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
                                 <TableCell className="font-bold">
                                     {table.gameName}
                                 </TableCell>
@@ -540,3 +540,4 @@ export default function Home() {
     </div>
   );
 }
+
