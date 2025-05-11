@@ -32,7 +32,7 @@ export default function Header() {
 
   return (
     <header className="bg-primary text-primary-foreground shadow-md">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
+      <div className="container mx-auto flex h-24 items-center justify-between px-4 md:px-6"> {/* Changed h-16 to h-24 */}
         <Link href="/" className="flex items-center gap-2 h-full py-1">
           <Image
             src="https://www.asynconv.fr/wp-content/uploads/2025/04/Signature_FR.jpg"
@@ -87,4 +87,5 @@ export default function Header() {
     </header>
   );
 }
+
 
