@@ -1,4 +1,3 @@
-
 // lib/billetweb.ts
 import type { TicketType, Participant } from '@/lib/types';
 
@@ -57,6 +56,8 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
           nom = realNameWords[realNameWords.length - 1];
         } else {
           prenom = realNameWords[0];
+          // Si le nom n'a qu'un mot, il est assigné à prenom, nom reste NomMockX.
+          // Cela pourrait être amélioré si nécessaire, mais le problème principal concerne l'API réelle.
         }
       }
 
@@ -76,10 +77,10 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
   type BilletwebAttendee = {
     id?: string; 
     order_id: string;
-    firstname?: string; // Rendre optionnel pour la vérification
-    lastname?: string;  // Rendre optionnel pour la vérification
-    email?: string;     // Rendre optionnel pour la vérification
-    ticket?: { name?: string }; // Rendre optionnel pour la vérification
+    firstname?: string; 
+    lastname?: string;  
+    email?: string;     
+    ticket?: { name?: string }; 
   };
 
   try {
@@ -93,17 +94,27 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
         console.warn(`[Billetweb Service] Participant avec order_id ${a.order_id} n'a pas d'ID unique. ID généré : ${uniqueParticipantId}`);
       }
 
-      return {
+      const participantData = {
         id        : uniqueParticipantId,
-        nom       : a.lastname || '', // Valeur par défaut si undefined
-        prenom    : a.firstname || '', // Valeur par défaut si undefined
-        email     : a.email || '',     // Valeur par défaut si undefined
-        typeBillet: mapTicketName(a.ticket?.name), // Utiliser le chaînage optionnel
+        nom       : a.lastname || '', 
+        prenom    : a.firstname || '', 
+        email     : a.email || '',     
+        typeBillet: mapTicketName(a.ticket?.name), 
       };
+
+      // Log détaillé pour le participant spécifique
+      if (participantData.email && participantData.email.toLowerCase() === "jean-jacques.sonzini@orange.fr") {
+        console.log(`[Billetweb Service] Données BRUTES pour jean-jacques.sonzini@orange.fr:`, JSON.stringify(a));
+        console.log(`[Billetweb Service] Données MAPPEES pour jean-jacques.sonzini@orange.fr:`, JSON.stringify(participantData));
+      }
+      
+      return participantData;
     });
   } catch (error) {
     console.error("[Billetweb Service] Erreur lors de l'appel à l'API Billetweb réelle:", error);
-    throw new Error("Échec de la récupération des participants depuis l'API Billetweb.");
+    // Renvoyer un tableau vide ou relancer l'erreur en fonction de la gestion d'erreur souhaitée
+    return []; 
+    // throw new Error("Échec de la récupération des participants depuis l'API Billetweb.");
   }
 }
 
