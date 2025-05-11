@@ -204,6 +204,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             authorAnimator: dataToUpdate.authorAnimator || '',
         };
         
+        // Remove undefined fields to prevent Firestore errors
         const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
             if (value !== undefined) { 
                 acc[key as keyof typeof firestorePayload] = value;
@@ -222,7 +223,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             ...firestorePayload, 
             gameName: gameData?.nom || 'Jeu inconnu',
             gameImageUrl: gameData?.imageUrl,
-            imageUrl: gameData?.imageUrl,
+            imageUrl: gameData?.imageUrl, // Keep this for backward compatibility for now
         };
     } catch (error) {
         console.error("Firestore - Erreur détaillée lors de la mise à jour de la table de jeu:", error);
@@ -386,12 +387,13 @@ export const getParticipants = async (): Promise<Participant[]> => {
     }
     try {
         const participantsCollection = collection(db, PARTICIPANTS_COLLECTION);
-        const q = query(participantsCollection, orderBy("nom"), orderBy("prenom")); // Sort by last name, then first name
+        // Simplified orderBy to potentially avoid index issues.
+        // For full sorting (nom, prenom), a composite index is required in Firestore.
+        const q = query(participantsCollection, orderBy("nom")); 
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
     } catch (error) {
         console.error("Firestore - Erreur détaillée lors de la récupération des participants:", error);
-        // Try to provide more specific advice if possible
         let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée. ";
         if (error instanceof Error && 'code' in error) {
             const firebaseError = error as { code: string; message: string };
