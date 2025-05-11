@@ -38,7 +38,10 @@ import {
 import type { GameTable, GameTableInput } from '@/lib/types';
 import { Pencil, Trash2, PlusCircle } from 'lucide-react'; // Import icons
 
-// Icon selection is removed as we now use image URLs based on game name
+// Convention days for sorting consistency if dates were part of GameTable type
+const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00"];
+
 
 export default function TableManager() {
   const [tables, setTables] = useState<GameTable[]>([]); // Initialize empty, fetch in useEffect
@@ -216,11 +219,9 @@ export default function TableManager() {
             </TableHeader>
             <TableBody>
                 {tables.sort((a, b) => { 
-                    const dayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-                    const timeOrder = ["09:00 - 13:00", "14:00 - 19:00"]; 
                     if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
-                    if (a.day !== b.day) return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
-                    return timeOrder.indexOf(a.timeSlot) - timeOrder.indexOf(b.timeSlot);
+                    if (a.day !== b.day) return conventionDayOrder.indexOf(a.day) - conventionDayOrder.indexOf(b.day);
+                    return timeSlotOrder.indexOf(a.timeSlot) - timeSlotOrder.indexOf(b.timeSlot);
                 }).map((table) => (
                 <TableRow key={table.id}>
                     <TableCell>

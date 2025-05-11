@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from '@/hooks/use-toast';
 import {
     mockUsers,
     getCurrentTables, // Fetch current tables
@@ -26,6 +26,15 @@ import type { GameTable, User, Registration, TicketType } from '@/lib/types';
 // Remove direct import of registrationPhases from types if it's already imported from data
 // import { registrationPhases } from '@/lib/types';
 import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw } from 'lucide-react';
+
+// Define convention days with dates
+const conventionDays = [
+    { name: 'Jeudi', date: '03/07', value: 'jeudi' },
+    { name: 'Vendredi', date: '04/07', value: 'vendredi' },
+    { name: 'Samedi', date: '05/07', value: 'samedi' },
+    { name: 'Dimanche', date: '06/07', value: 'dimanche' }
+];
+
 
 export default function Home() {
   const [tables, setTables] = useState<GameTable[]>([]);
@@ -187,7 +196,7 @@ export default function Home() {
     // Filter from the current state of tables
     return tables.filter(t => userTableIds.includes(t.id))
                  .sort((a, b) => { // Sort schedule by day then time
-                    const dayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+                    const dayOrder = conventionDays.map(d => d.name);
                     if (a.day !== b.day) {
                         return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
                     }
@@ -196,7 +205,6 @@ export default function Home() {
   };
 
   const userSchedule = getUserSchedule();
-  const days = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
   return (
     <div className="space-y-6">
@@ -240,26 +248,26 @@ export default function Home() {
            <div className="flex justify-center items-center h-64"><p>Chargement des tables de jeu...</p></div>
        ) : (
           <>
-            <Tabs defaultValue="jeudi" className="w-full">
+            <Tabs defaultValue={conventionDays[0].value} className="w-full">
                 <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
-                {days.map(day => (
-                    <TabsTrigger key={day} value={day.toLowerCase()}>{day}</TabsTrigger>
+                {conventionDays.map(day => (
+                    <TabsTrigger key={day.value} value={day.value}>{day.name} {day.date}</TabsTrigger>
                 ))}
                 </TabsList>
 
-                {days.map(day => {
-                    const dayTables = tables.filter(table => table.day === day).sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+                {conventionDays.map(day => {
+                    const dayTables = tables.filter(table => table.day === day.name).sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
                     return (
-                        <TabsContent key={day} value={day.toLowerCase()}>
+                        <TabsContent key={day.value} value={day.value}>
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Tables de jeu du {day}</CardTitle>
-                                    <CardDescription>Jeux disponibles pour {day}. Priorité d'inscription : Stratège &gt; Maréchal &gt; Général.</CardDescription>
+                                    <CardTitle>Tables de jeu du {day.name} {day.date}</CardTitle>
+                                    <CardDescription>Jeux disponibles pour {day.name}. Priorité d'inscription : Stratège &gt; Maréchal &gt; Général.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     {dayTables.length > 0 ? (
                                         <Table>
-                                            <TableCaption>Liste des jeux disponibles le {day}.</TableCaption>
+                                            <TableCaption>Liste des jeux disponibles le {day.name} {day.date}.</TableCaption>
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead>Jeu</TableHead>
@@ -351,7 +359,7 @@ export default function Home() {
                                             </TableBody>
                                         </Table>
                                     ) : (
-                                        <p className="text-muted-foreground text-center py-4">Aucune table disponible pour {day}.</p>
+                                        <p className="text-muted-foreground text-center py-4">Aucune table disponible pour {day.name} {day.date}.</p>
                                     )}
                                 </CardContent>
                             </Card>
@@ -378,36 +386,39 @@ export default function Home() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {userSchedule.map(table => (
-                            <TableRow key={`schedule-${table.id}`}>
-                            <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day}</TableCell>
-                            <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
-                            <TableCell className="font-medium flex items-center gap-2">
-                                    {table.imageUrl && (
-                                            <Image
-                                                src={table.imageUrl}
-                                                alt={`Icône ${table.gameName}`}
-                                                width={24} // Adjust size as needed
-                                                height={24}
-                                                className="rounded object-cover h-6 w-6" // Style the image
-                                                data-ai-hint="game icon"
-                                            />
-                                        )}
-                                    {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div> /* Placeholder */}
-                                    {table.gameName}
-                            </TableCell>
-                            <TableCell className="text-right">
-                                    <Button
-                                    onClick={() => handleUnregister(table.id)}
-                                    size="sm"
-                                    variant="outline"
-                                    title="Se désinscrire de cette table"
-                                    >
-                                    Se désinscrire
-                                    </Button>
-                            </TableCell>
-                            </TableRow>
-                        ))}
+                        {userSchedule.map(table => {
+                            const dayInfo = conventionDays.find(d => d.name === table.day);
+                            return (
+                                <TableRow key={`schedule-${table.id}`}>
+                                <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day} {dayInfo?.date}</TableCell>
+                                <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
+                                <TableCell className="font-medium flex items-center gap-2">
+                                        {table.imageUrl && (
+                                                <Image
+                                                    src={table.imageUrl}
+                                                    alt={`Icône ${table.gameName}`}
+                                                    width={24} // Adjust size as needed
+                                                    height={24}
+                                                    className="rounded object-cover h-6 w-6" // Style the image
+                                                    data-ai-hint="game icon"
+                                                />
+                                            )}
+                                        {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div> /* Placeholder */}
+                                        {table.gameName}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                        <Button
+                                        onClick={() => handleUnregister(table.id)}
+                                        size="sm"
+                                        variant="outline"
+                                        title="Se désinscrire de cette table"
+                                        >
+                                        Se désinscrire
+                                        </Button>
+                                </TableCell>
+                                </TableRow>
+                            );
+                        })}
                         </TableBody>
                     </Table>
                     ) : (
