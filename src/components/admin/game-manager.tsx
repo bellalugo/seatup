@@ -32,7 +32,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger, // Added missing import
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -214,7 +214,7 @@ export default function GameManager() {
                     <Input id="imageUrl" name="imageUrl" value={gameFormData.imageUrl} onChange={handleGameInputChange} className="col-span-3 rounded-md shadow-sm" required disabled={isSubmitting} placeholder="https://exemple.com/image.png"/>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="asynconvURL" className="text-right">URL AsynConv</Label>
+                    <Label htmlFor="asynconvURL" className="text-right">Page ASYNCONV</Label>
                     <Input id="asynconvURL" name="asynconvURL" value={gameFormData.asynconvURL} onChange={handleGameInputChange} className="col-span-3 rounded-md shadow-sm" required disabled={isSubmitting} placeholder="https://www.asynconv.fr/..." />
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
@@ -246,8 +246,8 @@ export default function GameManager() {
                 <TableRow>
                 <TableHead className="w-40">Image</TableHead>
                 <TableHead>Nom</TableHead>
-                <TableHead className="w-1/4">Description</TableHead>
-                <TableHead>URL AsynConv</TableHead>
+                <TableHead className="w-1/3">Description</TableHead>
+                <TableHead>Page ASYNCONV</TableHead>
                 <TableHead className="text-center">Joueurs</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -269,8 +269,8 @@ export default function GameManager() {
                                 <div className="h-16 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                             )}
                         </TableCell>
-                        <TableCell className="font-medium">{game.nom}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground truncate max-w-xs">{game.description}</TableCell>
+                        <TableCell className="font-medium"><strong>{game.nom}</strong></TableCell>
+                        <TableCell className="text-xs text-muted-foreground italic whitespace-pre-line">{game.description}</TableCell>
                         <TableCell>
                             <a href={game.asynconvURL} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs truncate max-w-[150px] block">
                                 {game.asynconvURL}
@@ -300,7 +300,7 @@ export default function GameManager() {
                                 <AlertDialogTitle>Êtes-vous absolument sûr(e) ?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                     Cette action est irréversible. Le jeu "{game.nom}" sera définitivement supprimé.
-                                    <br/><strong>La suppression ne sera effectuée que si aucun table de jeu n'est associée à ce jeu.</strong>
+                                    <br/><strong>La suppression ne sera effectuée que si aucune table de jeu n'est associée à ce jeu.</strong>
                                 </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
