@@ -39,6 +39,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
   getGameTables,
@@ -46,15 +47,17 @@ import {
   updateGameTable,
   deleteGameTable,
   getRegistrationsForTable,
+  getRegistrations,
 } from '@/lib/data';
-import type { GameTable, GameTableInput } from '@/lib/types';
-import { Pencil, Trash2, PlusCircle, Loader2, AlertTriangle } from 'lucide-react';
+import type { GameTable, GameTableInput, Registration } from '@/lib/types';
+import { Pencil, Trash2, PlusCircle, Loader2, AlertTriangle, Users } from 'lucide-react';
 
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00"];
 
 export default function TableManager() {
   const [tables, setTables] = useState<GameTable[]>([]);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null); // Track which table is being deleted
@@ -70,15 +73,19 @@ export default function TableManager() {
   });
   const { toast } = useToast();
 
-  const fetchTables = useCallback(async (setPageLoadingState = true) => {
+  const fetchAllData = useCallback(async (setPageLoadingState = true) => {
     if (setPageLoadingState) {
         setIsLoadingPage(true);
     }
     try {
-      const fetchedTables = await getGameTables();
+      const [fetchedTables, fetchedRegistrationsResult] = await Promise.all([
+        getGameTables(),
+        getRegistrations()
+      ]);
       setTables(fetchedTables);
+      setRegistrations(fetchedRegistrationsResult);
     } catch (error) {
-      console.error("Erreur lors de la récupération des tables:", error);
+      console.error("Erreur lors de la récupération des données:", error);
       const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
       toast({ variant: "destructive", title: "Erreur de chargement", description: errorMessage });
     } finally {
@@ -89,8 +96,8 @@ export default function TableManager() {
   }, [toast]);
 
   useEffect(() => {
-    fetchTables(true);
-  }, [fetchTables]);
+    fetchAllData(true);
+  }, [fetchAllData]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,30 +130,31 @@ export default function TableManager() {
         toast({ variant: "destructive", title: "Erreur", description: "Table non trouvée."});
         return;
     }
-    setIsDeleting(tableId); // Indicate deletion process has started for this table
+    setIsDeleting(tableId); 
 
     try {
-        const registrations = await getRegistrationsForTable(tableId);
-        if (registrations.length > 0) {
+        const currentTableRegistrations = await getRegistrationsForTable(tableId);
+        if (currentTableRegistrations.length > 0) {
             toast({ 
                 variant: "destructive", 
                 title: "Suppression impossible", 
-                description: `La table "${tableToDelete.gameName}" a ${registrations.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`,
+                description: `La table "${tableToDelete.gameName}" a ${currentTableRegistrations.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`,
                 action: <AlertTriangle className="text-destructive-foreground h-5 w-5" />,
-                duration: 7000, // Longer duration for important messages
+                duration: 7000,
             });
-            setIsDeleting(null); // Reset deleting state
-            return; // Abort deletion
+            setIsDeleting(null);
+            return;
         }
-        // If no registrations, proceed with actual deletion
+        
         await deleteGameTable(tableId);
         
-        // Update local state
         setTables(prevTables => prevTables.filter(t => t.id !== tableId));
+        // Also remove registrations for this table from local state if any (should be none based on check)
+        setRegistrations(prevRegs => prevRegs.filter(reg => reg.tableId !== tableId));
+
         toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" a été supprimée avec succès.` });
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la tentative de suppression.";
-         // Avoid showing the generic error if it's the "has registrations" error we already handled
          if (!errorMessage.includes("joueur(s) inscrit(s)")) {
             toast({ 
                 variant: "destructive", 
@@ -155,7 +163,7 @@ export default function TableManager() {
             });
          }
     } finally {
-        setIsDeleting(null); // Reset deleting state regardless of outcome
+        setIsDeleting(null); 
     }
   };
 
@@ -198,7 +206,7 @@ export default function TableManager() {
             await addGameTable(tableDataPayload);
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès." });
         }
-        await fetchTables(false); 
+        await fetchAllData(false); 
         setIsDialogOpen(false);
         setEditingTable(null);
         setFormData({
@@ -327,87 +335,91 @@ export default function TableManager() {
             </TableHeader>
             <TableBody>
                  {tables.sort((a, b) => {
-                    // Sort by gameName first
                     const nameA = a.gameName.toLowerCase();
                     const nameB = b.gameName.toLowerCase();
                     if (nameA < nameB) return -1;
                     if (nameA > nameB) return 1;
 
-                    // Then by day
                     const dayAIndex = conventionDayOrder.indexOf(a.day);
                     const dayBIndex = conventionDayOrder.indexOf(b.day);
                     if (dayAIndex < dayBIndex) return -1;
                     if (dayAIndex > dayBIndex) return 1;
-
-                    // Then by timeSlot
+                    
                     const timeSlotAIndex = timeSlotOrder.indexOf(a.timeSlot);
                     const timeSlotBIndex = timeSlotOrder.indexOf(b.timeSlot);
                     if (timeSlotAIndex < timeSlotBIndex) return -1;
                     if (timeSlotAIndex > timeSlotBIndex) return 1;
 
                     return 0;
-                }).map((table) => (
-                <TableRow key={table.id}>
-                    <TableCell className="w-64 px-4 py-1"> {/* Reduced vertical padding, increased width */}
-                        {table.imageUrl ? (
-                            <Image
-                                src={table.imageUrl}
-                                alt={`Icône ${table.gameName}`}
-                                width={256} // Increased width for the image component
-                                height={80} 
-                                className="rounded object-contain h-20 shadow-sm" // h-20 (5rem = 80px)
-                                data-ai-hint="game icon"
-                            />
-                        ) : (
-                            <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
-                        )}
-                    </TableCell>
-                    <TableCell className="font-medium">{table.gameName}</TableCell>
-                    <TableCell>{table.day}</TableCell>
-                    <TableCell>{table.timeSlot}</TableCell>
-                    <TableCell className="text-center">{table.totalSeats}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="icon" onClick={() => handleEdit(table)} disabled={isSubmitting || !!isDeleting} className="shadow-sm rounded-md">
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Modifier</span>
-                    </Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button 
-                                variant="destructive" 
-                                size="icon" 
-                                disabled={isSubmitting || (isDeleting !== null && isDeleting !== table.id) || isDeleting === table.id}
-                                className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
-                                title={`Supprimer la table ${table.gameName}`}
-                            >
-                                {isDeleting === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                <span className="sr-only">Supprimer</span>
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>Êtes-vous absolument sûr(e) ?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Cette action est irréversible. La table "{table.gameName}" ({table.day} - {table.timeSlot}) sera définitivement supprimée.
-                                <br/><strong>La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.</strong>
-                            </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel disabled={isDeleting === table.id}>Annuler</AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() => handleDeleteAttempt(table.id)}
-                                className="bg-destructive hover:bg-destructive/90"
-                                disabled={isDeleting === table.id}
-                            >
-                                {isDeleting === table.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Confirmer la suppression
-                            </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                    </TableCell>
-                </TableRow>
-                ))}
+                }).map((table) => {
+                  const occupiedSeats = registrations.filter(r => r.tableId === table.id).length;
+                  return (
+                    <TableRow key={table.id}>
+                        <TableCell className="w-64 px-4 py-1">
+                            {table.imageUrl ? (
+                                <Image
+                                    src={table.imageUrl}
+                                    alt={`Icône ${table.gameName}`}
+                                    width={256} 
+                                    height={80} 
+                                    className="rounded object-contain h-20 shadow-sm"
+                                    data-ai-hint="game icon"
+                                />
+                            ) : (
+                                <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                            )}
+                        </TableCell>
+                        <TableCell className="font-medium">{table.gameName}</TableCell>
+                        <TableCell>{table.day}</TableCell>
+                        <TableCell>{table.timeSlot}</TableCell>
+                        <TableCell className="text-center">
+                           <Badge variant={occupiedSeats === table.totalSeats ? "destructive" : "default"} className="bg-accent text-accent-foreground px-2 py-1 shadow-sm">
+                             <Users className="inline h-4 w-4 mr-1" /> {occupiedSeats} / {table.totalSeats}
+                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-right space-x-2">
+                        <Button variant="outline" size="icon" onClick={() => handleEdit(table)} disabled={isSubmitting || !!isDeleting} className="shadow-sm rounded-md">
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Modifier</span>
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button 
+                                    variant="destructive" 
+                                    size="icon" 
+                                    disabled={isSubmitting || (isDeleting !== null && isDeleting !== table.id) || isDeleting === table.id}
+                                    className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
+                                    title={`Supprimer la table ${table.gameName}`}
+                                >
+                                    {isDeleting === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                    <span className="sr-only">Supprimer</span>
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                <AlertDialogTitle>Êtes-vous absolument sûr(e) ?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Cette action est irréversible. La table "{table.gameName}" ({table.day} - {table.timeSlot}) sera définitivement supprimée.
+                                    <br/><strong>La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.</strong>
+                                </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isDeleting === table.id}>Annuler</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={() => handleDeleteAttempt(table.id)}
+                                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                    disabled={isDeleting === table.id}
+                                >
+                                    {isDeleting === table.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    Confirmer la suppression
+                                </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                        </TableCell>
+                    </TableRow>
+                  );
+                })}
             </TableBody>
             </Table>
         ) : (
@@ -417,3 +429,4 @@ export default function TableManager() {
     </Card>
   );
 }
+
