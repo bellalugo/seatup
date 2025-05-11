@@ -56,7 +56,8 @@ export default function TableManager() {
   const { toast } = useToast();
 
   const fetchTables = useCallback(async (setPageLoadingState = true) => {
-    console.log('TableManager: fetchTables called. setPageLoadingState:', setPageLoadingState, 'Current isLoadingPage before fetch:', isLoadingPage); // Debug log
+    const currentLoadingState = isLoadingPage; // Capture for logging
+    console.log('TableManager: fetchTables called. setPageLoadingState:', setPageLoadingState, 'Current isLoadingPage before fetch:', currentLoadingState);
     if (setPageLoadingState) {
         setIsLoadingPage(true);
     }
@@ -70,13 +71,14 @@ export default function TableManager() {
       if (setPageLoadingState) {
         setIsLoadingPage(false);
       }
-      console.log('TableManager: fetchTables finished. Current isLoadingPage after fetch:', isLoadingPage); // Debug log
+      // Log the intended new state. Actual state update might be batched by React.
+      console.log('TableManager: fetchTables finished. Intended isLoadingPage state after fetch: false (if setPageLoadingState was true)');
     }
-  }, [toast, isLoadingPage]); // Added isLoadingPage to dependencies of useCallback as it's used in log
+  }, [toast]); // isLoadingPage removed from dependencies
 
   useEffect(() => {
     fetchTables(true);
-  }, [fetchTables]);
+  }, [fetchTables]); // fetchTables will only change if toast changes (which is stable)
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,13 +105,14 @@ export default function TableManager() {
   };
 
   const handleDelete = async (tableId: string) => {
+    // Consider using a confirmation dialog component instead of window.confirm for better UX
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette table ? Cette action supprimera également toutes les inscriptions associées.")) {
         return;
     }
     setIsSubmitting(true);
     try {
         await deleteGameTable(tableId);
-        await fetchTables(false); 
+        await fetchTables(false); // Fetch tables without setting page loading state
         toast({ title: "Table supprimée", description: "La table de jeu et ses inscriptions ont été supprimées." });
     } catch (error) {
          toast({ variant: "destructive", title: "Erreur lors de la suppression", description: (error as Error).message });
@@ -139,22 +142,25 @@ export default function TableManager() {
         return;
     }
 
+    // Construct payload. Image URL will be handled by the data function.
     const tableDataPayload: GameTableInput = {
         ...formData
+        // imageUrl is intentionally omitted here, addGameTable/updateGameTable will handle it.
     };
 
     try {
         if (editingTable) {
+            // Pass the full GameTable structure for update, data function will pick what it needs
             await updateGameTable({ ...tableDataPayload, id: editingTable.id });
             toast({ title: "Table mise à jour", description: "Détails de la table de jeu enregistrés." });
         } else {
             await addGameTable(tableDataPayload);
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès." });
         }
-        await fetchTables(false); 
+        await fetchTables(false); // Fetch tables without setting page loading state
         setIsDialogOpen(false);
-        setEditingTable(null); 
-        setFormData({ 
+        setEditingTable(null); // Reset editing state
+        setFormData({ // Reset form
             gameName: '',
             day: 'Jeudi',
             timeSlot: '09:00 - 13:00',
@@ -167,9 +173,9 @@ export default function TableManager() {
     }
   };
 
-  if (isLoadingPage) { 
+  if (isLoadingPage) { // This now only controls initial page load spinner
     return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]">
+      <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]"> {/* Adjust height as needed */}
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="ml-4 text-muted-foreground">Chargement des tables...</p>
       </div>
@@ -177,7 +183,7 @@ export default function TableManager() {
   }
 
   return (
-    <Card className="shadow-lg">
+    <Card className="shadow-lg rounded-lg">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Gérer les tables de jeu</CardTitle>
@@ -185,7 +191,7 @@ export default function TableManager() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
-          if (!open) { 
+          if (!open) { // Reset form when dialog closes, if not submitted
             setEditingTable(null);
             setFormData({
                 gameName: '',
@@ -196,11 +202,11 @@ export default function TableManager() {
           }
         }}>
           <DialogTrigger asChild>
-            <Button onClick={handleOpenDialogForAdd} disabled={isSubmitting}>
+            <Button onClick={handleOpenDialogForAdd} disabled={isSubmitting} className="shadow-sm rounded-md">
               <PlusCircle className="mr-2 h-4 w-4" /> Ajouter une table
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] rounded-lg shadow-xl">
             <DialogHeader>
               <DialogTitle>{editingTable ? 'Modifier la table de jeu' : 'Ajouter une nouvelle table de jeu'}</DialogTitle>
               <DialogDescription>
@@ -211,12 +217,12 @@ export default function TableManager() {
               <div className="grid gap-4 py-4">
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="gameName" className="text-right">Nom du jeu</Label>
-                    <Input id="gameName" name="gameName" value={formData.gameName} onChange={handleInputChange} className="col-span-3" required disabled={isSubmitting} />
+                    <Input id="gameName" name="gameName" value={formData.gameName} onChange={handleInputChange} className="col-span-3 rounded-md shadow-sm" required disabled={isSubmitting} />
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="day" className="text-right">Jour</Label>
                      <Select name="day" value={formData.day} onValueChange={handleSelectChange('day')} required disabled={isSubmitting}>
-                        <SelectTrigger className="col-span-3">
+                        <SelectTrigger className="col-span-3 rounded-md shadow-sm">
                             <SelectValue placeholder="Sélectionner le jour" />
                         </SelectTrigger>
                         <SelectContent>
@@ -230,7 +236,7 @@ export default function TableManager() {
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="timeSlot" className="text-right">Créneau horaire</Label>
                      <Select name="timeSlot" value={formData.timeSlot} onValueChange={handleSelectChange('timeSlot')} required disabled={isSubmitting}>
-                         <SelectTrigger className="col-span-3">
+                         <SelectTrigger className="col-span-3 rounded-md shadow-sm">
                              <SelectValue placeholder="Sélectionner le créneau horaire" />
                          </SelectTrigger>
                          <SelectContent>
@@ -241,14 +247,14 @@ export default function TableManager() {
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="totalSeats" className="text-right">Nombre total de places</Label>
-                    <Input id="totalSeats" name="totalSeats" type="number" value={formData.totalSeats} onChange={handleInputChange} className="col-span-3" min="1" required disabled={isSubmitting} />
+                    <Input id="totalSeats" name="totalSeats" type="number" value={formData.totalSeats} onChange={handleInputChange} className="col-span-3 rounded-md shadow-sm" min="1" required disabled={isSubmitting} />
                  </div>
               </div>
               <DialogFooter>
                  <DialogClose asChild>
-                    <Button type="button" variant="outline" disabled={isSubmitting}>Annuler</Button>
+                    <Button type="button" variant="outline" disabled={isSubmitting} className="shadow-sm rounded-md">Annuler</Button>
                  </DialogClose>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting} className="shadow-sm rounded-md">
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {editingTable ? 'Enregistrer les modifications' : 'Ajouter la table'}
                 </Button>
@@ -272,7 +278,7 @@ export default function TableManager() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {tables.sort((a, b) => {
+                {tables.sort((a, b) => { // Sort for consistent display
                     if (a.gameName !== b.gameName) return a.gameName.localeCompare(b.gameName);
                     const dayAIndex = conventionDayOrder.indexOf(a.day);
                     const dayBIndex = conventionDayOrder.indexOf(b.day);
@@ -287,11 +293,11 @@ export default function TableManager() {
                                 alt={`Icône ${table.gameName}`}
                                 width={32}
                                 height={32}
-                                className="rounded object-cover h-8 w-8"
+                                className="rounded object-cover h-8 w-8 shadow-sm"
                                 data-ai-hint="game icon"
                             />
                         ) : (
-                            <div className="h-8 w-8 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div>
+                            <div className="h-8 w-8 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                         )}
                     </TableCell>
                     <TableCell className="font-medium">{table.gameName}</TableCell>
@@ -299,12 +305,13 @@ export default function TableManager() {
                     <TableCell>{table.timeSlot}</TableCell>
                     <TableCell className="text-center">{table.totalSeats}</TableCell>
                     <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="icon" onClick={() => handleEdit(table)} disabled={isSubmitting}>
+                    <Button variant="outline" size="icon" onClick={() => handleEdit(table)} disabled={isSubmitting} className="shadow-sm rounded-md">
                         <Pencil className="h-4 w-4" />
                         <span className="sr-only">Modifier</span>
                     </Button>
-                    <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)} disabled={isSubmitting}>
-                        {isSubmitting && tables.find(t => t.id === table.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    <Button variant="destructive" size="icon" onClick={() => handleDelete(table.id)} disabled={isSubmitting} className="shadow-sm rounded-md">
+                        {/* Show loader only for the specific row being deleted if we track that, otherwise general isSubmitting */}
+                        {isSubmitting && tables.find(t => t.id === table.id) /* Poor check, better to have specific delete loader */ ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         <span className="sr-only">Supprimer</span>
                     </Button>
                     </TableCell>
@@ -319,3 +326,4 @@ export default function TableManager() {
     </Card>
   );
 }
+

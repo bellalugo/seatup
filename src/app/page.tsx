@@ -43,7 +43,8 @@ export default function Home() {
   const { toast } = useToast();
 
   const loadData = useCallback(async () => {
-    console.log('Home: loadData called. Current isLoading before fetch:', isLoading); // Debug log
+    const currentLoadingState = isLoading; // Capture current state for logging
+    console.log('Home: loadData called. Current isLoading before fetch:', currentLoadingState);
     setIsLoading(true);
     try {
       const [fetchedTables, fetchedRegistrations] = await Promise.all([
@@ -52,8 +53,10 @@ export default function Home() {
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrations);
-      setUsers(mockUsers);
+      setUsers(mockUsers); // This could also be fetched from a DB if users are managed there
       setCurrentUser(prevUser => {
+         // If there's a previous user and they exist in the new mockUsers, keep them.
+         // Otherwise, default to the first user.
          if (prevUser && mockUsers[prevUser.id]) {
             return mockUsers[prevUser.id];
          }
@@ -69,30 +72,33 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
-      console.log('Home: loadData finished. Current isLoading after fetch:', isLoading); // Debug log
+      // Log the intended new state. Actual state update might be batched by React.
+      console.log('Home: loadData finished. Intended isLoading state after fetch: false');
     }
-  }, [toast, isLoading]); // Added isLoading to dependencies of useCallback
+  }, [toast]); // isLoading removed from dependencies
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData]); // loadData will only change if toast changes (which is stable)
 
    useEffect(() => {
+    // Simulate registration phase changes
+    // In a real app, this might be driven by server time or admin settings
     const phaseTimer1 = setTimeout(() => {
-      setCurrentRegistrationPhaseIndex(1);
+      setCurrentRegistrationPhaseIndex(1); // Marshals can now register
       toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Maréchaux et Stratèges." });
-    }, 15000);
+    }, 15000); // After 15 seconds
 
     const phaseTimer2 = setTimeout(() => {
-      setCurrentRegistrationPhaseIndex(2);
+      setCurrentRegistrationPhaseIndex(2); // Generals can now register
        toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Généraux, Maréchaux et Stratèges." });
-    }, 30000);
+    }, 30000); // After 30 seconds
 
     return () => {
         clearTimeout(phaseTimer1);
         clearTimeout(phaseTimer2);
     }
-  }, [toast]);
+  }, [toast]); // toast is a stable dependency
 
   const handleUserChange = (userId: string) => {
     setCurrentUser(users[userId] || null);
@@ -110,6 +116,7 @@ export default function Home() {
       return;
     }
 
+    // Check if user's ticket type allows registration in the current phase
     if (!canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex)) {
        toast({
         variant: "destructive",
@@ -131,6 +138,7 @@ export default function Home() {
       return;
     }
 
+    // Check for time conflicts
     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser.id);
     if (hasTimeConflict(table, userCurrentRegistrations, tables)) {
        toast({ variant: "destructive", title: "Conflit de créneau horaire", description: "Vous êtes déjà inscrit(e) à un jeu pendant ce créneau horaire." });
@@ -139,7 +147,9 @@ export default function Home() {
 
     setIsSubmittingRegistration(true);
     try {
+        // Call Firestore function to add registration
         await addRegistrationToDb(currentUser.id, tableId);
+        // Refresh registrations from Firestore
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
 
@@ -159,11 +169,13 @@ export default function Home() {
      if (!currentUser) return;
 
      const table = tables.find(t => t.id === tableId);
-     if (!table) return;
+     if (!table) return; // Should not happen if UI is correct
 
      setIsSubmittingRegistration(true);
      try {
+        // Call Firestore function to remove registration
         await removeRegistrationFromDb(currentUser.id, tableId);
+        // Refresh registrations from Firestore
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
 
@@ -184,11 +196,12 @@ export default function Home() {
     const userTableIds = registrations.filter(r => r.userId === currentUser.id).map(r => r.tableId);
     return tables.filter(t => userTableIds.includes(t.id))
                  .sort((a, b) => {
+                    // Sort by day first, then by time slot
                     const dayOrder = conventionDays.map(d => d.name);
                     if (a.day !== b.day) {
                         return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
                     }
-                    return a.timeSlot.localeCompare(b.timeSlot);
+                    return a.timeSlot.localeCompare(b.timeSlot); // Assumes timeSlot is "HH:MM - HH:MM"
                  });
   };
 
@@ -196,20 +209,20 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-lg">
+      <Card className="shadow-lg rounded-lg">
         <CardHeader className="flex flex-row items-center justify-between">
             <div>
                 <CardTitle>Sélection utilisateur & Infos</CardTitle>
                 <CardDescription>Sélectionnez un utilisateur pour voir les tables et gérer les inscriptions.</CardDescription>
             </div>
-             <Button onClick={loadData} variant="outline" size="sm" disabled={isLoading || isSubmittingRegistration}>
+             <Button onClick={() => loadData()} variant="outline" size="sm" disabled={isLoading || isSubmittingRegistration}>
                  <RefreshCw className={`mr-2 h-4 w-4 ${(isLoading || isSubmittingRegistration) ? 'animate-spin' : ''}`} />
                  Actualiser les données
              </Button>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-4">
           <Select onValueChange={handleUserChange} value={currentUser?.id ?? ""} disabled={isLoading || isSubmittingRegistration}>
-            <SelectTrigger className="w-[280px]">
+            <SelectTrigger className="w-[280px] rounded-md shadow-sm">
               <SelectValue placeholder="Sélectionner un utilisateur" />
             </SelectTrigger>
             <SelectContent>
@@ -221,25 +234,25 @@ export default function Home() {
             </SelectContent>
           </Select>
           {currentUser && (
-            <Badge variant={currentUser.ticketType === 'Aucun' ? 'destructive' : 'secondary'}>
+            <Badge variant={currentUser.ticketType === 'Aucun' ? 'destructive' : 'secondary'} className="shadow-sm">
               Billet : {currentUser.ticketType}
             </Badge>
           )}
-           <Badge variant="outline" className="ml-auto">
+           <Badge variant="outline" className="ml-auto shadow-sm">
              Phase d'inscription actuelle : <span className="font-semibold ml-1">{registrationPhases[currentRegistrationPhaseIndex]}</span>
            </Badge>
         </CardContent>
       </Card>
 
        {isLoading ? (
-           <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]">
+           <div className="flex justify-center items-center min-h-[calc(100vh-20rem)]"> {/* Adjust height as needed */}
              <Loader2 className="h-12 w-12 animate-spin text-primary" />
              <p className="ml-4 text-muted-foreground">Chargement des tables de jeu...</p>
            </div>
        ) : (
           <>
             <Tabs defaultValue={conventionDays[0].value} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 shadow-sm rounded-md">
                 {conventionDays.map(day => (
                     <TabsTrigger key={day.value} value={day.value} disabled={isSubmittingRegistration}>{day.name} {day.date}</TabsTrigger>
                 ))}
@@ -249,7 +262,7 @@ export default function Home() {
                     const dayTables = tables.filter(table => table.day === day.name).sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
                     return (
                         <TabsContent key={day.value} value={day.value}>
-                            <Card>
+                            <Card className="shadow-md rounded-lg">
                                 <CardHeader>
                                     <CardTitle>Tables de jeu du {day.name} {day.date}</CardTitle>
                                     <CardDescription>Jeux disponibles pour {day.name}. Priorité d'inscription : Stratège &gt; Maréchal &gt; Général.</CardDescription>
@@ -271,10 +284,12 @@ export default function Home() {
                                                     const availableSeats = getAvailableSeats(table.id, registrations, tables);
                                                     const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
                                                     const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex);
+                                                    // Check for conflicts only if current user exists
                                                     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
                                                     const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
 
                                                     let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration;
+                                                    // Further disable if not registered and (no seats OR conflict)
                                                     if (!isRegisteredByUser) { 
                                                         isDisabled = isDisabled || availableSeats <= 0 || (conflict && !isRegisteredByUser);
                                                     }
@@ -290,17 +305,17 @@ export default function Home() {
                                                     } else if (isRegisteredByUser) {
                                                         buttonText = "Inscrit(e)";
                                                         buttonVariant = "secondary";
-                                                        onClickAction = () => handleUnregister(table.id);
+                                                        onClickAction = () => handleUnregister(table.id); // Allow unregistering
                                                         tooltipText = "Cliquez pour vous désinscrire";
                                                     } else if (!currentUser) {
                                                         tooltipText = "Sélectionnez un utilisateur pour vous inscrire";
-                                                        buttonText = "Sélectionner utilisateur";
+                                                        buttonText = "Sélectionner utilisateur"; // Or simply keep it "S'inscrire" and disabled
                                                         buttonVariant = "secondary";
                                                     } else if (!canRegisterNow) {
                                                         tooltipText = `Inscription pas encore ouverte pour ${currentUser.ticketType}`;
                                                         buttonText = "Indisponible";
                                                         buttonVariant = "secondary";
-                                                    } else if (conflict) {
+                                                    } else if (conflict) { // Conflict only matters if not already registered for this table
                                                         tooltipText = "Conflit avec votre planning";
                                                         buttonText = "Conflit";
                                                         buttonVariant = "destructive";
@@ -321,16 +336,16 @@ export default function Home() {
                                                                         alt={`Icône ${table.gameName}`}
                                                                         width={24}
                                                                         height={24}
-                                                                        className="rounded object-cover h-6 w-6"
+                                                                        className="rounded object-cover h-6 w-6 shadow-sm"
                                                                         data-ai-hint="game icon"
                                                                     />
                                                                 )}
-                                                                {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div>}
+                                                                {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>}
                                                                 {table.gameName}
                                                             </TableCell>
                                                             <TableCell><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
                                                             <TableCell className="text-center">
-                                                                <Badge variant={availableSeats > 0 ? "default" : "destructive"} className="bg-accent text-accent-foreground px-2 py-1">
+                                                                <Badge variant={availableSeats > 0 ? "default" : "destructive"} className="bg-accent text-accent-foreground px-2 py-1 shadow-sm">
                                                                     <Users className="inline h-4 w-4 mr-1" /> {availableSeats} / {table.totalSeats}
                                                                 </Badge>
                                                             </TableCell>
@@ -342,9 +357,11 @@ export default function Home() {
                                                                     disabled={isDisabled}
                                                                     aria-label={tooltipText || buttonText}
                                                                     title={tooltipText || buttonText}
+                                                                    className="shadow-sm rounded-md"
                                                                 >
                                                                     {isSubmittingRegistration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                                                     {!isSubmittingRegistration && isRegisteredByUser && <CheckCircle className="mr-2 h-4 w-4" />}
+                                                                    {/* Show AlertCircle only if not registered and (no seats or conflict) */}
                                                                     {!isSubmittingRegistration && !isRegisteredByUser && (availableSeats <= 0 || conflict) && <AlertCircle className="mr-2 h-4 w-4" />}
                                                                     {buttonText}
                                                                 </Button>
@@ -365,7 +382,7 @@ export default function Home() {
             </Tabs>
 
             {currentUser && (
-                <Card className="mt-6 shadow-lg">
+                <Card className="mt-6 shadow-lg rounded-lg">
                 <CardHeader>
                     <CardTitle>Planning de {currentUser.name}</CardTitle>
                     <CardDescription>Tables auxquelles vous êtes actuellement inscrit(e).</CardDescription>
@@ -395,11 +412,11 @@ export default function Home() {
                                                     alt={`Icône ${table.gameName}`}
                                                     width={24}
                                                     height={24}
-                                                    className="rounded object-cover h-6 w-6"
+                                                    className="rounded object-cover h-6 w-6 shadow-sm"
                                                     data-ai-hint="game icon"
                                                 />
                                             )}
-                                        {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">?</div>}
+                                        {!table.imageUrl && <div className="h-6 w-6 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>}
                                         {table.gameName}
                                 </TableCell>
                                 <TableCell className="text-right">
@@ -409,6 +426,7 @@ export default function Home() {
                                         variant="outline"
                                         title="Se désinscrire de cette table"
                                         disabled={isSubmittingRegistration}
+                                        className="shadow-sm rounded-md"
                                         >
                                         {isSubmittingRegistration ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                         Se désinscrire
@@ -430,3 +448,4 @@ export default function Home() {
     </div>
   );
 }
+
