@@ -1,3 +1,4 @@
+
 // lib/billetweb.ts
 import type { TicketType, Participant } from '@/lib/types';
 
@@ -18,7 +19,8 @@ if (useMock) {
 /* ------------------------------------------------------------------ */
 /*  HELPERS                                                           */
 /* ------------------------------------------------------------------ */
-function mapTicketName(name: string): TicketType {
+function mapTicketName(name?: string): TicketType { // name peut être undefined
+  if (!name) return 'Aucun'; // Gérer le cas où name est undefined ou une chaîne vide
   if (/strat[eè]ge/i.test(name))   return 'Stratège';
   if (/mar[eé]chal/i.test(name))   return 'Maréchal';
   if (/g[eé]n[eé]ral/i.test(name)) return 'Général';
@@ -59,7 +61,7 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
       }
 
       return {
-        id: user.id, // Utilise l'ID de mockUser comme ID unique pour le participant mocké
+        id: user.id, 
         nom: nom,
         prenom: prenom,
         email: `${user.id.replace(/[^a-zA-Z0-9]/g, "")}mock@example.com`,
@@ -72,13 +74,12 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
 
   console.log('[Billetweb Service] Tentative de récupération des participants depuis l\'API Billetweb réelle...');
   type BilletwebAttendee = {
-    id?: string; // ID unique de participant si fourni par Billetweb
+    id?: string; 
     order_id: string;
-    firstname: string;
-    lastname : string;
-    email    : string;
-    ticket   : { name: string };
-    // Ajoutez d'autres champs que l'API Billetweb pourrait retourner
+    firstname?: string; // Rendre optionnel pour la vérification
+    lastname?: string;  // Rendre optionnel pour la vérification
+    email?: string;     // Rendre optionnel pour la vérification
+    ticket?: { name?: string }; // Rendre optionnel pour la vérification
   };
 
   try {
@@ -87,9 +88,6 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
     );
 
     return attendees.map((a, index) => {
-      // S'assurer d'avoir un ID unique pour Firestore.
-      // Idéalement, Billetweb fournit un `attendee_id` unique.
-      // Si `a.id` est l'ID unique du participant, utilisez-le. Sinon, combinez `order_id` et un index.
       const uniqueParticipantId = a.id || `${a.order_id}_${index}`;
       if (!a.id) {
         console.warn(`[Billetweb Service] Participant avec order_id ${a.order_id} n'a pas d'ID unique. ID généré : ${uniqueParticipantId}`);
@@ -97,10 +95,10 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
 
       return {
         id        : uniqueParticipantId,
-        nom       : a.lastname,
-        prenom    : a.firstname,
-        email     : a.email,
-        typeBillet: mapTicketName(a.ticket.name),
+        nom       : a.lastname || '', // Valeur par défaut si undefined
+        prenom    : a.firstname || '', // Valeur par défaut si undefined
+        email     : a.email || '',     // Valeur par défaut si undefined
+        typeBillet: mapTicketName(a.ticket?.name), // Utiliser le chaînage optionnel
       };
     });
   } catch (error) {
@@ -116,7 +114,7 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
 export async function getTicketInfo(userId: string): Promise<TicketInfo | null> {
   const email = userId.trim().toLowerCase();
 
-  const participants = await getParticipantsFromBilletweb(); // This will use mock if keys are not set
+  const participants = await getParticipantsFromBilletweb(); 
   const match = participants.find(p => p.email.toLowerCase() === email);
 
   return match
