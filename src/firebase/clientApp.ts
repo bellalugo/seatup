@@ -6,9 +6,9 @@ import { getFirestore } from 'firebase/firestore';
 
 
 // --- IMPORTANT ---
-// Ensure your Firebase project configuration is correctly set in a `.env.local` file
-// at the root of your project (create this file if it doesn't exist).
-// You need to define the following variables:
+// Assurez-vous que la configuration de votre projet Firebase est correctement définie dans un fichier `.env.local`
+// à la racine de votre projet (créez ce fichier s'il n'existe pas).
+// Vous devez définir les variables suivantes :
 //
 // NEXT_PUBLIC_FIREBASE_API_KEY=YOUR_API_KEY
 // NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=YOUR_AUTH_DOMAIN
@@ -45,13 +45,20 @@ if (
     !firebaseConfig.authDomain ||
     !firebaseConfig.projectId
    ) {
-     console.warn( // Changed to console.warn to avoid breaking server-side rendering if an env var is temporarily missing during build.
-       "Firebase configuration environment variables are missing or incomplete. " +
-       "Please ensure NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, " +
-       "and NEXT_PUBLIC_FIREBASE_PROJECT_ID are set in your .env.local file and " +
-       "that the development server was restarted after the file was created or modified. " +
-       "This might lead to Firebase features not working correctly."
+     console.warn(
+       "AVERTISSEMENT CONFIGURATION FIREBASE INCOMPLÈTE : Les variables d'environnement Firebase sont manquantes ou incomplètes. " +
+       "Veuillez vous assurer que NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, " +
+       "et NEXT_PUBLIC_FIREBASE_PROJECT_ID sont définis dans votre fichier .env.local. " +
+       "IMPORTANT : Redémarrez votre serveur de développement Next.js (npm run dev) après avoir créé ou modifié le fichier .env.local. " +
+       "Sans cela, les fonctionnalités Firebase (y compris Firestore) ne fonctionneront pas correctement et des erreurs de connexion se produiront."
      );
+} else {
+    console.log("Configuration Firebase chargée depuis .env.local:", {
+        apiKey: firebaseConfig.apiKey ? 'Présent' : 'MANQUANT!',
+        authDomain: firebaseConfig.authDomain ? 'Présent' : 'MANQUANT!',
+        projectId: firebaseConfig.projectId ? 'Présent' : 'MANQUANT!',
+        // Ne pas logger les valeurs réelles des clés API
+    });
 }
 
 
@@ -59,11 +66,23 @@ if (
 let app;
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
+  console.log("Firebase App initialisée.");
 } else {
   app = getApp(); // if already initialized, use that one
+  console.log("Firebase App déjà initialisée, récupération de l'instance existante.");
 }
 
 const auth = getAuth(app);
-const db = getFirestore(app); // Initialize Firestore
+let db: ReturnType<typeof getFirestore> | null = null;
+
+try {
+    db = getFirestore(app); // Initialize Firestore
+    console.log("Firestore DB instance initialisée.");
+} catch (error) {
+    console.error("ERREUR CRITIQUE lors de l'initialisation de Firestore:", error);
+    console.error("Cela signifie probablement que la configuration Firebase (apiKey, projectId) est incorrecte ou manquante dans .env.local. Veuillez vérifier et redémarrer le serveur.");
+    // db restera null, les fonctions qui l'utilisent devraient vérifier sa nullité.
+}
+
 
 export { app, auth, db };
