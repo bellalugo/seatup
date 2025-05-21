@@ -32,7 +32,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialogTrigger, // Ensure this is imported
 } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,12 +46,12 @@ import {
   addGameTable,
   updateGameTable,
   deleteGameTable,
-  getRegistrationsForTable,
+  getRegistrationsForTable, // To check before deleting a table
   getRegistrations,
   getGames,
-  getParticipants, // Import getParticipants
+  getParticipants,
 } from '@/lib/data';
-import type { GameTable, GameTableInput, Registration, Game, Participant } from '@/lib/types'; // Import Participant
+import type { GameTable, GameTableInput, Registration, Game, Participant } from '@/lib/types';
 import { Pencil, Trash2, Loader2, AlertTriangle, Users, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy } from 'lucide-react';
 import GameManager from './game-manager';
 
@@ -64,7 +64,7 @@ const defaultTableFormData: GameTableInput = {
   timeSlot: '09:00 - 13:00',
   totalSeats: 4,
   tableNumber: '',
-  authorAnimator: undefined, // Explicitly undefined for "no selection"
+  authorAnimator: undefined,
 };
 
 export default function ConventionManager() {
@@ -72,12 +72,14 @@ export default function ConventionManager() {
   const [tables, setTables] = useState<GameTable[]>([]);
   const [allGames, setAllGames] = useState<Game[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [invitationParticipants, setInvitationParticipants] = useState<Participant[]>([]); // State for invitation participants
+  const [invitationParticipants, setInvitationParticipants] = useState<Participant[]>([]);
   const [isLoadingTables, setIsLoadingTables] = useState(true);
   const [isSubmittingTable, setIsSubmittingTable] = useState(false);
   const [isDeletingTable, setIsDeletingTable] = useState<string | null>(null);
   const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
+  
+  // State for table deletion confirmation
   const [tableToDelete, setTableToDelete] = useState<GameTable | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
   
@@ -93,7 +95,7 @@ export default function ConventionManager() {
         getGameTables(),
         getRegistrations(),
         getGames(),
-        getParticipants(), // Fetch all participants
+        getParticipants(),
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrationsResult);
@@ -157,19 +159,19 @@ export default function ConventionManager() {
         timeSlot: table.timeSlot,
         totalSeats: table.totalSeats, 
         tableNumber: table.tableNumber || '',
-        authorAnimator: table.authorAnimator || undefined, // Ensure undefined if empty
+        authorAnimator: table.authorAnimator || undefined,
     });
     setIsTableDialogOpen(true);
   };
 
   const handleDuplicateTable = (table: GameTable) => {
-    setEditingTable(null); // Not editing, but duplicating
+    setEditingTable(null);
     setTableFormData({
       gameId: table.gameId,
-      day: table.day, // Or perhaps clear this to force user selection
-      timeSlot: table.timeSlot, // Or clear this
+      day: table.day, 
+      timeSlot: table.timeSlot, 
       totalSeats: table.totalSeats,
-      tableNumber: '', // Definitely clear this or suggest a new one
+      tableNumber: '', 
       authorAnimator: table.authorAnimator || undefined,
     });
     setIsTableDialogOpen(true);
@@ -180,18 +182,20 @@ export default function ConventionManager() {
     });
   };
 
-
+  // Opens the confirmation dialog for deleting a table
   const openDeleteConfirmationDialog = (table: GameTable) => {
     setTableToDelete(table);
     setIsConfirmDeleteDialogOpen(true);
   };
 
+  // Actual deletion logic, called after confirmation
   const confirmDeleteTable = async () => {
     if (!tableToDelete) return;
     
     setIsDeletingTable(tableToDelete.id);
 
     try {
+        // Check for registrations before attempting to delete
         const currentTableRegistrations = await getRegistrationsForTable(tableToDelete.id);
         if (currentTableRegistrations.length > 0) {
             toast({ 
@@ -207,15 +211,17 @@ export default function ConventionManager() {
             return;
         }
         
-        await deleteGameTable(tableToDelete.id);
+        await deleteGameTable(tableToDelete.id); // This function in data.ts should ideally also re-check
         
-        // Optimistic update: Remove from local state
+        // Optimistic update or refetch
         setTables(prevTables => prevTables.filter(t => t.id !== tableToDelete.id));
+        // Also update the global registrations state if it's used to derive occupied seats
         setRegistrations(prevRegs => prevRegs.filter(reg => reg.tableId !== tableToDelete.id));
 
         toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) a été supprimée avec succès.` });
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
+         // Check if the error is the specific one we throw from deleteGameTable for existing registrations
          if (!(err instanceof Error && err.message.includes("joueur(s) inscrit(s)"))) { 
             toast({ 
                 variant: "destructive", 
@@ -258,7 +264,6 @@ export default function ConventionManager() {
         return;
     }
 
-
     try {
         const payload = { ...tableFormData, authorAnimator: tableFormData.authorAnimator || '' };
         if (editingTable) {
@@ -296,6 +301,7 @@ export default function ConventionManager() {
               <TableIcon className="mr-2 h-4 w-4" /> Ajouter une table
             </Button>
         </div>
+        
         <Dialog open={isTableDialogOpen} onOpenChange={(open) => {
           setIsTableDialogOpen(open);
           if (!open) {
@@ -343,7 +349,7 @@ export default function ConventionManager() {
                     <Label htmlFor="authorAnimator" className="text-right">Auteur/Animateur</Label>
                     <Select
                         name="authorAnimator"
-                        value={tableFormData.authorAnimator || ''} // Let Select handle placeholder via empty string
+                        value={tableFormData.authorAnimator || ''} 
                         onValueChange={handleTableSelectChange('authorAnimator')}
                         disabled={isSubmittingTable || invitationParticipants.length === 0}
                     >
@@ -407,24 +413,25 @@ export default function ConventionManager() {
           </DialogContent>
         </Dialog>
 
+        {/* AlertDialog for Table Deletion Confirmation */}
         <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={(open) => {
-            if (isDeletingTable) return; 
+            if (isDeletingTable) return; // Don't allow closing if deletion is in progress
             setIsConfirmDeleteDialogOpen(open);
-            if (!open) setTableToDelete(null);
+            if (!open) setTableToDelete(null); // Clear tableToDelete when dialog closes
         }}>
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                    <AlertDialogTitle>Êtes-vous absolument sûr(e) ?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Êtes-vous sûr de vouloir supprimer la table "{tableToDelete?.gameName}" (N° {tableToDelete?.tableNumber}) du {tableToDelete?.day} à {tableToDelete?.timeSlot} ?
-                        <br/><strong>Cette action est irréversible. La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.</strong>
+                        Cette action est irréversible. La table "{tableToDelete?.gameName}" (N° {tableToDelete?.tableNumber}) du {tableToDelete?.day} à {tableToDelete?.timeSlot} sera définitivement supprimée.
+                        <br/><strong>La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.</strong>
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel onClick={() => { setIsConfirmDeleteDialogOpen(false); setTableToDelete(null); }} disabled={!!isDeletingTable}>Annuler</AlertDialogCancel>
                     <AlertDialogAction onClick={confirmDeleteTable} disabled={!!isDeletingTable} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground hover:bg-black">
                         {isDeletingTable === tableToDelete?.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Supprimer
+                        Confirmer la suppression
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -527,27 +534,20 @@ export default function ConventionManager() {
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Modifier</span>
                         </Button>
-                        <AlertDialog>
-                             <AlertDialogTrigger asChild>
+                        {/* Use AlertDialogTrigger here */}
+                        <AlertDialogTrigger asChild>
                                 <Button
                                 variant="destructive"
                                 size="icon"
                                 disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id}
                                 className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
                                 title={`Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
-                                onClick={(e) => {
-                                    // No need to preventDefault or stopPropagation here
-                                    // The AlertDialogTrigger will open the dialog.
-                                    // We set tableToDelete here so the dialog has the correct context.
-                                    setTableToDelete(table); 
-                                }}
+                                onClick={() => openDeleteConfirmationDialog(table)} // Open dialog on click
                                 >
                                 {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                 <span className="sr-only">Supprimer</span>
                                 </Button>
-                            </AlertDialogTrigger>
-                            {/* This AlertDialogContent is now correctly handled by isConfirmDeleteDialogOpen state */}
-                        </AlertDialog>
+                        </AlertDialogTrigger>
                         </TableCell>
                     </TableRow>
                   );
@@ -584,4 +584,3 @@ export default function ConventionManager() {
     </Card>
   );
 }
-

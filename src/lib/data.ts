@@ -204,7 +204,6 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             authorAnimator: dataToUpdate.authorAnimator || '',
         };
         
-        // Remove undefined fields to prevent Firestore errors
         const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
             if (value !== undefined) { 
                 acc[key as keyof typeof firestorePayload] = value;
@@ -223,7 +222,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             ...firestorePayload, 
             gameName: gameData?.nom || 'Jeu inconnu',
             gameImageUrl: gameData?.imageUrl,
-            imageUrl: gameData?.imageUrl, // Keep this for backward compatibility for now
+            imageUrl: gameData?.imageUrl,
         };
     } catch (error) {
         console.error("Firestore - Erreur détaillée lors de la mise à jour de la table de jeu:", error);
@@ -248,23 +247,19 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
         const registrationsSnapshot = await getDocs(registrationsQuery);
 
         if (registrationsSnapshot.docs.length > 0) {
-            toast({ 
-                variant: "destructive", 
-                title: "Suppression impossible", 
-                description: `La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`,
-                duration: 7000,
-            });
+            // This error will be caught by the calling component and displayed in a toast.
             throw new Error(`La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`);
         }
         
         batch.delete(tableRef);
         await batch.commit();
     } catch (error) {
+        // Re-throw the specific error if it's about existing registrations
         if (error instanceof Error && error.message.includes("joueur(s) inscrit(s)")) {
             throw error; 
         }
         console.error("Firestore - Erreur lors de la suppression de la table de jeu:", error);
-        throw new Error("Impossible de supprimer la table de jeu de Firestore.");
+        throw new Error("Impossible de supprimer la table de jeu de Firestore. Vérifiez les logs pour plus de détails.");
     }
 };
 
@@ -354,18 +349,17 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
     for (const participant of participants) {
       if (!participant.id || typeof participant.id !== 'string' || participant.id.trim() === '') {
         console.warn("Participant avec ID invalide ignoré:", participant);
-        continue; // Skip participant with invalid ID
+        continue; 
       }
-      // Ensure all fields are defined, providing defaults for optional fields if necessary
+      
       const participantDataToSave = {
         nom: participant.nom || '',
         prenom: participant.prenom || '',
         email: participant.email || '',
-        typeBillet: participant.typeBillet || 'Invitation', // Default to 'Invitation' if undefined
+        typeBillet: participant.typeBillet || 'Invitation', 
       };
 
       const participantRef = doc(participantsCollectionRef, participant.id);
-      // Use set with merge:true to create or update, ensuring all fields are present
       batch.set(participantRef, participantDataToSave, { merge: true });
     }
     await batch.commit();
@@ -393,7 +387,6 @@ export const getParticipants = async (): Promise<Participant[]> => {
     }
     try {
         const participantsCollection = collection(db, PARTICIPANTS_COLLECTION);
-        // Client-side sorting will be handled in the component, so no orderBy here
         const querySnapshot = await getDocs(participantsCollection);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
     } catch (error) {
@@ -460,10 +453,6 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
 // Helper for deleteGameTable toast, not exported
 const toast = (options: any) => {
     if (typeof window !== 'undefined') {
-        // This is a placeholder. You should use your actual toast implementation.
-        // For example, if using react-toastify:
-        // import { toast as reactToastifyToast } from 'react-toastify';
-        // reactToastifyToast[options.variant || 'info'](options.description);
         console.log('Toast:', options.title, options.description);
     }
 };
