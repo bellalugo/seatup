@@ -32,7 +32,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger, // Ensure this is imported
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,7 +79,6 @@ export default function ConventionManager() {
   const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
   
-  // State for table deletion confirmation
   const [tableToDelete, setTableToDelete] = useState<GameTable | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
   
@@ -182,20 +181,17 @@ export default function ConventionManager() {
     });
   };
 
-  // Opens the confirmation dialog for deleting a table
   const openDeleteConfirmationDialog = (table: GameTable) => {
     setTableToDelete(table);
     setIsConfirmDeleteDialogOpen(true);
   };
 
-  // Actual deletion logic, called after confirmation
   const confirmDeleteTable = async () => {
     if (!tableToDelete) return;
     
     setIsDeletingTable(tableToDelete.id);
 
     try {
-        // Check for registrations before attempting to delete
         const currentTableRegistrations = await getRegistrationsForTable(tableToDelete.id);
         if (currentTableRegistrations.length > 0) {
             toast({ 
@@ -211,17 +207,14 @@ export default function ConventionManager() {
             return;
         }
         
-        await deleteGameTable(tableToDelete.id); // This function in data.ts should ideally also re-check
+        await deleteGameTable(tableToDelete.id); 
         
-        // Optimistic update or refetch
         setTables(prevTables => prevTables.filter(t => t.id !== tableToDelete.id));
-        // Also update the global registrations state if it's used to derive occupied seats
         setRegistrations(prevRegs => prevRegs.filter(reg => reg.tableId !== tableToDelete.id));
 
         toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) a été supprimée avec succès.` });
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
-         // Check if the error is the specific one we throw from deleteGameTable for existing registrations
          if (!(err instanceof Error && err.message.includes("joueur(s) inscrit(s)"))) { 
             toast({ 
                 variant: "destructive", 
@@ -413,11 +406,10 @@ export default function ConventionManager() {
           </DialogContent>
         </Dialog>
 
-        {/* AlertDialog for Table Deletion Confirmation */}
         <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={(open) => {
-            if (isDeletingTable) return; // Don't allow closing if deletion is in progress
+            if (isDeletingTable) return; 
             setIsConfirmDeleteDialogOpen(open);
-            if (!open) setTableToDelete(null); // Clear tableToDelete when dialog closes
+            if (!open) setTableToDelete(null); 
         }}>
             <AlertDialogContent>
                 <AlertDialogHeader>
@@ -534,20 +526,17 @@ export default function ConventionManager() {
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Modifier</span>
                         </Button>
-                        {/* Use AlertDialogTrigger here */}
-                        <AlertDialogTrigger asChild>
-                                <Button
-                                variant="destructive"
-                                size="icon"
-                                disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id}
-                                className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
-                                title={`Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
-                                onClick={() => openDeleteConfirmationDialog(table)} // Open dialog on click
-                                >
-                                {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                <span className="sr-only">Supprimer</span>
-                                </Button>
-                        </AlertDialogTrigger>
+                        <Button
+                            variant="destructive"
+                            size="icon"
+                            disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id}
+                            className="shadow-sm rounded-md hover:bg-black hover:text-destructive-foreground"
+                            title={`Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
+                            onClick={() => openDeleteConfirmationDialog(table)}
+                        >
+                            {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            <span className="sr-only">Supprimer</span>
+                        </Button>
                         </TableCell>
                     </TableRow>
                   );
@@ -584,3 +573,4 @@ export default function ConventionManager() {
     </Card>
   );
 }
+
