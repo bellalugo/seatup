@@ -1,7 +1,7 @@
 
 import type React from 'react'; // Ensure React is imported for ElementType
 
-export type TicketType = 'Stratège' | 'Maréchal' | 'Général' | 'Aucun';
+export type TicketType = 'Stratège' | 'Maréchal' | 'Général' | 'Invitation';
 
 export interface User {
   id: string;
@@ -76,3 +76,4 @@ export interface Participant {
   // Add other relevant fields from Billetweb as needed
   // e.g., dateAchat?: string; numeroCommande?: string;
 }
+

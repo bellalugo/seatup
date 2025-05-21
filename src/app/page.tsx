@@ -1,3 +1,4 @@
+
 'use client';
 
 import type React from 'react';
@@ -279,7 +280,7 @@ export default function Home() {
             </SelectContent>
           </Select>
           {currentUser && (
-            <Badge variant={currentUser.ticketType === 'Aucun' ? 'destructive' : 'secondary'} className="shadow-sm">
+             <Badge variant={currentUser.ticketType === 'Invitation' ? 'secondary' : 'default'} className="shadow-sm">
               Billet : {currentUser.ticketType}
             </Badge>
           )}

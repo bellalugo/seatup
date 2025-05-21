@@ -21,7 +21,7 @@ export const mockUsers: Record<string, User> = {
   'user-123': { id: 'user-123', name: 'Alice (Stratège)', ticketType: 'Stratège' },
   'user-456': { id: 'user-456', name: 'Bob (Maréchal)', ticketType: 'Maréchal' },
   'user-789': { id: 'user-789', name: 'Charlie (Général)', ticketType: 'Général' },
-  'user-000': { id: 'user-000', name: 'David (Pas de billet)', ticketType: 'Aucun' },
+  'user-000': { id: 'user-000', name: 'David (Invitation)', ticketType: 'Invitation' },
 };
 
 export const registrationPhases = importedRegistrationPhases;
@@ -355,7 +355,7 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
         nom: participant.nom || '',
         prenom: participant.prenom || '',
         email: participant.email || '',
-        typeBillet: participant.typeBillet || 'Aucun', // Default to 'Aucun' if undefined
+        typeBillet: participant.typeBillet || 'Invitation', // Default to 'Invitation' if undefined
       };
 
       const participantRef = doc(participantsCollectionRef, participant.id);
@@ -448,7 +448,7 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
 };
 
 export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhaseIndex: number): boolean => {
-    if (userTicketType === 'Aucun') return false; 
+    if (userTicketType === 'Invitation') return false; 
     const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType); 
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };

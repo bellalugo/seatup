@@ -1,3 +1,4 @@
+
 // lib/billetweb.ts
 import type { TicketType, Participant } from '@/lib/types';
 
@@ -20,17 +21,18 @@ if (useMock) {
 /* ------------------------------------------------------------------ */
 function mapTicketName(name?: string): TicketType { // name can be undefined
   if (!name || name.trim() === '') { // Handle empty or whitespace-only strings as well
-    // console.log('[Billetweb Service] mapTicketName: Nom de billet non fourni ou vide, retour "Aucun".');
-    return 'Aucun';
+    // console.log('[Billetweb Service] mapTicketName: Nom de billet non fourni ou vide, retour "Invitation".');
+    return 'Invitation';
   }
   const trimmedName = name.trim();
   // console.log(`[Billetweb Service] mapTicketName: Cartographie du nom de billet "${trimmedName}"`);
   if (/strat[eè]ge/i.test(trimmedName))   return 'Stratège';
   if (/mar[eé]chal/i.test(trimmedName))   return 'Maréchal';
   if (/g[eé]n[eé]ral/i.test(trimmedName)) return 'Général';
+  if (/invitation/i.test(trimmedName)) return 'Invitation'; // Added mapping for "Invitation"
   
-  console.warn(`[Billetweb Service] mapTicketName: Nom de billet non reconnu "${trimmedName}", retour "Aucun".`);
-  return 'Aucun';                       // unrecognized ticket
+  console.warn(`[Billetweb Service] mapTicketName: Nom de billet non reconnu "${trimmedName}", retour "Invitation".`);
+  return 'Invitation';                       // unrecognized ticket defaults to Invitation
 }
 
 async function callBilletweb<T = any>(endpoint: string): Promise<T> {
@@ -165,7 +167,7 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
         typeBillet: mappedTicketType, 
       };
       
-      if (index < 5 || mappedTicketType === 'Aucun' || !mappedNom) { // Log more for problematic cases
+      if (index < 5 || mappedTicketType === 'Invitation' || !mappedNom) { // Log more for problematic cases
         console.log(`[Billetweb Service DEBUG] For ID=${uniqueParticipantId}: API_Name='${a.name}', API_FirstName='${a.firstname}', API_Ticket='${a.ticket}', API_RateName='${a.rate_name}'`);
         console.log(`[Billetweb Service DEBUG] Mapped: nom='${mappedNom}', prenom='${mappedPrenom}', ticketToMap='${ticketNameToMap}', typeBillet='${mappedTicketType}'`);
       }
@@ -198,3 +200,4 @@ export async function getTicketInfo(userId: string): Promise<BilletwebTicketInfo
     ? { id: match.id, type: match.typeBillet }
     : null;
 }
+

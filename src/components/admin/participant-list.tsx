@@ -49,8 +49,8 @@ export default function ParticipantList() {
         return 'marshal';
       case 'Général':
         return 'general';
-      case 'Aucun':
-        return 'destructive';
+      case 'Invitation': // Changed from 'Aucun'
+        return 'secondary'; // Using 'secondary' for 'Invitation', adjust if a different style is needed
       default:
         return 'secondary';
     }
@@ -124,3 +124,4 @@ export default function ParticipantList() {
     </div>
   );
 }
+
