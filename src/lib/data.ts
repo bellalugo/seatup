@@ -248,6 +248,12 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
         const registrationsSnapshot = await getDocs(registrationsQuery);
 
         if (registrationsSnapshot.docs.length > 0) {
+            toast({ 
+                variant: "destructive", 
+                title: "Suppression impossible", 
+                description: `La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`,
+                duration: 7000,
+            });
             throw new Error(`La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`);
         }
         
@@ -387,10 +393,8 @@ export const getParticipants = async (): Promise<Participant[]> => {
     }
     try {
         const participantsCollection = collection(db, PARTICIPANTS_COLLECTION);
-        // Simplified orderBy to potentially avoid index issues.
-        // For full sorting (nom, prenom), a composite index is required in Firestore.
-        const q = query(participantsCollection, orderBy("nom")); 
-        const querySnapshot = await getDocs(q);
+        // Client-side sorting will be handled in the component, so no orderBy here
+        const querySnapshot = await getDocs(participantsCollection);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
     } catch (error) {
         console.error("Firestore - Erreur détaillée lors de la récupération des participants:", error);
@@ -453,3 +457,13 @@ export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhas
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
 
+// Helper for deleteGameTable toast, not exported
+const toast = (options: any) => {
+    if (typeof window !== 'undefined') {
+        // This is a placeholder. You should use your actual toast implementation.
+        // For example, if using react-toastify:
+        // import { toast as reactToastifyToast } from 'react-toastify';
+        // reactToastifyToast[options.variant || 'info'](options.description);
+        console.log('Toast:', options.title, options.description);
+    }
+};

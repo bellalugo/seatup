@@ -2,19 +2,26 @@
 'use client';
 
 import type React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle, Users, RefreshCw } from 'lucide-react';
+import { Loader2, AlertTriangle, Users, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getParticipants } from '@/lib/data';
 import type { Participant, TicketType } from '@/lib/types';
 import { Button } from '../ui/button';
 
+type SortKey = 'nom' | 'typeBillet';
+type SortOrder = 'asc' | 'desc';
+
+const ticketTypeOrder: TicketType[] = ['Stratège', 'Maréchal', 'Général', 'Invitation'];
+
 export default function ParticipantList() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('nom');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const { toast } = useToast();
 
   const fetchParticipants = useCallback(async () => {
@@ -41,6 +48,38 @@ export default function ParticipantList() {
     fetchParticipants();
   }, [fetchParticipants]);
 
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortOrder('asc');
+    }
+  };
+
+  const sortedParticipants = useMemo(() => {
+    let sorted = [...participants];
+    if (sortKey) {
+      sorted.sort((a, b) => {
+        let valA: string | number;
+        let valB: string | number;
+
+        if (sortKey === 'typeBillet') {
+          valA = ticketTypeOrder.indexOf(a.typeBillet);
+          valB = ticketTypeOrder.indexOf(b.typeBillet);
+        } else { // 'nom' or any other string based sort
+          valA = a[sortKey]?.toLowerCase() || '';
+          valB = b[sortKey]?.toLowerCase() || '';
+        }
+
+        if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sorted;
+  }, [participants, sortKey, sortOrder]);
+
   const getBadgeVariant = (ticketType: TicketType): "strategist" | "marshal" | "general" | "secondary" | "destructive" => {
     switch (ticketType) {
       case 'Stratège':
@@ -49,14 +88,21 @@ export default function ParticipantList() {
         return 'marshal';
       case 'Général':
         return 'general';
-      case 'Invitation': // Changed from 'Aucun'
-        return 'secondary'; // Using 'secondary' for 'Invitation', adjust if a different style is needed
+      case 'Invitation':
+        return 'secondary';
       default:
         return 'secondary';
     }
   };
 
-  if (isLoading) {
+  const renderSortIcon = (key: SortKey) => {
+    if (sortKey !== key) {
+      return <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />;
+    }
+    return sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />;
+  };
+
+  if (isLoading && participants.length === 0) { // Show loader only if no data yet
     return (
       <div className="flex justify-center items-center py-10">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -70,8 +116,8 @@ export default function ParticipantList() {
       <div className="flex flex-col items-center justify-center py-10 text-destructive">
         <AlertTriangle className="h-8 w-8 mb-2" />
         <p className="mb-2">Erreur: {error}</p>
-        <Button onClick={fetchParticipants} variant="outline" size="sm">
-          <RefreshCw className="mr-2 h-4 w-4" /> Réessayer
+        <Button onClick={fetchParticipants} variant="outline" size="sm" disabled={isLoading}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Réessayer
         </Button>
       </div>
     );
@@ -86,21 +132,31 @@ export default function ParticipantList() {
           Actualiser
         </Button>
       </div>
-      {participants.length > 0 ? (
+      {sortedParticipants.length > 0 ? (
         <Table>
           <TableCaption>
-            {participants.length} participant(s) récupéré(s) depuis Firestore.
+            {sortedParticipants.length} participant(s) récupéré(s) depuis Firestore.
           </TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead>Nom</TableHead>
+              <TableHead>
+                <Button variant="ghost" onClick={() => handleSort('nom')} className="px-0 hover:bg-transparent">
+                  Nom
+                  {renderSortIcon('nom')}
+                </Button>
+              </TableHead>
               <TableHead>Prénom</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead className="text-center">Type de Billet</TableHead>
+              <TableHead className="text-center">
+                <Button variant="ghost" onClick={() => handleSort('typeBillet')} className="px-0 hover:bg-transparent">
+                  Type de Billet
+                  {renderSortIcon('typeBillet')}
+                </Button>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {participants.map((participant) => (
+            {sortedParticipants.map((participant) => (
               <TableRow key={participant.id}>
                 <TableCell className="font-medium">{participant.nom}</TableCell>
                 <TableCell>{participant.prenom}</TableCell>
@@ -116,12 +172,20 @@ export default function ParticipantList() {
         </Table>
       ) : (
         <div className="text-center py-10">
-          <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">Aucun participant trouvé dans la base de données.</p>
-          <p className="text-sm text-muted-foreground">Essayez de lancer une synchronisation avec Billetweb.</p>
+          {isLoading ? (
+            <>
+              <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Chargement des participants...</p>
+            </>
+          ) : (
+            <>
+              <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Aucun participant trouvé dans la base de données.</p>
+              <p className="text-sm text-muted-foreground">Essayez de lancer une synchronisation avec Billetweb.</p>
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
-
