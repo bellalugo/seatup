@@ -64,7 +64,7 @@ const defaultTableFormData: GameTableInput = {
   timeSlot: '09:00 - 13:00',
   totalSeats: 4,
   tableNumber: '',
-  authorAnimator: '', // Can be initially empty or undefined
+  authorAnimator: undefined, // Explicitly undefined for "no selection"
 };
 
 export default function ConventionManager() {
@@ -99,7 +99,6 @@ export default function ConventionManager() {
       setRegistrations(fetchedRegistrationsResult);
       setAllGames(fetchedGamesList);
       
-      // Filter for invitation participants
       const invites = fetchedParticipants.filter(p => p.typeBillet === 'Invitation');
       setInvitationParticipants(invites);
 
@@ -122,9 +121,18 @@ export default function ConventionManager() {
 
   const handleTableSelectChange = (name: keyof Pick<GameTableInput, 'day' | 'timeSlot' | 'gameId' | 'authorAnimator'>) => (value: string) => {
     setTableFormData(prev => {
-        const newState = { ...prev, [name]: value === '' ? undefined : value };
-        if (name === 'gameId' && value) {
-            const selectedGame = allGames.find(game => game.id === value);
+        let processedValue: string | undefined;
+
+        if (name === 'authorAnimator') {
+            processedValue = value === '_NONE_' ? undefined : value;
+        } else {
+            processedValue = value === '' ? undefined : value;
+        }
+
+        const newState = { ...prev, [name]: processedValue };
+
+        if (name === 'gameId' && newState.gameId) { 
+            const selectedGame = allGames.find(game => game.id === newState.gameId);
             if (selectedGame) {
                 newState.totalSeats = selectedGame.nbre_max; 
             }
@@ -149,20 +157,20 @@ export default function ConventionManager() {
         timeSlot: table.timeSlot,
         totalSeats: table.totalSeats, 
         tableNumber: table.tableNumber || '',
-        authorAnimator: table.authorAnimator || '',
+        authorAnimator: table.authorAnimator || undefined, // Ensure undefined if empty
     });
     setIsTableDialogOpen(true);
   };
 
   const handleDuplicateTable = (table: GameTable) => {
-    setEditingTable(null);
+    setEditingTable(null); // Not editing, but duplicating
     setTableFormData({
       gameId: table.gameId,
-      day: table.day,
-      timeSlot: table.timeSlot,
+      day: table.day, // Or perhaps clear this to force user selection
+      timeSlot: table.timeSlot, // Or clear this
       totalSeats: table.totalSeats,
-      tableNumber: '', 
-      authorAnimator: table.authorAnimator || '',
+      tableNumber: '', // Definitely clear this or suggest a new one
+      authorAnimator: table.authorAnimator || undefined,
     });
     setIsTableDialogOpen(true);
     toast({
@@ -324,7 +332,7 @@ export default function ConventionManager() {
                             <SelectValue placeholder="Sélectionner un jeu" />
                         </SelectTrigger>
                         <SelectContent>
-                            {allGames.length === 0 && <SelectItem value="" disabled>Aucun jeu. Ajoutez des jeux d'abord.</SelectItem>}
+                            {allGames.length === 0 && <SelectItem value="_NO_GAMES_AVAILABLE_" disabled>Aucun jeu. Ajoutez des jeux d'abord.</SelectItem>}
                             {allGames.map(game => (
                                 <SelectItem key={game.id} value={game.id}>{game.nom} ({game.nbre_min}-{game.nbre_max} joueurs)</SelectItem>
                             ))}
@@ -335,7 +343,7 @@ export default function ConventionManager() {
                     <Label htmlFor="authorAnimator" className="text-right">Auteur/Animateur</Label>
                     <Select
                         name="authorAnimator"
-                        value={tableFormData.authorAnimator || ''}
+                        value={tableFormData.authorAnimator || ''} // Let Select handle placeholder via empty string
                         onValueChange={handleTableSelectChange('authorAnimator')}
                         disabled={isSubmittingTable || invitationParticipants.length === 0}
                     >
@@ -344,9 +352,9 @@ export default function ConventionManager() {
                         </SelectTrigger>
                         <SelectContent>
                             {invitationParticipants.length === 0 && (
-                                <SelectItem value="" disabled>Aucun participant avec billet 'Invitation' trouvé.</SelectItem>
+                                <SelectItem value="_NO_INVITES_AVAILABLE_" disabled>Aucun participant avec billet 'Invitation' trouvé.</SelectItem>
                             )}
-                            <SelectItem value="">Aucun / Effacer la sélection</SelectItem>
+                            <SelectItem value="_NONE_">Aucun / Effacer la sélection</SelectItem>
                             {invitationParticipants.map(p => (
                                 <SelectItem key={p.id} value={`${p.prenom} ${p.nom}`}>
                                     {p.prenom} {p.nom}
@@ -400,7 +408,7 @@ export default function ConventionManager() {
         </Dialog>
 
         <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={(open) => {
-            if (isDeletingTable) return; // Don't close if deletion is in progress
+            if (isDeletingTable) return; 
             setIsConfirmDeleteDialogOpen(open);
             if (!open) setTableToDelete(null);
         }}>
@@ -576,3 +584,4 @@ export default function ConventionManager() {
     </Card>
   );
 }
+
