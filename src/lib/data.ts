@@ -29,7 +29,7 @@ export const registrationPhases = importedRegistrationPhases;
 const GAMES_COLLECTION = 'games';
 const TABLES_COLLECTION = 'gameTables';
 const REGISTRATIONS_COLLECTION = 'registrations';
-const PARTICIPANTS_COLLECTION = 'Liste participants';
+const PARTICIPANTS_COLLECTION = 'liste_participants'; // Renamed collection
 
 
 // --- Games CRUD Functions ---
@@ -407,9 +407,8 @@ export const getParticipants = async (): Promise<Participant[]> => {
         throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les participants.");
     }
     try {
-        const participantsCollection = collection(db, PARTICIPANTS_COLLECTION);
-        // Removed orderBy("nom") to simplify the query and avoid needing a composite index by default
-        const querySnapshot = await getDocs(participantsCollection);
+        const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
+        const querySnapshot = await getDocs(participantsCollectionRef);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
     } catch (error) {
         console.error("Firestore - Erreur détaillée lors de la récupération des participants:", error);
