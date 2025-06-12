@@ -18,10 +18,10 @@ import {
 } from 'firebase/firestore';
 
 export const mockUsers: Record<string, User> = {
-  'user-123': { id: 'user-123', name: 'Alice (Stratège)', ticketType: 'Stratège' },
-  'user-456': { id: 'user-456', name: 'Bob (Maréchal)', ticketType: 'Maréchal' },
-  'user-789': { id: 'user-789', name: 'Charlie (Général)', ticketType: 'Général' },
-  'user-000': { id: 'user-000', name: 'David (Invitation)', ticketType: 'Invitation' },
+  'user-123': { id: 'user-123', name: 'Alice (Stratège)', ticketType: 'Stratège', email: 'alice@example.com' },
+  'user-456': { id: 'user-456', name: 'Bob (Maréchal)', ticketType: 'Maréchal', email: 'bob@example.com' },
+  'user-789': { id: 'user-789', name: 'Charlie (Général)', ticketType: 'Général', email: 'charlie@example.com' },
+  'user-000': { id: 'user-000', name: 'David (Invitation)', ticketType: 'Invitation', email: 'david@example.com' },
 };
 
 export const registrationPhases = importedRegistrationPhases;
@@ -29,7 +29,7 @@ export const registrationPhases = importedRegistrationPhases;
 const GAMES_COLLECTION = 'games';
 const TABLES_COLLECTION = 'gameTables';
 const REGISTRATIONS_COLLECTION = 'registrations';
-const PARTICIPANTS_COLLECTION = 'liste_participants'; // Renamed collection
+const PARTICIPANTS_COLLECTION = 'liste_participants';
 
 
 // --- Games CRUD Functions ---
@@ -247,14 +247,12 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
         const registrationsSnapshot = await getDocs(registrationsQuery);
 
         if (registrationsSnapshot.docs.length > 0) {
-            // This error will be caught by the calling component and displayed in a toast.
             throw new Error(`La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`);
         }
         
         batch.delete(tableRef);
         await batch.commit();
     } catch (error) {
-        // Re-throw the specific error if it's about existing registrations
         if (error instanceof Error && error.message.includes("joueur(s) inscrit(s)")) {
             throw error; 
         }
@@ -328,7 +326,7 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
             return { id: existingRegs.docs[0].id, ...existingRegs.docs[0].data() } as Registration & { id: string };
         }
 
-        const newRegistrationData = { userId, tableId };
+        const newRegistrationData = { userId, tableId, timestamp: new Date() }; // Add timestamp
         const docRef = await addDoc(collection(db, REGISTRATIONS_COLLECTION), newRegistrationData);
         return { id: docRef.id, ...newRegistrationData };
     } catch (error) {
@@ -431,6 +429,49 @@ export const getParticipants = async (): Promise<Participant[]> => {
     }
 };
 
+/** Fetches a single participant by their email from Firestore */
+export const getParticipantByEmail = async (email: string): Promise<Participant | null> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for getParticipantByEmail.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer un participant par email.");
+    }
+    if (!email || typeof email !== 'string' || email.trim() === '') {
+        console.warn("getParticipantByEmail: Email non fourni ou invalide.");
+        return null;
+    }
+    try {
+        const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
+        // Firestore queries are case-sensitive by default.
+        // For case-insensitive search, you'd typically store a normalized version (e.g., lowercase) of the email
+        // or perform filtering client-side if the dataset is small (not recommended for large datasets).
+        // For now, we'll assume exact match or that emails are stored consistently.
+        // A more robust solution for case-insensitivity involves duplicating the email field in lowercase.
+        const q = query(participantsCollectionRef, where("email", "==", email.trim()));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            // Attempt a case-insensitive search if exact match fails, by fetching all and filtering
+            // This is NOT efficient for large datasets.
+            console.warn(`Aucun participant trouvé pour l'email (sensible à la casse): ${email}. Tentative de recherche insensible à la casse (moins performant)...`);
+            const allParticipants = await getParticipants(); // This might re-throw if permissions are an issue for general get
+            const foundParticipant = allParticipants.find(p => p.email.toLowerCase() === email.trim().toLowerCase());
+            if (foundParticipant) {
+                 console.log("Participant trouvé avec recherche insensible à la casse:", foundParticipant);
+                 return foundParticipant;
+            }
+            console.log(`Aucun participant trouvé, même avec une recherche insensible à la casse pour : ${email}`);
+            return null;
+        }
+        
+        // Should ideally be only one, but if multiple, return the first.
+        const doc = querySnapshot.docs[0];
+        return { id: doc.id, ...doc.data() } as Participant;
+    } catch (error) {
+        console.error("Firestore - Erreur lors de la récupération du participant par email:", email, error);
+        throw new Error(`Impossible de récupérer le participant pour l'email ${email} depuis Firestore.`);
+    }
+};
+
 
 // --- Utility Functions ---
 
@@ -480,3 +521,4 @@ const toast = (options: any) => {
 
 
     
+

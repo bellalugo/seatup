@@ -4,9 +4,10 @@ import type React from 'react'; // Ensure React is imported for ElementType
 export type TicketType = 'Stratège' | 'Maréchal' | 'Général' | 'Invitation';
 
 export interface User {
-  id: string;
-  name: string; // Added for display
+  id: string; // Firebase Auth UID or Participant ID from Firestore
+  name: string;
   ticketType: TicketType;
+  email?: string; // Email of the user/participant
 }
 
 // Represents a game entity from the "games" collection
@@ -38,42 +39,39 @@ export interface GameTable {
   totalSeats: number;
   tableNumber: string; // Added field for table number
   authorAnimator?: string; // Optional field for Author/Animator
-  // gameName and gameImageUrl will be populated by joining with the "games" collection
   gameName?: string; // Populated at runtime
   gameImageUrl?: string; // Populated at runtime
-  imageUrl?: string; // This seems to be a duplicate or legacy field, gameImageUrl is preferred.
+  imageUrl?: string; 
 }
 
 /**
  * Type definition for the data collected from the add/edit table form.
- * GameTable will now link to a Game entity via gameId.
  */
 export interface GameTableInput {
-    gameId: string; // User selects a game from the "games" collection
+    gameId: string; 
     day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
     timeSlot: string;
     totalSeats: number;
-    tableNumber: string; // Added field for table number
-    authorAnimator?: string; // Optional field for Author/Animator
+    tableNumber: string; 
+    authorAnimator?: string; 
 }
 
 
 export interface Registration {
-  userId: string;
+  userId: string; // Corresponds to User.id (Participant's Firestore ID for now)
   tableId: string;
+  timestamp?: Date; // Optional: timestamp of registration
 }
 
 // Define registration phases based on ticket priority
 export const registrationPhases: TicketType[] = ['Stratège', 'Maréchal', 'Général'];
 
-// Represents a participant fetched from Billetweb
+// Represents a participant fetched from Billetweb and stored in Firestore
 export interface Participant {
-  id: string; // Billetweb ID or unique ID from Billetweb
+  id: string; // Billetweb ID or unique ID from Billetweb, used as Firestore document ID
   nom: string;
   prenom: string;
   email: string;
   typeBillet: TicketType;
-  // Add other relevant fields from Billetweb as needed
-  // e.g., dateAchat?: string; numeroCommande?: string;
 }
 
