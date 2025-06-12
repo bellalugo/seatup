@@ -271,12 +271,33 @@ export const getRegistrations = async (): Promise<Registration[]> => {
         throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les inscriptions.");
     }
     try {
-        const registrationsCollection = collection(db, REGISTRATIONS_COLLECTION);
-        const querySnapshot = await getDocs(registrationsCollection);
+        const registrationsCollectionRef = collection(db, REGISTRATIONS_COLLECTION);
+        const querySnapshot = await getDocs(registrationsCollectionRef);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Registration & { id: string }));
     } catch (error) {
-        console.error("Firestore - Erreur lors de la récupération des inscriptions:", error);
-        throw new Error("Impossible de récupérer les inscriptions depuis Firestore.");
+        console.error("Firestore - Erreur détaillée lors de la récupération des inscriptions:", error);
+        let advice = "Veuillez vérifier la console du navigateur pour l'erreur Firebase détaillée. ";
+        if (error instanceof Error && 'code' in error) {
+            const firebaseError = error as { code: string; message: string };
+            switch (firebaseError.code) {
+                case 'permission-denied':
+                    advice += "ERREUR DE PERMISSION: Firestore a refusé l'accès à la collection 'registrations'. Vérifiez vos règles de sécurité Firestore. Assurez-vous que les utilisateurs authentifiés (ou le public, selon vos besoins) ont la permission de lire cette collection.";
+                    break;
+                case 'unimplemented':
+                case 'failed-precondition':
+                     advice += `ERREUR D'INDEX Firestore (${firebaseError.code}): La requête sur 'registrations' nécessite probablement un index. Vérifiez la console du navigateur pour un lien permettant de créer l'index manquant.`;
+                    break;
+                case 'unavailable':
+                    advice += `SERVICE FIRESTORE INDISPONIBLE (${firebaseError.code}). Vérifiez l'état de Firebase et votre connexion internet.`;
+                    break;
+                default:
+                    advice += `Erreur Firebase (${firebaseError.code}): ${firebaseError.message}.`;
+                    break;
+            }
+        } else if (error instanceof Error) {
+            advice += `Message d'erreur: ${error.message}.`;
+        }
+        throw new Error(`Impossible de récupérer les inscriptions depuis Firestore. ${advice}`);
     }
 };
 
@@ -387,6 +408,7 @@ export const getParticipants = async (): Promise<Participant[]> => {
     }
     try {
         const participantsCollection = collection(db, PARTICIPANTS_COLLECTION);
+        // Removed orderBy("nom") to simplify the query and avoid needing a composite index by default
         const querySnapshot = await getDocs(participantsCollection);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
     } catch (error) {
@@ -397,7 +419,7 @@ export const getParticipants = async (): Promise<Participant[]> => {
             if (firebaseError.code === 'permission-denied') {
                 advice += "ERREUR DE PERMISSION: Firestore a refusé l'accès. Vérifiez vos règles de sécurité. ";
             } else if (firebaseError.code === 'unimplemented' || firebaseError.code === 'failed-precondition') {
-                 advice += "ERREUR D'INDEX Firestore: La requête nécessite probablement un index. Vérifiez la console du navigateur pour un lien permettant de créer l'index manquant (souvent nécessaire pour les clauses `orderBy` multiples ou sur des champs non triés par défaut). ";
+                 advice += `ERREUR D'INDEX Firestore (${firebaseError.code}): La requête nécessite probablement un index. Vérifiez la console du navigateur pour un lien permettant de créer l'index manquant. `;
             } else if (firebaseError.code === 'unavailable') {
                 advice += "SERVICE FIRESTORE INDISPONIBLE. Vérifiez l'état de Firebase. ";
             } else {
@@ -456,3 +478,6 @@ const toast = (options: any) => {
         console.log('Toast:', options.title, options.description);
     }
 };
+
+
+    
