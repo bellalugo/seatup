@@ -137,14 +137,22 @@ export default function Home() {
     if (isLoading) return; // Wait for main data to load
 
     setIsLoadingLiveHof(true);
-    const today = new Date();
-    // For simplicity, using DD/MM matching. A robust solution would handle year.
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0'); // JS months are 0-indexed
-    const formattedToday = `${day}/${month}`;
+    
+    // --- TEMPORARY MODIFICATION FOR VISUALIZATION ---
+    // Force a specific day to see the live HoF in action.
+    // Replace 'Jeudi' with any other conventionDay.name if needed.
+    // REMEMBER TO REVERT THIS for production to use the actual current date.
+    const liveDayName: ConventionDay | null = 'Jeudi'; // conventionDays[0].name as ConventionDay; 
+    // const today = new Date();
+    // // For simplicity, using DD/MM matching. A robust solution would handle year.
+    // const day = String(today.getDate()).padStart(2, '0');
+    // const month = String(today.getMonth() + 1).padStart(2, '0'); // JS months are 0-indexed
+    // const formattedToday = `${day}/${month}`;
 
-    const activeDayEntry = conventionDays.find(d => d.date === formattedToday);
-    const liveDayName = activeDayEntry ? activeDayEntry.name as ConventionDay : null;
+    // const activeDayEntry = conventionDays.find(d => d.date === formattedToday);
+    // const liveDayName = activeDayEntry ? activeDayEntry.name as ConventionDay : null;
+    // --- END OF TEMPORARY MODIFICATION ---
+
     setCurrentLiveConventionDay(liveDayName);
 
     if (liveDayName && allParticipantsData.length > 0 && tables.length > 0 && gameResultsData.size > 0) {
@@ -175,21 +183,25 @@ export default function Home() {
                 if (playerData) {
                     playerData.score += pointsPerWin;
                     playerData.winsToday +=1;
-                    // gamesPlayedToday would require tracking all participations for the day, not just wins.
-                    // For now, focusing on score and wins for simplicity in this live view.
                 }
             });
-            // Increment gamesPlayedToday for all participants of this game on this day
-            // This requires knowing all participants of the game, not just winners.
-            // Current `registrations` state has userIds for tables.
+            
              registrations.forEach(reg => {
-                if (reg.tableId === result.tableId) {
-                    const playerData = playerScoresMap.get(reg.userId);
-                    if (playerData) {
-                        playerData.gamesPlayedToday +=1;
+                if (reg.tableId === result.tableId) { // Check if this registration belongs to the game result's table
+                    const tableOfRegistration = gameTablesMap.get(reg.tableId);
+                    // Ensure this game was played on the current liveDayName
+                    if (tableOfRegistration && tableOfRegistration.day === liveDayName) {
+                        const playerData = playerScoresMap.get(reg.userId);
+                        if (playerData) {
+                            // Check if this game is among those in gameResultsData for *this* liveDayName
+                            // This ensures we only count games for the specific liveDayName
+                            if (gameResultsData.has(reg.tableId) && gameTablesMap.get(reg.tableId)?.day === liveDayName) {
+                                playerData.gamesPlayedToday +=1;
+                            }
+                        }
                     }
                 }
-            })
+            });
         });
 
         const rankedToday = Array.from(playerScoresMap.values())
@@ -207,7 +219,7 @@ export default function Home() {
         setTopPlayersToday([]);
     }
     setIsLoadingLiveHof(false);
-  }, [isLoading, allParticipantsData, tables, gameResultsData, registrations]); // Added registrations
+  }, [isLoading, allParticipantsData, tables, gameResultsData, registrations]);
 
 
   const handleUserLookup = async () => {
@@ -325,16 +337,9 @@ export default function Home() {
     setIsSubmittingRegistration(true);
     try {
         await addRegistrationToDb(currentUser.id, tableId);
-        const updatedRegistrations = await getRegistrations(); // Re-fetch all registrations
+        const updatedRegistrations = await getRegistrations(); 
         setRegistrations(updatedRegistrations);
-        // Also re-fetch game results as new registration might impact "playersInGame" if we auto-update
-        // For now, playersInGame is set at winner confirmation.
-        // const updatedGameResults = await getAllGameResults();
-        // const resultsMap = new Map<string, GameResult>();
-        // updatedGameResults.forEach(result => resultsMap.set(result.tableId, result));
-        // setGameResultsData(resultsMap);
-
-
+        
         toast({
         title: "Inscription réussie !",
         description: `${currentUser.name}, vous êtes maintenant inscrit(e) pour le jeu : ${table.gameName}.`,
@@ -360,11 +365,7 @@ export default function Home() {
         await removeRegistrationFromDb(currentUser.id, tableId);
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
-        // const updatedGameResults = await getAllGameResults();
-        // const resultsMap = new Map<string, GameResult>();
-        // updatedGameResults.forEach(result => resultsMap.set(result.tableId, result));
-        // setGameResultsData(resultsMap);
-
+        
         toast({
             title: "Désinscrit(e)",
             description: `Votre inscription pour ${table.gameName} a été supprimée.`,
@@ -606,8 +607,7 @@ export default function Home() {
                                                         tooltipText = "Cliquez pour vous désinscrire";
                                                     } else if (!currentUser && availableSeats <=0) { // Condition for "Complet !"
                                                         buttonText = "Complet !";
-                                                        buttonVariant = "destructive"; // Or any other appropriate variant
-                                                        // onClickAction might be disabled or do nothing
+                                                        buttonVariant = "destructive"; 
                                                         tooltipText = "Cette table est complète.";
                                                     } else if (!currentUser) {
                                                         tooltipText = "Connectez-vous pour vous inscrire";
@@ -699,7 +699,7 @@ export default function Home() {
                                                                         onClick={onClickAction}
                                                                         size="sm"
                                                                         variant={buttonVariant}
-                                                                        disabled={isDisabled || (!currentUser && availableSeats <=0)} // Disable button if "Complet !" for non-logged user
+                                                                        disabled={isDisabled || (!currentUser && availableSeats <=0)} 
                                                                         aria-label={tooltipText || buttonText}
                                                                         title={tooltipText || buttonText}
                                                                         className="shadow-sm rounded-md"
@@ -835,4 +835,5 @@ export default function Home() {
   );
 }
 
+    
     
