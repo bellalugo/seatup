@@ -1,5 +1,5 @@
 
-import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant } from '@/lib/types';
+import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult } from '@/lib/types';
 import { registrationPhases as importedRegistrationPhases } from '@/lib/types';
 import { db } from '@/firebase/clientApp';
 import {
@@ -14,7 +14,7 @@ import {
     writeBatch,
     orderBy,
     getDoc,
-    setDoc, 
+    setDoc,
 } from 'firebase/firestore';
 
 export const mockUsers: Record<string, User> = {
@@ -30,6 +30,7 @@ const GAMES_COLLECTION = 'games';
 const TABLES_COLLECTION = 'gameTables';
 const REGISTRATIONS_COLLECTION = 'registrations';
 const PARTICIPANTS_COLLECTION = 'liste_participants';
+const GAME_RESULTS_COLLECTION = 'gameResults';
 
 
 // --- Games CRUD Functions ---
@@ -75,7 +76,7 @@ export const updateGame = async (game: Game): Promise<Game> => {
     try {
         const gameRef = doc(db, GAMES_COLLECTION, game.id);
         const { id, ...gameData } = game;
-        await updateDoc(gameRef, gameData as any); 
+        await updateDoc(gameRef, gameData as any);
         return game;
     } catch (error) {
         console.error("Firestore - Erreur lors de la mise à jour du jeu:", error);
@@ -101,7 +102,7 @@ export const deleteGame = async (gameId: string): Promise<void> => {
     } catch (error) {
         console.error("Firestore - Erreur lors de la suppression du jeu:", error);
         if (error instanceof Error) {
-          throw error; 
+          throw error;
         }
         throw new Error("Impossible de supprimer le jeu de Firestore.");
     }
@@ -118,20 +119,20 @@ export const getGameTables = async (): Promise<GameTable[]> => {
     try {
         const [rawTablesSnapshot, gamesList] = await Promise.all([
             getDocs(query(collection(db, TABLES_COLLECTION))),
-            getGames() 
+            getGames()
         ]);
 
         const gamesMap = new Map(gamesList.map(game => [game.id, game]));
 
         return rawTablesSnapshot.docs.map(doc => {
-            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'>; 
+            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'>;
             const game = gamesMap.get(tableData.gameId);
             return {
                 id: doc.id,
                 ...tableData,
                 gameName: game?.nom || 'Jeu inconnu (ID: ' + tableData.gameId + ')',
-                gameImageUrl: game?.imageUrl, 
-                imageUrl: game?.imageUrl, 
+                gameImageUrl: game?.imageUrl,
+                imageUrl: game?.imageUrl,
                 authorAnimator: tableData.authorAnimator || '',
             } as GameTable;
         });
@@ -203,9 +204,9 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             tableNumber: dataToUpdate.tableNumber,
             authorAnimator: dataToUpdate.authorAnimator || '',
         };
-        
+
         const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
-            if (value !== undefined) { 
+            if (value !== undefined) {
                 acc[key as keyof typeof firestorePayload] = value;
             }
             return acc;
@@ -219,7 +220,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
 
         return {
             id: tableToUpdate.id,
-            ...firestorePayload, 
+            ...firestorePayload,
             gameName: gameData?.nom || 'Jeu inconnu',
             gameImageUrl: gameData?.imageUrl,
             imageUrl: gameData?.imageUrl,
@@ -243,20 +244,32 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
     const batch = writeBatch(db);
     try {
         const tableRef = doc(db, TABLES_COLLECTION, tableId);
+
+        // Check for associated game results and delete them
+        const gameResultRef = doc(db, GAME_RESULTS_COLLECTION, tableId);
+        const gameResultSnap = await getDoc(gameResultRef);
+        if (gameResultSnap.exists()) {
+            batch.delete(gameResultRef);
+        }
+
+        // Check for registrations (optional: you might want to prevent deletion if registrations exist,
+        // or handle them as needed. Current logic from previous step is to throw an error if regs exist.)
         const registrationsQuery = query(collection(db, REGISTRATIONS_COLLECTION), where("tableId", "==", tableId));
         const registrationsSnapshot = await getDocs(registrationsQuery);
 
         if (registrationsSnapshot.docs.length > 0) {
-            throw new Error(`La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`);
+             // If you want to delete registrations along with the table, uncomment the next lines:
+             // registrationsSnapshot.docs.forEach(regDoc => batch.delete(regDoc.ref));
+            throw new Error(`La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée (ou les inscriptions doivent être supprimées manuellement/automatiquement).`);
         }
-        
+
         batch.delete(tableRef);
         await batch.commit();
     } catch (error) {
         if (error instanceof Error && error.message.includes("joueur(s) inscrit(s)")) {
-            throw error; 
+            throw error;
         }
-        console.error("Firestore - Erreur lors de la suppression de la table de jeu:", error);
+        console.error("Firestore - Erreur lors de la suppression de la table de jeu et/ou de ses résultats:", error);
         throw new Error("Impossible de supprimer la table de jeu de Firestore. Vérifiez les logs pour plus de détails.");
     }
 };
@@ -368,14 +381,14 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
     for (const participant of participants) {
       if (!participant.id || typeof participant.id !== 'string' || participant.id.trim() === '') {
         console.warn("Participant avec ID invalide ignoré:", participant);
-        continue; 
+        continue;
       }
-      
+
       const participantDataToSave = {
         nom: participant.nom || '',
         prenom: participant.prenom || '',
         email: participant.email || '',
-        typeBillet: participant.typeBillet || 'Invitation', 
+        typeBillet: participant.typeBillet || 'Invitation',
       };
 
       const participantRef = doc(participantsCollectionRef, participant.id);
@@ -384,17 +397,17 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
     await batch.commit();
     console.log(`${participants.length} participant(s) traité(s) pour sauvegarde dans Firestore.`);
   } catch (error) {
-    console.error("Firestore - Erreur détaillée lors de la sauvegarde des participants:", error); 
+    console.error("Firestore - Erreur détaillée lors de la sauvegarde des participants:", error);
     let detailedMessage = "Impossible de sauvegarder les participants dans Firestore.";
     if (error instanceof Error) {
         detailedMessage += ` Message original: ${error.message}`;
-        // @ts-ignore 
+        // @ts-ignore
         if (error.code) {
             // @ts-ignore
             detailedMessage += ` Code Firebase: ${error.code}`;
         }
     }
-    throw new Error(detailedMessage); 
+    throw new Error(detailedMessage);
   }
 };
 
@@ -441,19 +454,12 @@ export const getParticipantByEmail = async (email: string): Promise<Participant 
     }
     try {
         const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
-        // Firestore queries are case-sensitive by default.
-        // For case-insensitive search, you'd typically store a normalized version (e.g., lowercase) of the email
-        // or perform filtering client-side if the dataset is small (not recommended for large datasets).
-        // For now, we'll assume exact match or that emails are stored consistently.
-        // A more robust solution for case-insensitivity involves duplicating the email field in lowercase.
         const q = query(participantsCollectionRef, where("email", "==", email.trim()));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            // Attempt a case-insensitive search if exact match fails, by fetching all and filtering
-            // This is NOT efficient for large datasets.
             console.warn(`Aucun participant trouvé pour l'email (sensible à la casse): ${email}. Tentative de recherche insensible à la casse (moins performant)...`);
-            const allParticipants = await getParticipants(); // This might re-throw if permissions are an issue for general get
+            const allParticipants = await getParticipants();
             const foundParticipant = allParticipants.find(p => p.email.toLowerCase() === email.trim().toLowerCase());
             if (foundParticipant) {
                  console.log("Participant trouvé avec recherche insensible à la casse:", foundParticipant);
@@ -462,13 +468,72 @@ export const getParticipantByEmail = async (email: string): Promise<Participant 
             console.log(`Aucun participant trouvé, même avec une recherche insensible à la casse pour : ${email}`);
             return null;
         }
-        
-        // Should ideally be only one, but if multiple, return the first.
-        const doc = querySnapshot.docs[0];
-        return { id: doc.id, ...doc.data() } as Participant;
+
+        const docData = querySnapshot.docs[0];
+        return { id: docData.id, ...docData.data() } as Participant;
     } catch (error) {
         console.error("Firestore - Erreur lors de la récupération du participant par email:", email, error);
         throw new Error(`Impossible de récupérer le participant pour l'email ${email} depuis Firestore.`);
+    }
+};
+
+
+// --- Game Results Functions ---
+
+/** Saves or updates a game result in Firestore. Uses tableId as document ID. */
+export const saveGameResult = async (tableId: string, winnerIds: string[], playersInGame: number): Promise<GameResult> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for saveGameResult.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour sauvegarder le résultat du jeu.");
+    }
+    try {
+        const gameResultRef = doc(db, GAME_RESULTS_COLLECTION, tableId);
+        const resultData: GameResult = {
+            tableId, // Storing tableId also in the document for easier querying if needed, though doc ID is tableId
+            winnerIds,
+            playersInGame,
+            timestamp: new Date(),
+        };
+        await setDoc(gameResultRef, resultData, { merge: true }); // Use setDoc with merge to create or update
+        return resultData;
+    } catch (error) {
+        console.error("Firestore - Erreur lors de la sauvegarde du résultat du jeu:", error);
+        throw new Error("Impossible de sauvegarder le résultat du jeu dans Firestore.");
+    }
+};
+
+/** Fetches a single game result by tableId from Firestore */
+export const getGameResultByTableId = async (tableId: string): Promise<GameResult | null> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for getGameResultByTableId.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer un résultat de jeu.");
+    }
+    try {
+        const gameResultRef = doc(db, GAME_RESULTS_COLLECTION, tableId);
+        const docSnap = await getDoc(gameResultRef);
+        if (docSnap.exists()) {
+            return { tableId: docSnap.id, ...docSnap.data() } as GameResult;
+        }
+        return null;
+    } catch (error) {
+        console.error(`Firestore - Erreur lors de la récupération du résultat pour la table ${tableId}:`, error);
+        throw new Error(`Impossible de récupérer le résultat du jeu pour la table ${tableId}.`);
+    }
+};
+
+/** Fetches all game results from Firestore */
+export const getAllGameResults = async (): Promise<GameResult[]> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for getAllGameResults.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer tous les résultats des jeux.");
+    }
+    try {
+        const resultsCollection = collection(db, GAME_RESULTS_COLLECTION);
+        const querySnapshot = await getDocs(resultsCollection);
+        return querySnapshot.docs.map(doc => ({ tableId: doc.id, ...doc.data() } as GameResult));
+    } catch (error) {
+        console.error("Firestore - Erreur lors de la récupération de tous les résultats des jeux:", error);
+        throw new Error("Impossible de récupérer tous les résultats des jeux depuis Firestore.");
     }
 };
 
@@ -500,15 +565,15 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
         const newSlot = parseTimeSlot(newTable.timeSlot);
 
         if (!registeredSlot || !newSlot) {
-            return registeredTable.timeSlot === newTable.timeSlot; 
+            return registeredTable.timeSlot === newTable.timeSlot;
         }
         return !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
     });
 };
 
 export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhaseIndex: number): boolean => {
-    if (userTicketType === 'Invitation') return false; 
-    const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType); 
+    if (userTicketType === 'Invitation') return false;
+    const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType);
     return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
 };
 
@@ -518,7 +583,3 @@ const toast = (options: any) => {
         console.log('Toast:', options.title, options.description);
     }
 };
-
-
-    
-

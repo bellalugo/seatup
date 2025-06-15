@@ -41,19 +41,19 @@ export interface GameTable {
   authorAnimator?: string; // Optional field for Author/Animator
   gameName?: string; // Populated at runtime
   gameImageUrl?: string; // Populated at runtime
-  imageUrl?: string; 
+  imageUrl?: string;
 }
 
 /**
  * Type definition for the data collected from the add/edit table form.
  */
 export interface GameTableInput {
-    gameId: string; 
+    gameId: string;
     day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
     timeSlot: string;
     totalSeats: number;
-    tableNumber: string; 
-    authorAnimator?: string; 
+    tableNumber: string;
+    authorAnimator?: string;
 }
 
 
@@ -75,3 +75,10 @@ export interface Participant {
   typeBillet: TicketType;
 }
 
+// Represents the result of a game table, including winners and number of players
+export interface GameResult {
+  tableId: string; // Corresponds to GameTable.id, used as document ID in 'gameResults' collection
+  winnerIds: string[]; // Array of Participant.id for winners
+  playersInGame: number; // Number of participants who played in this game session
+  timestamp?: Date; // Optional: when the result was recorded
+}

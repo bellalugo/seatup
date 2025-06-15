@@ -52,8 +52,10 @@ import {
   getParticipants,
   addRegistration as addRegistrationToDb,
   removeRegistration as removeRegistrationFromDb,
+  saveGameResult, // New import
+  getAllGameResults, // New import
 } from '@/lib/data';
-import type { GameTable, GameTableInput, Registration, Game, Participant } from '@/lib/types';
+import type { GameTable, GameTableInput, Registration, Game, Participant, GameResult } from '@/lib/types'; // GameResult added
 import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy } from 'lucide-react';
 import GameManager from './game-manager';
 
@@ -76,11 +78,12 @@ export default function ConventionManager() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [allParticipantsData, setAllParticipantsData] = useState<Participant[]>([]);
   const [invitationParticipants, setInvitationParticipants] = useState<Participant[]>([]);
-  
+  const [gameResultsData, setGameResultsData] = useState<Map<string, GameResult>>(new Map()); // For storing fetched game results
+
   const [isLoadingTables, setIsLoadingTables] = useState(true);
   const [isSubmittingTable, setIsSubmittingTable] = useState(false);
   const [isDeletingTable, setIsDeletingTable] = useState<string | null>(null);
-  
+
   const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<GameTable | null>(null);
   const [currentTableRegistrants, setCurrentTableRegistrants] = useState<Participant[]>([]);
@@ -90,37 +93,47 @@ export default function ConventionManager() {
 
   const [tableToDelete, setTableToDelete] = useState<GameTable | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
-  
+
   const [tableFormData, setTableFormData] = useState<GameTableInput>(defaultTableFormData);
   const { toast } = useToast();
 
-  // State for "Partie en cours" and winner selection
   const [inProgressTables, setInProgressTables] = useState<Map<string, boolean>>(new Map());
-  const [tableWinners, setTableWinners] = useState<Map<string, string[]>>(new Map()); // Map tableId to array of winner participantIds
   const [isWinnerSelectDialogOpen, setIsWinnerSelectDialogOpen] = useState(false);
   const [currentTableForWinnerSelection, setCurrentTableForWinnerSelection] = useState<GameTable | null>(null);
   const [participantsForWinnerDialog, setParticipantsForWinnerDialog] = useState<Participant[]>([]);
   const [selectedWinnerIdsInDialog, setSelectedWinnerIdsInDialog] = useState<string[]>([]);
 
 
-  const fetchTableData = useCallback(async (setPageLoadingState = true) => {
+  const fetchPageData = useCallback(async (setPageLoadingState = true) => {
     if (setPageLoadingState) setIsLoadingTables(true);
     try {
-      const [fetchedTables, fetchedRegistrationsResult, fetchedGamesList, fetchedParticipants] = await Promise.all([
+      const [
+        fetchedTables,
+        fetchedRegistrationsResult,
+        fetchedGamesList,
+        fetchedParticipants,
+        fetchedGameResults // Fetch game results
+      ] = await Promise.all([
         getGameTables(),
         getRegistrations(),
         getGames(),
         getParticipants(),
+        getAllGameResults() // New call
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrationsResult);
       setAllGames(fetchedGamesList);
       setAllParticipantsData(fetchedParticipants);
       setInvitationParticipants(fetchedParticipants.filter(p => p.typeBillet === 'Invitation'));
+      
+      const resultsMap = new Map<string, GameResult>();
+      fetchedGameResults.forEach(result => resultsMap.set(result.tableId, result));
+      setGameResultsData(resultsMap);
+
     } catch (error) {
-      console.error("Erreur lors de la récupération des données des tables et participants:", error);
+      console.error("Erreur lors de la récupération des données:", error);
       const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
-      toast({ variant: "destructive", title: "Erreur de chargement (Tables/Participants)", description: errorMessage });
+      toast({ variant: "destructive", title: "Erreur de chargement des données", description: errorMessage });
     } finally {
       if (setPageLoadingState) setIsLoadingTables(false);
     }
@@ -128,9 +141,9 @@ export default function ConventionManager() {
 
   useEffect(() => {
     if (activeTab === "tables") {
-      fetchTableData(true);
+      fetchPageData(true);
     }
-  }, [fetchTableData, activeTab]);
+  }, [fetchPageData, activeTab]);
 
   const fetchRegistrantsForDialog = useCallback(async (tableId: string) => {
     if (!tableId) return;
@@ -140,7 +153,7 @@ export default function ConventionManager() {
       const registrants = allParticipantsData.filter(p => registrantIds.includes(p.id));
       setCurrentTableRegistrants(registrants);
 
-      const availableForSelection = allParticipantsData.filter(p => 
+      const availableForSelection = allParticipantsData.filter(p =>
         !registrantIds.includes(p.id) && p.typeBillet !== 'Invitation'
       );
       setSelectableParticipantsForDialog(availableForSelection);
@@ -163,16 +176,16 @@ export default function ConventionManager() {
     setTableFormData(prev => {
         let processedValue: string | undefined = value === '' ? undefined : value;
         if (name === 'authorAnimator' && value === '_NONE_') processedValue = undefined;
-        
+
         const newState = { ...prev, [name]: processedValue };
-        if (name === 'gameId' && newState.gameId) { 
+        if (name === 'gameId' && newState.gameId) {
             const selectedGame = allGames.find(game => game.id === newState.gameId);
-            if (selectedGame) newState.totalSeats = selectedGame.nbre_max; 
+            if (selectedGame) newState.totalSeats = selectedGame.nbre_max;
         }
         return newState;
     });
   };
-  
+
   const handleTableNonSelectInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
     setTableFormData(prev => ({
@@ -187,7 +200,7 @@ export default function ConventionManager() {
         gameId: table.gameId,
         day: table.day,
         timeSlot: table.timeSlot,
-        totalSeats: table.totalSeats, 
+        totalSeats: table.totalSeats,
         tableNumber: table.tableNumber || '',
         authorAnimator: table.authorAnimator || undefined,
     });
@@ -196,16 +209,16 @@ export default function ConventionManager() {
   };
 
   const handleDuplicateTable = (table: GameTable) => {
-    setEditingTable(null); 
+    setEditingTable(null);
     setTableFormData({
       gameId: table.gameId,
-      day: table.day, 
-      timeSlot: table.timeSlot, 
+      day: table.day,
+      timeSlot: table.timeSlot,
       totalSeats: table.totalSeats,
-      tableNumber: '', 
+      tableNumber: '',
       authorAnimator: table.authorAnimator || undefined,
     });
-    setCurrentTableRegistrants([]); 
+    setCurrentTableRegistrants([]);
     setSelectableParticipantsForDialog(allParticipantsData.filter(p => p.typeBillet !== 'Invitation'));
     setIsTableDialogOpen(true);
     toast({
@@ -224,41 +237,40 @@ export default function ConventionManager() {
     if (!tableToDelete) return;
     setIsDeletingTable(tableToDelete.id);
     try {
-        const currentTableRegistrations = await getRegistrationsForTable(tableToDelete.id);
-        if (currentTableRegistrations.length > 0) {
-            toast({ 
-                variant: "destructive", 
-                title: "Suppression impossible", 
-                description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) a ${currentTableRegistrations.length} joueur(s) inscrit(s) et ne peut pas être supprimée.`,
+        // The deleteGameTable function now also handles deleting associated gameResults
+        await deleteGameTable(tableToDelete.id);
+        toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) et ses résultats ont été supprimés avec succès.` });
+        fetchPageData(false); // Re-fetch all data including game results
+    } catch (err) {
+         const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
+         // Check if the error is about existing registrations
+         if (err instanceof Error && err.message.includes("joueur(s) inscrit(s)")) {
+             toast({
+                variant: "destructive",
+                title: "Suppression impossible",
+                description: errorMessage, // Display the specific error message from deleteGameTable
                 action: <AlertTriangle className="text-destructive-foreground h-5 w-5" />,
                 duration: 7000,
             });
-        } else {
-            await deleteGameTable(tableToDelete.id); 
-            toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) a été supprimée avec succès.` });
-            fetchTableData(false); 
-        }
-    } catch (err) {
-         const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
-         if (!(err instanceof Error && err.message.includes("joueur(s) inscrit(s)"))) { 
+         } else {
             toast({ variant: "destructive", title: "Erreur lors de la suppression", description: errorMessage });
          }
     } finally {
-        setIsDeletingTable(null); 
+        setIsDeletingTable(null);
         setTableToDelete(null);
-        setIsConfirmDeleteDialogOpen(false); 
+        setIsConfirmDeleteDialogOpen(false);
     }
   };
 
   const handleOpenTableDialogForAdd = () => {
     setEditingTable(null);
-    setTableFormData(defaultTableFormData); 
+    setTableFormData(defaultTableFormData);
     setCurrentTableRegistrants([]);
     setSelectableParticipantsForDialog(allParticipantsData.filter(p => p.typeBillet !== 'Invitation'));
     setIsTableDialogOpen(true);
   };
 
-   const handleTableDetailsSubmit = async (e: React.FormEvent) => { 
+   const handleTableDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmittingTable(true);
 
@@ -267,7 +279,7 @@ export default function ConventionManager() {
         setIsSubmittingTable(false);
         return;
     }
-    
+
     const selectedGameForValidation = allGames.find(g => g.id === tableFormData.gameId);
     if (selectedGameForValidation && (tableFormData.totalSeats < selectedGameForValidation.nbre_min || tableFormData.totalSeats > selectedGameForValidation.nbre_max)) {
         toast({
@@ -285,14 +297,14 @@ export default function ConventionManager() {
         if (editingTable) {
             await updateGameTable({ ...payload, id: editingTable.id });
             toast({ title: "Table mise à jour", description: "Détails de la table de jeu enregistrés." });
-        } else { 
+        } else {
             const newTable = await addGameTable(payload);
-            setEditingTable(newTable); 
+            setEditingTable(newTable);
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès. Vous pouvez maintenant gérer les participants." });
         }
-        await fetchTableData(false); 
-        
-        if (!editingTable && !payload.id) { 
+        await fetchPageData(false);
+
+        if (!editingTable && !payload.id) {
              setIsTableDialogOpen(false);
              setEditingTable(null);
              setTableFormData(defaultTableFormData);
@@ -322,8 +334,8 @@ export default function ConventionManager() {
         await addRegistrationToDb(selectedParticipantToAdd, editingTable.id);
         toast({title: "Participant ajouté", description: "Le participant a été inscrit à la table."});
         setSelectedParticipantToAdd('');
-        await fetchTableData(false); 
-        fetchRegistrantsForDialog(editingTable.id); 
+        await fetchPageData(false);
+        fetchRegistrantsForDialog(editingTable.id);
     } catch (error) {
         toast({variant: "destructive", title: "Erreur d'ajout", description: (error as Error).message});
     } finally {
@@ -337,8 +349,8 @@ export default function ConventionManager() {
     try {
         await removeRegistrationFromDb(participantId, editingTable.id);
         toast({title: "Participant désinscrit", description: "Le participant a été retiré de la table."});
-        await fetchTableData(false); 
-        fetchRegistrantsForDialog(editingTable.id); 
+        await fetchPageData(false);
+        fetchRegistrantsForDialog(editingTable.id);
     } catch (error) {
         toast({variant: "destructive", title: "Erreur de désinscription", description: (error as Error).message});
     } finally {
@@ -349,15 +361,8 @@ export default function ConventionManager() {
   const toggleGameInProgress = (tableId: string) => {
     setInProgressTables(prev => {
       const newMap = new Map(prev);
-      newMap.set(tableId, !newMap.get(tableId));
-      if (!newMap.get(tableId)) { // If game is no longer in progress
-        // Optionally clear winners if game is ended
-        // setTableWinners(prevWinners => {
-        //   const newWinners = new Map(prevWinners);
-        //   newWinners.delete(tableId);
-        //   return newWinners;
-        // });
-      }
+      const currentStatus = !!newMap.get(tableId);
+      newMap.set(tableId, !currentStatus);
       return newMap;
     });
   };
@@ -368,7 +373,9 @@ export default function ConventionManager() {
     const registrantIds = regsForTable.map(r => r.userId);
     const registrantsDetails = allParticipantsData.filter(p => registrantIds.includes(p.id));
     setParticipantsForWinnerDialog(registrantsDetails);
-    setSelectedWinnerIdsInDialog(tableWinners.get(table.id) || []);
+
+    const existingResult = gameResultsData.get(table.id);
+    setSelectedWinnerIdsInDialog(existingResult?.winnerIds || []);
     setIsWinnerSelectDialogOpen(true);
   };
 
@@ -382,14 +389,22 @@ export default function ConventionManager() {
     });
   };
 
-  const handleConfirmWinners = () => {
-    if (currentTableForWinnerSelection) {
-      setTableWinners(prev => {
-        const newMap = new Map(prev);
-        newMap.set(currentTableForWinnerSelection.id, selectedWinnerIdsInDialog);
-        return newMap;
-      });
-      toast({ title: "Vainqueur(s) enregistré(s)", description: `Les vainqueurs pour la table ${currentTableForWinnerSelection.tableNumber} ont été mis à jour.`});
+  const handleConfirmWinners = async () => {
+    if (currentTableForWinnerSelection && currentTableForWinnerSelection.id) {
+      const tableId = currentTableForWinnerSelection.id;
+      const playersInGame = participantsForWinnerDialog.length; // Number of registered players at the moment of confirmation
+      try {
+        await saveGameResult(tableId, selectedWinnerIdsInDialog, playersInGame);
+        toast({ title: "Vainqueur(s) enregistré(s)", description: `Les vainqueurs pour la table ${currentTableForWinnerSelection.tableNumber} ont été sauvegardés.`});
+        // Update local gameResultsData to reflect the change immediately
+        setGameResultsData(prev => {
+            const newMap = new Map(prev);
+            newMap.set(tableId, { tableId, winnerIds: selectedWinnerIdsInDialog, playersInGame, timestamp: new Date() });
+            return newMap;
+        });
+      } catch (error) {
+        toast({ variant: "destructive", title: "Erreur sauvegarde vainqueurs", description: (error as Error).message });
+      }
     }
     setIsWinnerSelectDialogOpen(false);
     setCurrentTableForWinnerSelection(null);
@@ -413,7 +428,7 @@ export default function ConventionManager() {
               <TableIcon className="mr-2 h-4 w-4" /> Ajouter une table
             </Button>
         </div>
-        
+
         <Dialog open={isTableDialogOpen} onOpenChange={(open) => {
           setIsTableDialogOpen(open);
           if (!open) {
@@ -476,7 +491,7 @@ export default function ConventionManager() {
                     <Label htmlFor="totalSeats" className="text-right">Places</Label>
                     <Input id="totalSeats" name="totalSeats" type="number" value={tableFormData.totalSeats} onChange={handleTableNonSelectInputChange} className="col-span-3 rounded-md shadow-sm" min="1" required disabled={isSubmittingTable} />
                  </div>
-                 <DialogFooter className="pt-2"> 
+                 <DialogFooter className="pt-2">
                     <Button type="submit" disabled={isSubmittingTable || allGames.length === 0} className="shadow-sm rounded-md">
                         {isSubmittingTable && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {editingTable ? 'Enregistrer Détails Table' : 'Ajouter et Continuer'}
@@ -489,7 +504,7 @@ export default function ConventionManager() {
             <div className="space-y-4 mt-4 border p-4 rounded-md max-h-[calc(80vh-350px)] overflow-y-auto pr-2">
                 <h3 className="text-md font-medium">Gestion des Participants ({currentTableRegistrants.length} / {tableFormData.totalSeats} inscrits)</h3>
                 <Separator />
-                
+
                 {currentTableRegistrants.length > 0 ? (
                     <div className="space-y-2">
                         <Label>Participants inscrits :</Label>
@@ -512,8 +527,8 @@ export default function ConventionManager() {
                     <div className="space-y-2 pt-2">
                         <Label htmlFor="add-participant-select">Ajouter un participant :</Label>
                         <div className="flex items-center gap-2">
-                            <Select 
-                                value={selectedParticipantToAdd} 
+                            <Select
+                                value={selectedParticipantToAdd}
                                 onValueChange={setSelectedParticipantToAdd}
                                 disabled={isManagingParticipant || selectableParticipantsForDialog.length === 0}
                             >
@@ -527,9 +542,9 @@ export default function ConventionManager() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button 
-                                type="button" 
-                                onClick={handleAddParticipantToTable} 
+                            <Button
+                                type="button"
+                                onClick={handleAddParticipantToTable}
                                 disabled={!selectedParticipantToAdd || isManagingParticipant || currentTableRegistrants.length >= tableFormData.totalSeats}
                                 className="rounded-md shadow-sm"
                                 size="sm"
@@ -554,15 +569,15 @@ export default function ConventionManager() {
         </Dialog>
 
         <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={(open) => {
-            if (isDeletingTable) return; 
+            if (isDeletingTable) return;
             setIsConfirmDeleteDialogOpen(open);
-            if (!open) setTableToDelete(null); 
+            if (!open) setTableToDelete(null);
         }}>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Êtes-vous absolument sûr(e) ?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Cette action est irréversible. La table "{tableToDelete?.gameName}" (N° {tableToDelete?.tableNumber}) du {tableToDelete?.day} à {tableToDelete?.timeSlot} sera définitivement supprimée.
+                        Cette action est irréversible. La table "{tableToDelete?.gameName}" (N° {tableToDelete?.tableNumber}) du {tableToDelete?.day} à {tableToDelete?.timeSlot} et ses résultats de jeu associés seront définitivement supprimés.
                         <br/><strong>La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.</strong>
                     </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -598,7 +613,7 @@ export default function ConventionManager() {
                                 <Checkbox
                                     id={`winner-${participant.id}`}
                                     checked={selectedWinnerIdsInDialog.includes(participant.id)}
-                                    onCheckedChange={(checked) => handleWinnerSelectionInDialog(participant.id)}
+                                    onCheckedChange={() => handleWinnerSelectionInDialog(participant.id)}
                                 />
                                 <Label htmlFor={`winner-${participant.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                     {participant.prenom} {participant.nom}
@@ -638,7 +653,7 @@ export default function ConventionManager() {
                  {tables.sort((a, b) => {
                     const tableNumA_raw = a.tableNumber || '';
                     const tableNumB_raw = b.tableNumber || '';
-                    const numA_parsed = parseFloat(tableNumA_raw.replace(',', '.')); 
+                    const numA_parsed = parseFloat(tableNumA_raw.replace(',', '.'));
                     const numB_parsed = parseFloat(tableNumB_raw.replace(',', '.'));
                     const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw.match(/^[\d,.]+$/);
                     const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw.match(/^[\d,.]+$/);
@@ -646,14 +661,14 @@ export default function ConventionManager() {
                     if (isPurelyNumericA && isPurelyNumericB) {
                         if (numA_parsed < numB_parsed) return -1;
                         if (numA_parsed > numB_parsed) return 1;
-                    } else if (isPurelyNumericA) return -1; 
-                      else if (isPurelyNumericB) return 1;  
-                    
+                    } else if (isPurelyNumericA) return -1;
+                      else if (isPurelyNumericB) return 1;
+
                     const strA = tableNumA_raw.toLowerCase();
                     const strB = tableNumB_raw.toLowerCase();
                     if (strA < strB) return -1;
                     if (strA > strB) return 1;
-                    
+
                     const nameA = a.gameName?.toLowerCase() || '';
                     const nameB = b.gameName?.toLowerCase() || '';
                     if (nameA < nameB) return -1;
@@ -663,7 +678,7 @@ export default function ConventionManager() {
                     const dayBIndex = conventionDayOrder.indexOf(b.day);
                     if (dayAIndex < dayBIndex) return -1;
                     if (dayAIndex > dayBIndex) return 1;
-                    
+
                     const timeSlotAIndex = timeSlotOrder.indexOf(a.timeSlot);
                     const timeSlotBIndex = timeSlotOrder.indexOf(b.timeSlot);
                     if (timeSlotAIndex < timeSlotBIndex) return -1;
@@ -678,9 +693,10 @@ export default function ConventionManager() {
 
                   const occupiedSeatsCount = registeredParticipantDetails.length;
                   const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
-                  const imageUrl = table.gameImageUrl || table.imageUrl; 
+                  const imageUrl = table.gameImageUrl || table.imageUrl;
                   const isFull = table.totalSeats > 0 && occupiedSeatsCount >= table.totalSeats;
                   const isGameInProgress = inProgressTables.get(table.id) || false;
+                  const gameResult = gameResultsData.get(table.id);
 
                   return (
                     <TableRow key={table.id} className={isFull && !isGameInProgress ? "bg-primary/20" : isGameInProgress ? "bg-green-100 dark:bg-green-900/30" : ""}>
@@ -690,9 +706,9 @@ export default function ConventionManager() {
                                 <Image
                                     src={imageUrl}
                                     alt={`Visuel ${table.gameName || 'Jeu inconnu'}`}
-                                    width={192} 
-                                    height={108} 
-                                    className="rounded object-contain h-20 w-auto shadow-sm" 
+                                    width={192}
+                                    height={108}
+                                    className="rounded object-contain h-20 w-auto shadow-sm"
                                     data-ai-hint="game cover"
                                 />
                             ) : (
@@ -724,11 +740,11 @@ export default function ConventionManager() {
                                     </li>
                                 )}
                             </ul>
-                             {tableWinners.has(table.id) && (tableWinners.get(table.id)?.length || 0) > 0 && (
+                             {gameResult && gameResult.winnerIds.length > 0 && (
                                 <div className="mt-1 text-xs">
                                     <span className="font-semibold text-amber-600">Vainqueur(s):</span>
                                     <ul className="list-disc list-inside">
-                                        {tableWinners.get(table.id)?.map(winnerId => {
+                                        {gameResult.winnerIds.map(winnerId => {
                                             const winner = allParticipantsData.find(p => p.id === winnerId);
                                             return <li key={winnerId} className="text-amber-700">{winner ? `${winner.prenom} ${winner.nom}` : 'Inconnu'}</li>;
                                         })}
@@ -828,4 +844,3 @@ export default function ConventionManager() {
     </Card>
   );
 }
-
