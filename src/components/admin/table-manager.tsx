@@ -373,7 +373,7 @@ export default function ConventionManager() {
             </DialogHeader>
             {/* Form for Table Details */}
             <form onSubmit={handleTableDetailsSubmit} className="space-y-4 max-h-[calc(80vh-150px)] overflow-y-auto pr-2">
-              <fieldset className="grid gap-4 py-4 border p-4 rounded-md">
+              <fieldset className="grid grid-cols-1 gap-4 py-4 border p-4 rounded-md">
                 <legend className="text-sm font-medium px-1">Détails de la table</legend>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="tableNumber" className="text-right">Numéro</Label>
@@ -418,7 +418,7 @@ export default function ConventionManager() {
                     <Label htmlFor="totalSeats" className="text-right">Places</Label>
                     <Input id="totalSeats" name="totalSeats" type="number" value={tableFormData.totalSeats} onChange={handleTableNonSelectInputChange} className="col-span-3 rounded-md shadow-sm" min="1" required disabled={isSubmittingTable} />
                  </div>
-                 <DialogFooter className="col-span-4 pt-2">
+                 <DialogFooter className="pt-2"> {/* This footer is part of the fieldset's grid */}
                     <Button type="submit" disabled={isSubmittingTable || allGames.length === 0} className="shadow-sm rounded-md">
                         {isSubmittingTable && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {editingTable ? 'Enregistrer Détails Table' : 'Ajouter et Continuer'}
@@ -688,3 +688,4 @@ export default function ConventionManager() {
     </Card>
   );
 }
+
