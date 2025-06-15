@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getAllGameResults, getGameTables, getParticipants } from '@/lib/data';
-import type { GameResult, GameTable, Participant } from '@/lib/types';
+import { getAllGameResults, getGameTables, getParticipants, getRegistrations } from '@/lib/data'; // Added getRegistrations
+import type { GameResult, GameTable, Participant, Registration } from '@/lib/types'; // Added Registration
+import { Button } from '@/components/ui/button';
 
 const conventionDays = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
 type ConventionDay = typeof conventionDays[number];
@@ -44,10 +45,10 @@ export default function HallOfFamePage() {
   const calculateScores = useCallback((
     gameResults: GameResult[],
     gameTables: GameTable[],
-    participants: Participant[]
+    participants: Participant[],
+    registrations: Registration[] // Added registrations parameter
   ): { overall: RankedPlayer[], daily: Record<ConventionDay, RankedPlayer[]> } => {
     const playerScores: Map<string, PlayerScore> = new Map();
-    const participantsMap = new Map(participants.map(p => [p.id, p]));
     const gameTablesMap = new Map(gameTables.map(t => [t.id, t]));
 
     // Initialize scores for all participants
@@ -59,34 +60,13 @@ export default function HallOfFamePage() {
           email: p.email,
           dailyScores: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
           totalScore: 0,
-          gamesPlayed: 0,
+          gamesPlayed: 0, // Initialized to 0
           wins: 0,
         });
       }
     });
     
-    // Calculate games played for each participant
-    const registrationsPerTable = new Map<string, Set<string>>();
-    gameResults.forEach(result => {
-      const table = gameTablesMap.get(result.tableId);
-      if (table) {
-        if (!registrationsPerTable.has(table.id)) {
-          registrationsPerTable.set(table.id, new Set());
-        }
-        // Assuming all winnerIds were participants of that game.
-        // And playersInGame reflects the number of active players.
-        // To be more accurate, we'd need actual registration data for each game.
-        // For now, we'll increment gamesPlayed for winners.
-        result.winnerIds.forEach(winnerId => {
-           const participantData = playerScores.get(winnerId);
-            if (participantData) {
-              participantData.gamesPlayed +=1;
-            }
-        })
-      }
-    });
-
-
+    // Calculate wins and scores based on game results
     gameResults.forEach(result => {
       const table = gameTablesMap.get(result.tableId);
       if (!table || !conventionDays.includes(table.day as ConventionDay)) return;
@@ -99,9 +79,23 @@ export default function HallOfFamePage() {
         if (participantData) {
           participantData.dailyScores[day] += pointsPerWin;
           participantData.totalScore += pointsPerWin;
-          participantData.wins +=1;
+          participantData.wins += 1;
         }
       });
+    });
+
+    // Correctly calculate gamesPlayed
+    // A game is considered "played" by a participant if they were registered for a table
+    // AND that table has a game result recorded.
+    const gameResultTableIds = new Set(gameResults.map(gr => gr.tableId));
+
+    registrations.forEach(registration => {
+      if (gameResultTableIds.has(registration.tableId)) {
+        const participantData = playerScores.get(registration.userId);
+        if (participantData) {
+          participantData.gamesPlayed += 1;
+        }
+      }
     });
 
     const allPlayersArray = Array.from(playerScores.values());
@@ -115,7 +109,7 @@ export default function HallOfFamePage() {
     const daily: Record<ConventionDay, RankedPlayer[]> = { Jeudi: [], Vendredi: [], Samedi: [], Dimanche: [] };
     conventionDays.forEach(day => {
       daily[day] = [...allPlayersArray]
-        .filter(p => p.dailyScores[day] > 0) // Only include players with points on that day
+        .filter(p => p.dailyScores[day] > 0 || playerScores.get(p.id)?.gamesPlayed > 0) // Also include players who played but didn't score on a given day for daily tables
         .sort((a, b) => b.dailyScores[day] - a.dailyScores[day] || a.name.localeCompare(b.name))
         .map((player, index) => ({ ...player, rank: index + 1 }));
     });
@@ -127,17 +121,18 @@ export default function HallOfFamePage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [results, tables, participants] = await Promise.all([
+      const [results, tables, participants, registrationsData] = await Promise.all([ // Added registrationsData
         getAllGameResults(),
         getGameTables(),
         getParticipants(),
+        getRegistrations(), // Fetch registrations
       ]);
 
-      if (!results || !tables || !participants) {
-          throw new Error("Données de base manquantes pour calculer le Hall of Fame.");
+      if (!results || !tables || !participants || !registrationsData) { // Check registrationsData
+          throw new Error("Données de base manquantes (résultats, tables, participants ou inscriptions) pour calculer le Hall of Fame.");
       }
       
-      const { overall, daily } = calculateScores(results, tables, participants);
+      const { overall, daily } = calculateScores(results, tables, participants, registrationsData); // Pass registrationsData
       setRankedPlayersOverall(overall);
       setDailyRankings(daily);
 
@@ -181,7 +176,7 @@ export default function HallOfFamePage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {players.map((player, index) => (
+          {players.map((player) => (
             <TableRow key={player.id}>
               <TableCell className="text-center font-medium">
                 {player.rank === 1 && <Trophy className="inline h-5 w-5 mr-1 text-amber-500" />}
@@ -277,3 +272,5 @@ export default function HallOfFamePage() {
   );
 }
       
+
+    
