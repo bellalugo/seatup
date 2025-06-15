@@ -23,6 +23,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Import Tooltip components
+
 import {
     getGameTables,
     getRegistrations,
@@ -393,7 +395,8 @@ export default function Home() {
 
   const userSchedule = getUserSchedule();
 
-  const getTicketBadgeVariant = (ticketType: TicketType): "strategist" | "marshal" | "general" | "secondary" => {
+  const getTicketBadgeVariant = (ticketType?: TicketType): "strategist" | "marshal" | "general" | "secondary" => {
+    if (!ticketType) return 'secondary';
     switch (ticketType) {
       case 'Stratège':
         return 'strategist';
@@ -404,459 +407,465 @@ export default function Home() {
       case 'Invitation':
         return 'secondary';
       default:
-        return 'secondary'; // Should not happen with valid TicketType
+        return 'secondary';
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
-        {/* Column 1: Connexion Participant & Infos */}
-        <Card className="shadow-lg rounded-lg h-full flex flex-col">
-            <CardHeader>
-            <div className="flex flex-row items-center justify-between">
-                <div>
-                <CardTitle>Connexion Participant &amp; Infos</CardTitle>
-                <CardDescription>Entrez votre email pour vous identifier et accéder aux inscriptions.</CardDescription>
-                </div>
-                <Button onClick={() => loadPageData()} variant="outline" size="sm" disabled={isLoading || isSubmittingRegistration || isLookingUpUser}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${(isLoading || isSubmittingRegistration || isLookingUpUser) ? 'animate-spin' : ''}`} />
-                Actualiser
-                </Button>
-            </div>
-            </CardHeader>
-            <CardContent className="space-y-4 flex-grow">
-            {!currentUser ? (
-                <div className="flex flex-col sm:flex-row items-end gap-3">
-                <div className="flex-grow w-full sm:w-auto">
-                    <Label htmlFor="email-lookup" className="mb-1 block text-sm font-medium">Votre Email (associé à votre billet)</Label>
-                    <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                        id="email-lookup"
-                        type="email"
-                        placeholder="exemple@domaine.com"
-                        value={emailInput}
-                        onChange={(e) => setEmailInput(e.target.value)}
-                        disabled={isLookingUpUser}
-                        className="pl-10 shadow-sm rounded-md"
-                        />
-                    </div>
-                </div>
-                <Button onClick={handleUserLookup} disabled={isLookingUpUser || !emailInput.trim()} className="w-full sm:w-auto shadow-sm rounded-md">
-                    {isLookingUpUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                    Vérifier et Connecter
-                </Button>
-                </div>
-            ) : (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-accent/10 rounded-md">
-                <div>
-                    <p className="font-semibold text-lg">Bienvenue, {currentUser.name} !</p>
-                    <Badge variant={getTicketBadgeVariant(currentUser.ticketType)} className="shadow-sm">
-                        Billet : {currentUser.ticketType}
-                    </Badge>
-                    <p className="text-xs text-muted-foreground mt-1">Email: {currentUser.email}</p>
-                </div>
-                <Button onClick={handleLogout} variant="outline" className="shadow-sm rounded-md">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Se déconnecter
-                </Button>
-                </div>
-            )}
-            <Badge variant="outline" className="shadow-sm mt-2">
-                Phase d'inscription actuelle : <span className="font-semibold ml-1">{registrationPhases[currentRegistrationPhaseIndex]}</span>
-            </Badge>
-            </CardContent>
-        </Card>
+    <TooltipProvider> {/* Wrap with TooltipProvider for tooltips to work */}
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
+          {/* Column 1: Connexion Participant & Infos */}
+          <Card className="shadow-lg rounded-lg h-full flex flex-col">
+              <CardHeader>
+              <div className="flex flex-row items-center justify-between">
+                  <div>
+                  <CardTitle>Connexion Participant &amp; Infos</CardTitle>
+                  <CardDescription>Entrez votre email pour vous identifier et accéder aux inscriptions.</CardDescription>
+                  </div>
+                  <Button onClick={() => loadPageData()} variant="outline" size="sm" disabled={isLoading || isSubmittingRegistration || isLookingUpUser}>
+                  <RefreshCw className={`mr-2 h-4 w-4 ${(isLoading || isSubmittingRegistration || isLookingUpUser) ? 'animate-spin' : ''}`} />
+                  Actualiser
+                  </Button>
+              </div>
+              </CardHeader>
+              <CardContent className="space-y-4 flex-grow">
+              {!currentUser ? (
+                  <div className="flex flex-col sm:flex-row items-end gap-3">
+                  <div className="flex-grow w-full sm:w-auto">
+                      <Label htmlFor="email-lookup" className="mb-1 block text-sm font-medium">Votre Email (associé à votre billet)</Label>
+                      <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                          id="email-lookup"
+                          type="email"
+                          placeholder="exemple@domaine.com"
+                          value={emailInput}
+                          onChange={(e) => setEmailInput(e.target.value)}
+                          disabled={isLookingUpUser}
+                          className="pl-10 shadow-sm rounded-md"
+                          />
+                      </div>
+                  </div>
+                  <Button onClick={handleUserLookup} disabled={isLookingUpUser || !emailInput.trim()} className="w-full sm:w-auto shadow-sm rounded-md">
+                      {isLookingUpUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+                      Vérifier et Connecter
+                  </Button>
+                  </div>
+              ) : (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-accent/10 rounded-md">
+                  <div>
+                      <p className="font-semibold text-lg">Bienvenue, {currentUser.name} !</p>
+                      <Badge variant={getTicketBadgeVariant(currentUser.ticketType)} className="shadow-sm">
+                          Billet : {currentUser.ticketType}
+                      </Badge>
+                      <p className="text-xs text-muted-foreground mt-1">Email: {currentUser.email}</p>
+                  </div>
+                  <Button onClick={handleLogout} variant="outline" className="shadow-sm rounded-md">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Se déconnecter
+                  </Button>
+                  </div>
+              )}
+              <Badge variant="outline" className="shadow-sm mt-2">
+                  Phase d'inscription actuelle : <span className="font-semibold ml-1">{registrationPhases[currentRegistrationPhaseIndex]}</span>
+              </Badge>
+              </CardContent>
+          </Card>
 
-        {/* Column 2: Hall of Fame - En Direct */}
-        <Card className="shadow-lg rounded-lg h-full flex flex-col">
-            <CardHeader>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle className="flex items-center">
-                            <Trophy className="mr-2 h-6 w-6 text-amber-500" /> Hall of Fame - En Direct
-                        </CardTitle>
-                        <CardDescription>
-                            {currentLiveConventionDay ? `Classement du ${currentLiveConventionDay}` : "Aucun jour de convention actif."}
-                        </CardDescription>
-                    </div>
-                     <Link href="/hall-of-fame" passHref>
-                        <Button variant="outline" size="sm">
-                            <BarChart3 className="mr-2 h-4 w-4" /> Classement Détaillé
-                        </Button>
-                    </Link>
-                </div>
-            </CardHeader>
-            <CardContent className="flex-grow">
-                {isLoadingLiveHof ? (
-                    <div className="flex items-center justify-center h-full">
-                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                        <p className="ml-2 text-muted-foreground">Chargement du classement du jour...</p>
-                    </div>
-                ) : currentLiveConventionDay && topPlayersToday.length > 0 ? (
-                    <ul className="space-y-2">
-                        {topPlayersToday.map((player) => (
-                        <li key={player.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-md shadow-sm">
-                            <div className="flex items-center">
-                            <span className="font-bold w-6 text-center mr-2">
-                                {player.rank === 1 && <Trophy className="inline h-4 w-4 text-amber-500" />}
-                                {player.rank === 2 && <Trophy className="inline h-4 w-4 text-slate-400" />}
-                                {player.rank === 3 && <Trophy className="inline h-4 w-4 text-yellow-700" />}
-                                {player.rank > 3 && player.rank}
-                            </span>
-                            <span className="text-sm">{player.name}</span>
-                            </div>
-                            <Badge variant="secondary" className="font-semibold">{player.score} pts</Badge>
-                        </li>
-                        ))}
-                    </ul>
-                ) : currentLiveConventionDay ? (
-                     <p className="text-muted-foreground text-center py-4">Aucun score enregistré pour {currentLiveConventionDay} pour le moment.</p>
-                ) : (
-                    <p className="text-muted-foreground text-center py-4">La convention n'est pas en cours aujourd'hui.</p>
-                )}
-            </CardContent>
-        </Card>
+          {/* Column 2: Hall of Fame - En Direct */}
+          <Card className="shadow-lg rounded-lg h-full flex flex-col">
+              <CardHeader>
+                  <div className="flex items-center justify-between">
+                      <div>
+                          <CardTitle className="flex items-center">
+                              <Trophy className="mr-2 h-6 w-6 text-amber-500" /> Hall of Fame - En Direct
+                          </CardTitle>
+                          <CardDescription>
+                              {currentLiveConventionDay ? `Classement du ${currentLiveConventionDay}` : "Aucun jour de convention actif."}
+                          </CardDescription>
+                      </div>
+                       <Link href="/hall-of-fame" passHref>
+                          <Button variant="outline" size="sm">
+                              <BarChart3 className="mr-2 h-4 w-4" /> Classement Détaillé
+                          </Button>
+                      </Link>
+                  </div>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                  {isLoadingLiveHof ? (
+                      <div className="flex items-center justify-center h-full">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                          <p className="ml-2 text-muted-foreground">Chargement du classement du jour...</p>
+                      </div>
+                  ) : currentLiveConventionDay && topPlayersToday.length > 0 ? (
+                      <ul className="space-y-2">
+                          {topPlayersToday.map((player) => (
+                          <li key={player.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-md shadow-sm">
+                              <div className="flex items-center">
+                              <span className="font-bold w-6 text-center mr-2">
+                                  {player.rank === 1 && <Trophy className="inline h-4 w-4 text-amber-500" />}
+                                  {player.rank === 2 && <Trophy className="inline h-4 w-4 text-slate-400" />}
+                                  {player.rank === 3 && <Trophy className="inline h-4 w-4 text-yellow-700" />}
+                                  {player.rank > 3 && player.rank}
+                              </span>
+                              <span className="text-sm">{player.name}</span>
+                              </div>
+                              <Badge variant="secondary" className="font-semibold">{player.score} pts</Badge>
+                          </li>
+                          ))}
+                      </ul>
+                  ) : currentLiveConventionDay ? (
+                       <p className="text-muted-foreground text-center py-4">Aucun score enregistré pour {currentLiveConventionDay} pour le moment.</p>
+                  ) : (
+                      <p className="text-muted-foreground text-center py-4">La convention n'est pas en cours aujourd'hui.</p>
+                  )}
+              </CardContent>
+          </Card>
+        </div>
+
+
+         {isLoading && !tables.length ? (
+             <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]">
+               <Loader2 className="h-12 w-12 animate-spin text-primary" />
+               <p className="ml-4 text-muted-foreground">Chargement des tables de jeu...</p>
+             </div>
+         ) : (
+            <>
+              <Tabs defaultValue={conventionDays[0].value} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 shadow-sm rounded-md">
+                  {conventionDays.map(day => (
+                      <TabsTrigger key={day.value} value={day.value} disabled={isSubmittingRegistration || isLookingUpUser}>{day.name} {day.date}</TabsTrigger>
+                  ))}
+                  </TabsList>
+
+                  {conventionDays.map(day => {
+                      const dayTables = tables
+                          .filter(table => table.day === day.name)
+                          .sort((a, b) => {
+                              const tableNumA_raw = a.tableNumber || '';
+                              const tableNumB_raw = b.tableNumber || '';
+
+                              const numA_parsed = parseFloat(tableNumA_raw);
+                              const numB_parsed = parseFloat(tableNumB_raw);
+
+                              const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw === numA_parsed.toString();
+                              const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw === numB_parsed.toString();
+
+                              if (isPurelyNumericA && isPurelyNumericB) {
+                                  if (numA_parsed < numB_parsed) return -1;
+                                  if (numA_parsed > numB_parsed) return 1;
+                              } else {
+                                  const strA = tableNumA_raw.toLowerCase();
+                                  const strB = tableNumB_raw.toLowerCase();
+                                  if (strA < strB) return -1;
+                                  if (strA > strB) return 1;
+                              }
+                              return a.timeSlot.localeCompare(b.timeSlot);
+                          });
+                      return (
+                          <TabsContent key={day.value} value={day.value}>
+                              <Card className="shadow-md rounded-lg">
+                                  <CardHeader>
+                                      <CardTitle>Tables de jeu du {day.name} {day.date}</CardTitle>
+                                      <CardDescription>Jeux disponibles pour {day.name}. Priorité d'inscription : Stratège &gt; Maréchal &gt; Général.</CardDescription>
+                                  </CardHeader>
+                                  <CardContent>
+                                      {isLoading && tables.length > 0 && <div className="text-center py-4"><Loader2 className="inline h-6 w-6 animate-spin text-primary mr-2" />Chargement des tables...</div>}
+                                      {!isLoading && dayTables.length === 0 && <p className="text-muted-foreground text-center py-4">Aucune table disponible pour {day.name} {day.date}.</p>}
+                                      {!isLoading && dayTables.length > 0 && (
+                                          <Table>
+                                              <TableCaption>Liste des jeux disponibles le {day.name} {day.date}.</TableCaption>
+                                              <TableHeader>
+                                                  <TableRow>
+                                                      <TableHead className="w-24 text-center">Table n°</TableHead>
+                                                      <TableHead className="w-64" />
+                                                      <TableHead>Jeu</TableHead>
+                                                      <TableHead>Auteur/Animateur</TableHead>
+                                                      <TableHead>Créneau horaire</TableHead>
+                                                      <TableHead className="text-left">Places disponibles</TableHead>
+                                                      <TableHead className="text-center">Action</TableHead>
+                                                  </TableRow>
+                                              </TableHeader>
+                                              <TableBody>
+                                                  {dayTables.map((table) => {
+                                                      const availableSeats = getAvailableSeats(table.id, registrations, tables);
+                                                      const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
+                                                      const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex);
+                                                      const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
+                                                      const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
+
+                                                      const registrationsForThisTable = registrations.filter(r => r.tableId === table.id);
+                                                      const registeredParticipantDetails = registrationsForThisTable.map(reg => {
+                                                          return allParticipantsData.find(p => p.id === reg.userId);
+                                                      }).filter(p => p !== undefined) as Participant[];
+
+                                                      const occupiedSeatsCount = registeredParticipantDetails.length;
+                                                      const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
+
+
+                                                      let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration || isLookingUpUser;
+                                                      if (!isRegisteredByUser) {
+                                                          isDisabled = isDisabled || availableSeats <= 0 || (conflict && !isRegisteredByUser);
+                                                      }
+                                                       if (currentUser?.ticketType === 'Invitation') isDisabled = true;
+
+
+                                                      let buttonText = "S'inscrire";
+                                                      let buttonVariant: "default" | "secondary" | "destructive" = "default";
+                                                      let onClickAction: (() => void) | undefined = () => openConfirmationDialog(table);
+                                                      let tooltipText = "";
+                                                      let icon = null;
+                                                      let renderAsIconOnly = false;
+
+                                                      if (isSubmittingRegistration || isLookingUpUser) {
+                                                          buttonText = "Chargement...";
+                                                          buttonVariant = "secondary";
+                                                          icon = <Loader2 className="mr-2 h-4 w-4 animate-spin" />;
+                                                      } else if (isRegisteredByUser) {
+                                                          buttonText = "Inscrit(e)";
+                                                          buttonVariant = "secondary";
+                                                          onClickAction = () => handleUnregister(table.id);
+                                                          tooltipText = "Cliquez pour vous désinscrire";
+                                                          icon = <CheckCircle className="mr-2 h-4 w-4" />;
+                                                      } else if (!currentUser && availableSeats <=0) {
+                                                          buttonText = "Complet !"; // Will be replaced by a badge below
+                                                          buttonVariant = "destructive"; 
+                                                          tooltipText = "Cette table est complète.";
+                                                          onClickAction = undefined; // Not clickable
+                                                      } else if (!currentUser) {
+                                                          tooltipText = "Connectez-vous pour vous inscrire";
+                                                          buttonText = "Connectez-vous";
+                                                          buttonVariant = "secondary";
+                                                      } else if (currentUser.ticketType === 'Invitation') {
+                                                          tooltipText = "Les détenteurs de billets 'Invitation' ne peuvent pas s'inscrire.";
+                                                          buttonText = "Indisponible";
+                                                          buttonVariant = "secondary";
+                                                          icon = <AlertCircle className="mr-2 h-4 w-4" />;
+                                                      } else if (!canRegisterNow) {
+                                                          tooltipText = `Inscription pas encore ouverte pour ${currentUser.ticketType}`;
+                                                          buttonText = "Indisponible";
+                                                          buttonVariant = "secondary";
+                                                          icon = <AlertCircle className="mr-2 h-4 w-4" />;
+                                                      } else if (conflict) {
+                                                          renderAsIconOnly = true; // Flag to render just the icon
+                                                          tooltipText = "Conflit avec votre planning";
+                                                      } else if (availableSeats <= 0) {
+                                                          tooltipText = "Table est complète";
+                                                          buttonText = "Complet";
+                                                          buttonVariant = "destructive";
+                                                          icon = <AlertCircle className="mr-2 h-4 w-4" />;
+                                                      } else {
+                                                          tooltipText = "Cliquez pour vous inscrire à cette table";
+                                                      }
+                                                      const imageUrl = table.gameImageUrl || table.imageUrl;
+                                                      return (
+                                                          <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
+                                                              <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
+                                                              <TableCell className="w-64 px-4 py-1">
+                                                                  {imageUrl ? (
+                                                                      <Image
+                                                                          src={imageUrl}
+                                                                          alt={`Image du jeu ${table.gameName}`}
+                                                                          width={256}
+                                                                          height={144}
+                                                                          className="rounded object-contain h-20 w-auto shadow-sm"
+                                                                          data-ai-hint="game cover"
+                                                                      />
+                                                                  ) : (
+                                                                      <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                                                                  )}
+                                                              </TableCell>
+                                                              <TableCell className="font-bold">
+                                                                  {table.gameName}
+                                                              </TableCell>
+                                                              <TableCell>
+                                                                  {table.authorAnimator ? (
+                                                                      <span className="font-bold flex items-center">
+                                                                          <UserCircle2 className="inline h-4 w-4 mr-1 text-muted-foreground" />
+                                                                          {table.authorAnimator}
+                                                                      </span>
+                                                                  ) : (
+                                                                      <span className="text-muted-foreground italic">N/A</span>
+                                                                  )}
+                                                              </TableCell>
+                                                              <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
+                                                              <TableCell className="text-left align-top">
+                                                                  <ul className="list-none p-0 m-0 text-xs space-y-1">
+                                                                      {registeredParticipantDetails.map(participant => (
+                                                                          <li key={participant.id} className="flex items-center">
+                                                                              <UserCheck className="h-4 w-4 mr-1.5 text-green-600 flex-shrink-0" />
+                                                                              <span>{participant.prenom} {participant.nom}</span>
+                                                                          </li>
+                                                                      ))}
+                                                                      {Array.from({ length: freeSeatsCount }).map((_, i) => (
+                                                                          <li key={`free-${i}`} className="flex items-center">
+                                                                              <UserCircle2 className="h-4 w-4 mr-1.5 text-gray-400 flex-shrink-0" />
+                                                                              <span className="italic text-muted-foreground">Place libre</span>
+                                                                          </li>
+                                                                      ))}
+                                                                      {table.totalSeats === 0 && freeSeatsCount === 0 && registeredParticipantDetails.length === 0 && (
+                                                                          <li className="flex items-center">
+                                                                              <Info className="h-4 w-4 mr-1.5 text-blue-500 flex-shrink-0" />
+                                                                              <span className="italic text-muted-foreground">Aucune place définie</span>
+                                                                          </li>
+                                                                      )}
+                                                                  </ul>
+                                                                  {table.totalSeats > 0 && (
+                                                                      <p className="text-xs text-muted-foreground mt-1">
+                                                                          ({occupiedSeatsCount} / {table.totalSeats} occupées)
+                                                                      </p>
+                                                                  )}
+                                                              </TableCell>
+                                                              <TableCell className="text-center">
+                                                                  {(!currentUser && availableSeats <= 0) ? (
+                                                                      <Badge variant="destructive" title="Cette table est complète">Complet !</Badge>
+                                                                  ) : renderAsIconOnly ? (
+                                                                      <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                          <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-destructive/10 cursor-default" aria-label={tooltipText}>
+                                                                            <Ban className="h-5 w-5 text-destructive" />
+                                                                          </span>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                          <p>{tooltipText}</p>
+                                                                        </TooltipContent>
+                                                                      </Tooltip>
+                                                                  ) : (
+                                                                      <Button
+                                                                          onClick={onClickAction}
+                                                                          size="sm"
+                                                                          variant={buttonVariant}
+                                                                          disabled={isDisabled || (!currentUser && availableSeats <=0)} 
+                                                                          aria-label={tooltipText || buttonText}
+                                                                          title={tooltipText || buttonText}
+                                                                          className="shadow-sm rounded-md"
+                                                                      >
+                                                                          {icon}
+                                                                          {buttonText}
+                                                                      </Button>
+                                                                  )}
+                                                              </TableCell>
+                                                          </TableRow>
+                                                      );
+                                                  })}
+                                              </TableBody>
+                                          </Table>
+                                      )}
+                                  </CardContent>
+                              </Card>
+                          </TabsContent>
+                      )
+                  })}
+              </Tabs>
+
+              {currentUser && currentUser.ticketType !== 'Invitation' && (
+                  <Card className="mt-6 shadow-lg rounded-lg">
+                  <CardHeader>
+                      <CardTitle>Planning de {currentUser.name}</CardTitle>
+                      <CardDescription>Tables auxquelles vous êtes actuellement inscrit(e).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      {userSchedule.length > 0 ? (
+                      <Table>
+                          <TableHeader>
+                              <TableRow>
+                              <TableHead className="w-24 text-center">Table n°</TableHead>
+                              <TableHead className="w-64" />
+                              <TableHead>Jour</TableHead>
+                              <TableHead>Créneau horaire</TableHead>
+                              <TableHead>Jeu</TableHead>
+                              <TableHead className="text-center">Action</TableHead>
+                              </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                          {userSchedule.map(table => {
+                              const dayInfo = conventionDays.find(d => d.name === table.day);
+                              const imageUrl = table.gameImageUrl || table.imageUrl;
+                              return (
+                                  <TableRow key={`schedule-${table.id}`}>
+                                  <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
+                                  <TableCell className="w-64 px-4 py-1">
+                                      {imageUrl ? (
+                                          <Image
+                                              src={imageUrl}
+                                              alt={`Image du jeu ${table.gameName}`}
+                                              width={256}
+                                              height={144}
+                                              className="rounded object-contain h-20 w-auto shadow-sm"
+                                              data-ai-hint="game cover"
+                                          />
+                                      ) : (
+                                          <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                                      )}
+                                  </TableCell>
+                                  <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day} {dayInfo?.date}</TableCell>
+                                  <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
+                                  <TableCell className="font-bold">
+                                      {table.gameName}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                          <Button
+                                          onClick={() => handleUnregister(table.id)}
+                                          size="sm"
+                                          variant="outline"
+                                          title="Se désinscrire de cette table"
+                                          disabled={isSubmittingRegistration || isLookingUpUser}
+                                          className="shadow-sm rounded-md"
+                                          >
+                                          {(isSubmittingRegistration || isLookingUpUser) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                          Se désinscrire
+                                          </Button>
+                                  </TableCell>
+                                  </TableRow>
+                              );
+                          })}
+                          </TableBody>
+                      </Table>
+                      ) : (
+                      <p className="text-muted-foreground text-center py-4">Vous n'êtes inscrit(e) à aucune table pour le moment.</p>
+                      )}
+                  </CardContent>
+                  </Card>
+              )}
+               {currentUser && currentUser.ticketType === 'Invitation' && (
+                   <Card className="mt-6 shadow-lg rounded-lg">
+                      <CardHeader>
+                          <CardTitle>Planning de {currentUser.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                          <p className="text-muted-foreground text-center py-4">Les détenteurs de billets 'Invitation' ne peuvent pas s'inscrire aux tables.</p>
+                      </CardContent>
+                   </Card>
+              )}
+            </>
+         )}
+
+          <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+              <AlertDialogContent>
+                  <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmation d'inscription</AlertDialogTitle>
+                      <AlertDialogDescription>
+                          Souhaitez-vous vraiment vous inscrire à la table du jeu : <strong className="text-foreground">{tableToConfirm?.gameName}</strong>
+                          {' '} ({tableToConfirm?.day} - {tableToConfirm?.timeSlot}) ?
+                      </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                      <AlertDialogCancel onClick={() => {
+                          setIsConfirmDialogOpen(false);
+                          setTableToConfirm(null);
+                      }} disabled={isSubmittingRegistration}>Annuler</AlertDialogCancel>
+                      <AlertDialogAction
+                          onClick={() => tableToConfirm && handleRegister(tableToConfirm.id)}
+                          disabled={isSubmittingRegistration}
+                      >
+                          {isSubmittingRegistration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Confirmer l'inscription
+                      </AlertDialogAction>
+                  </AlertDialogFooter>
+              </AlertDialogContent>
+          </AlertDialog>
       </div>
-
-
-       {isLoading && !tables.length ? (
-           <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]">
-             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-             <p className="ml-4 text-muted-foreground">Chargement des tables de jeu...</p>
-           </div>
-       ) : (
-          <>
-            <Tabs defaultValue={conventionDays[0].value} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 shadow-sm rounded-md">
-                {conventionDays.map(day => (
-                    <TabsTrigger key={day.value} value={day.value} disabled={isSubmittingRegistration || isLookingUpUser}>{day.name} {day.date}</TabsTrigger>
-                ))}
-                </TabsList>
-
-                {conventionDays.map(day => {
-                    const dayTables = tables
-                        .filter(table => table.day === day.name)
-                        .sort((a, b) => {
-                            const tableNumA_raw = a.tableNumber || '';
-                            const tableNumB_raw = b.tableNumber || '';
-
-                            const numA_parsed = parseFloat(tableNumA_raw);
-                            const numB_parsed = parseFloat(tableNumB_raw);
-
-                            const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw === numA_parsed.toString();
-                            const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw === numB_parsed.toString();
-
-                            if (isPurelyNumericA && isPurelyNumericB) {
-                                if (numA_parsed < numB_parsed) return -1;
-                                if (numA_parsed > numB_parsed) return 1;
-                            } else {
-                                const strA = tableNumA_raw.toLowerCase();
-                                const strB = tableNumB_raw.toLowerCase();
-                                if (strA < strB) return -1;
-                                if (strA > strB) return 1;
-                            }
-                            return a.timeSlot.localeCompare(b.timeSlot);
-                        });
-                    return (
-                        <TabsContent key={day.value} value={day.value}>
-                            <Card className="shadow-md rounded-lg">
-                                <CardHeader>
-                                    <CardTitle>Tables de jeu du {day.name} {day.date}</CardTitle>
-                                    <CardDescription>Jeux disponibles pour {day.name}. Priorité d'inscription : Stratège &gt; Maréchal &gt; Général.</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    {isLoading && tables.length > 0 && <div className="text-center py-4"><Loader2 className="inline h-6 w-6 animate-spin text-primary mr-2" />Chargement des tables...</div>}
-                                    {!isLoading && dayTables.length === 0 && <p className="text-muted-foreground text-center py-4">Aucune table disponible pour {day.name} {day.date}.</p>}
-                                    {!isLoading && dayTables.length > 0 && (
-                                        <Table>
-                                            <TableCaption>Liste des jeux disponibles le {day.name} {day.date}.</TableCaption>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="w-24 text-center">Table n°</TableHead>
-                                                    <TableHead className="w-64" />
-                                                    <TableHead>Jeu</TableHead>
-                                                    <TableHead>Auteur/Animateur</TableHead>
-                                                    <TableHead>Créneau horaire</TableHead>
-                                                    <TableHead className="text-left">Places disponibles</TableHead>
-                                                    <TableHead className="text-center">Action</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {dayTables.map((table) => {
-                                                    const availableSeats = getAvailableSeats(table.id, registrations, tables);
-                                                    const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
-                                                    const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex);
-                                                    const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
-                                                    const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
-
-                                                    const registrationsForThisTable = registrations.filter(r => r.tableId === table.id);
-                                                    const registeredParticipantDetails = registrationsForThisTable.map(reg => {
-                                                        return allParticipantsData.find(p => p.id === reg.userId);
-                                                    }).filter(p => p !== undefined) as Participant[];
-
-                                                    const occupiedSeatsCount = registeredParticipantDetails.length;
-                                                    const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
-
-
-                                                    let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration || isLookingUpUser;
-                                                    if (!isRegisteredByUser) {
-                                                        isDisabled = isDisabled || availableSeats <= 0 || (conflict && !isRegisteredByUser);
-                                                    }
-                                                     if (currentUser?.ticketType === 'Invitation') isDisabled = true;
-
-
-                                                    let buttonText = "S'inscrire";
-                                                    let buttonVariant: "default" | "secondary" | "destructive" = "default";
-                                                    let onClickAction = () => openConfirmationDialog(table);
-                                                    let tooltipText = "";
-                                                    let icon = null;
-                                                    let buttonSize: "sm" | "icon" = "sm";
-
-                                                    if (isSubmittingRegistration || isLookingUpUser) {
-                                                        buttonText = "Chargement...";
-                                                        buttonVariant = "secondary";
-                                                        icon = <Loader2 className="mr-2 h-4 w-4 animate-spin" />;
-                                                    } else if (isRegisteredByUser) {
-                                                        buttonText = "Inscrit(e)";
-                                                        buttonVariant = "secondary";
-                                                        onClickAction = () => handleUnregister(table.id);
-                                                        tooltipText = "Cliquez pour vous désinscrire";
-                                                        icon = <CheckCircle className="mr-2 h-4 w-4" />;
-                                                    } else if (!currentUser && availableSeats <=0) { // Condition for "Complet !"
-                                                        buttonText = "Complet !"; // This will be replaced by a badge below
-                                                        buttonVariant = "destructive"; 
-                                                        tooltipText = "Cette table est complète.";
-                                                    } else if (!currentUser) {
-                                                        tooltipText = "Connectez-vous pour vous inscrire";
-                                                        buttonText = "Connectez-vous";
-                                                        buttonVariant = "secondary";
-                                                    } else if (currentUser.ticketType === 'Invitation') {
-                                                        tooltipText = "Les détenteurs de billets 'Invitation' ne peuvent pas s'inscrire.";
-                                                        buttonText = "Indisponible";
-                                                        buttonVariant = "secondary";
-                                                        icon = <AlertCircle className="mr-2 h-4 w-4" />;
-                                                    } else if (!canRegisterNow) {
-                                                        tooltipText = `Inscription pas encore ouverte pour ${currentUser.ticketType}`;
-                                                        buttonText = "Indisponible";
-                                                        buttonVariant = "secondary";
-                                                        icon = <AlertCircle className="mr-2 h-4 w-4" />;
-                                                    } else if (conflict) {
-                                                        tooltipText = "Conflit avec votre planning";
-                                                        buttonText = ""; // No text for icon-only button
-                                                        buttonVariant = "destructive";
-                                                        icon = <Ban className="h-4 w-4" />;
-                                                        buttonSize = "icon";
-                                                    } else if (availableSeats <= 0) {
-                                                        tooltipText = "Table est complète";
-                                                        buttonText = "Complet";
-                                                        buttonVariant = "destructive";
-                                                        icon = <AlertCircle className="mr-2 h-4 w-4" />;
-                                                    } else {
-                                                        tooltipText = "Cliquez pour vous inscrire à cette table";
-                                                    }
-                                                    const imageUrl = table.gameImageUrl || table.imageUrl;
-                                                    return (
-                                                        <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
-                                                            <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
-                                                            <TableCell className="w-64 px-4 py-1">
-                                                                {imageUrl ? (
-                                                                    <Image
-                                                                        src={imageUrl}
-                                                                        alt={`Image du jeu ${table.gameName}`}
-                                                                        width={256}
-                                                                        height={144}
-                                                                        className="rounded object-contain h-20 w-auto shadow-sm"
-                                                                        data-ai-hint="game cover"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell className="font-bold">
-                                                                {table.gameName}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                {table.authorAnimator ? (
-                                                                    <span className="font-bold flex items-center">
-                                                                        <UserCircle2 className="inline h-4 w-4 mr-1 text-muted-foreground" />
-                                                                        {table.authorAnimator}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-muted-foreground italic">N/A</span>
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
-                                                            <TableCell className="text-left align-top">
-                                                                <ul className="list-none p-0 m-0 text-xs space-y-1">
-                                                                    {registeredParticipantDetails.map(participant => (
-                                                                        <li key={participant.id} className="flex items-center">
-                                                                            <UserCheck className="h-4 w-4 mr-1.5 text-green-600 flex-shrink-0" />
-                                                                            <span>{participant.prenom} {participant.nom}</span>
-                                                                        </li>
-                                                                    ))}
-                                                                    {Array.from({ length: freeSeatsCount }).map((_, i) => (
-                                                                        <li key={`free-${i}`} className="flex items-center">
-                                                                            <UserCircle2 className="h-4 w-4 mr-1.5 text-gray-400 flex-shrink-0" />
-                                                                            <span className="italic text-muted-foreground">Place libre</span>
-                                                                        </li>
-                                                                    ))}
-                                                                    {table.totalSeats === 0 && freeSeatsCount === 0 && registeredParticipantDetails.length === 0 && (
-                                                                        <li className="flex items-center">
-                                                                            <Info className="h-4 w-4 mr-1.5 text-blue-500 flex-shrink-0" />
-                                                                            <span className="italic text-muted-foreground">Aucune place définie</span>
-                                                                        </li>
-                                                                    )}
-                                                                </ul>
-                                                                {table.totalSeats > 0 && (
-                                                                    <p className="text-xs text-muted-foreground mt-1">
-                                                                        ({occupiedSeatsCount} / {table.totalSeats} occupées)
-                                                                    </p>
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                {(!currentUser && availableSeats <= 0) ? (
-                                                                    <Badge variant="destructive" title="Cette table est complète">Complet !</Badge>
-                                                                ) : (
-                                                                    <Button
-                                                                        onClick={onClickAction}
-                                                                        size={buttonSize}
-                                                                        variant={buttonVariant}
-                                                                        disabled={isDisabled || (!currentUser && availableSeats <=0)} 
-                                                                        aria-label={tooltipText || buttonText}
-                                                                        title={tooltipText || buttonText}
-                                                                        className="shadow-sm rounded-md"
-                                                                    >
-                                                                        {icon}
-                                                                        {buttonText}
-                                                                    </Button>
-                                                                )}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })}
-                                            </TableBody>
-                                        </Table>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        </TabsContent>
-                    )
-                })}
-            </Tabs>
-
-            {currentUser && currentUser.ticketType !== 'Invitation' && (
-                <Card className="mt-6 shadow-lg rounded-lg">
-                <CardHeader>
-                    <CardTitle>Planning de {currentUser.name}</CardTitle>
-                    <CardDescription>Tables auxquelles vous êtes actuellement inscrit(e).</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {userSchedule.length > 0 ? (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                            <TableHead className="w-24 text-center">Table n°</TableHead>
-                            <TableHead className="w-64" />
-                            <TableHead>Jour</TableHead>
-                            <TableHead>Créneau horaire</TableHead>
-                            <TableHead>Jeu</TableHead>
-                            <TableHead className="text-center">Action</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {userSchedule.map(table => {
-                            const dayInfo = conventionDays.find(d => d.name === table.day);
-                            const imageUrl = table.gameImageUrl || table.imageUrl;
-                            return (
-                                <TableRow key={`schedule-${table.id}`}>
-                                <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
-                                <TableCell className="w-64 px-4 py-1">
-                                    {imageUrl ? (
-                                        <Image
-                                            src={imageUrl}
-                                            alt={`Image du jeu ${table.gameName}`}
-                                            width={256}
-                                            height={144}
-                                            className="rounded object-contain h-20 w-auto shadow-sm"
-                                            data-ai-hint="game cover"
-                                        />
-                                    ) : (
-                                        <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
-                                    )}
-                                </TableCell>
-                                <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day} {dayInfo?.date}</TableCell>
-                                <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
-                                <TableCell className="font-bold">
-                                    {table.gameName}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                        <Button
-                                        onClick={() => handleUnregister(table.id)}
-                                        size="sm"
-                                        variant="outline"
-                                        title="Se désinscrire de cette table"
-                                        disabled={isSubmittingRegistration || isLookingUpUser}
-                                        className="shadow-sm rounded-md"
-                                        >
-                                        {(isSubmittingRegistration || isLookingUpUser) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Se désinscrire
-                                        </Button>
-                                </TableCell>
-                                </TableRow>
-                            );
-                        })}
-                        </TableBody>
-                    </Table>
-                    ) : (
-                    <p className="text-muted-foreground text-center py-4">Vous n'êtes inscrit(e) à aucune table pour le moment.</p>
-                    )}
-                </CardContent>
-                </Card>
-            )}
-             {currentUser && currentUser.ticketType === 'Invitation' && (
-                 <Card className="mt-6 shadow-lg rounded-lg">
-                    <CardHeader>
-                        <CardTitle>Planning de {currentUser.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-muted-foreground text-center py-4">Les détenteurs de billets 'Invitation' ne peuvent pas s'inscrire aux tables.</p>
-                    </CardContent>
-                 </Card>
-            )}
-          </>
-       )}
-
-        <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Confirmation d'inscription</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Souhaitez-vous vraiment vous inscrire à la table du jeu : <strong className="text-foreground">{tableToConfirm?.gameName}</strong>
-                        {' '} ({tableToConfirm?.day} - {tableToConfirm?.timeSlot}) ?
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => {
-                        setIsConfirmDialogOpen(false);
-                        setTableToConfirm(null);
-                    }} disabled={isSubmittingRegistration}>Annuler</AlertDialogCancel>
-                    <AlertDialogAction
-                        onClick={() => tableToConfirm && handleRegister(tableToConfirm.id)}
-                        disabled={isSubmittingRegistration}
-                    >
-                        {isSubmittingRegistration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Confirmer l'inscription
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    </div>
+    </TooltipProvider>
   );
 }
-
-    
-    
-
-    
