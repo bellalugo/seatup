@@ -37,7 +37,7 @@ import {
     getAllGameResults, // Import for Hall of Fame Live
 } from '@/lib/data';
 import type { GameTable, User, Registration, Participant, GameResult, TicketType } from '@/lib/types';
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks } from 'lucide-react';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban } from 'lucide-react';
 
 const conventionDays = [
     { name: 'Jeudi', date: '03/07', value: 'jeudi' },
@@ -611,17 +611,21 @@ export default function Home() {
                                                     let buttonVariant: "default" | "secondary" | "destructive" = "default";
                                                     let onClickAction = () => openConfirmationDialog(table);
                                                     let tooltipText = "";
+                                                    let icon = null;
+                                                    let buttonSize: "sm" | "icon" = "sm";
 
                                                     if (isSubmittingRegistration || isLookingUpUser) {
                                                         buttonText = "Chargement...";
                                                         buttonVariant = "secondary";
+                                                        icon = <Loader2 className="mr-2 h-4 w-4 animate-spin" />;
                                                     } else if (isRegisteredByUser) {
                                                         buttonText = "Inscrit(e)";
                                                         buttonVariant = "secondary";
                                                         onClickAction = () => handleUnregister(table.id);
                                                         tooltipText = "Cliquez pour vous désinscrire";
+                                                        icon = <CheckCircle className="mr-2 h-4 w-4" />;
                                                     } else if (!currentUser && availableSeats <=0) { // Condition for "Complet !"
-                                                        buttonText = "Complet !";
+                                                        buttonText = "Complet !"; // This will be replaced by a badge below
                                                         buttonVariant = "destructive"; 
                                                         tooltipText = "Cette table est complète.";
                                                     } else if (!currentUser) {
@@ -632,18 +636,23 @@ export default function Home() {
                                                         tooltipText = "Les détenteurs de billets 'Invitation' ne peuvent pas s'inscrire.";
                                                         buttonText = "Indisponible";
                                                         buttonVariant = "secondary";
+                                                        icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                     } else if (!canRegisterNow) {
                                                         tooltipText = `Inscription pas encore ouverte pour ${currentUser.ticketType}`;
                                                         buttonText = "Indisponible";
                                                         buttonVariant = "secondary";
+                                                        icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                     } else if (conflict) {
                                                         tooltipText = "Conflit avec votre planning";
-                                                        buttonText = "Conflit";
+                                                        buttonText = ""; // No text for icon-only button
                                                         buttonVariant = "destructive";
+                                                        icon = <Ban className="h-4 w-4" />;
+                                                        buttonSize = "icon";
                                                     } else if (availableSeats <= 0) {
                                                         tooltipText = "Table est complète";
                                                         buttonText = "Complet";
                                                         buttonVariant = "destructive";
+                                                        icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                     } else {
                                                         tooltipText = "Cliquez pour vous inscrire à cette table";
                                                     }
@@ -712,17 +721,14 @@ export default function Home() {
                                                                 ) : (
                                                                     <Button
                                                                         onClick={onClickAction}
-                                                                        size="sm"
+                                                                        size={buttonSize}
                                                                         variant={buttonVariant}
                                                                         disabled={isDisabled || (!currentUser && availableSeats <=0)} 
                                                                         aria-label={tooltipText || buttonText}
                                                                         title={tooltipText || buttonText}
                                                                         className="shadow-sm rounded-md"
                                                                     >
-                                                                        {(isSubmittingRegistration && (tableToConfirm?.id === table.id || isRegisteredByUser)) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                                        {isLookingUpUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                                        {!isSubmittingRegistration && !isLookingUpUser && isRegisteredByUser && <CheckCircle className="mr-2 h-4 w-4" />}
-                                                                        {!isSubmittingRegistration && !isLookingUpUser && !isRegisteredByUser && (availableSeats <= 0 || conflict || (currentUser?.ticketType === 'Invitation')) && !(!currentUser && availableSeats <=0) && <AlertCircle className="mr-2 h-4 w-4" />}
+                                                                        {icon}
                                                                         {buttonText}
                                                                     </Button>
                                                                 )}
