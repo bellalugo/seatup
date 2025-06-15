@@ -36,7 +36,7 @@ import {
     getParticipants,
     getAllGameResults, // Import for Hall of Fame Live
 } from '@/lib/data';
-import type { GameTable, User, Registration, Participant, GameResult } from '@/lib/types';
+import type { GameTable, User, Registration, Participant, GameResult, TicketType } from '@/lib/types';
 import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks } from 'lucide-react';
 
 const conventionDays = [
@@ -393,6 +393,21 @@ export default function Home() {
 
   const userSchedule = getUserSchedule();
 
+  const getTicketBadgeVariant = (ticketType: TicketType): "strategist" | "marshal" | "general" | "secondary" => {
+    switch (ticketType) {
+      case 'Stratège':
+        return 'strategist';
+      case 'Maréchal':
+        return 'marshal';
+      case 'Général':
+        return 'general';
+      case 'Invitation':
+        return 'secondary';
+      default:
+        return 'secondary'; // Should not happen with valid TicketType
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
@@ -437,8 +452,8 @@ export default function Home() {
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-accent/10 rounded-md">
                 <div>
                     <p className="font-semibold text-lg">Bienvenue, {currentUser.name} !</p>
-                    <Badge variant={currentUser.ticketType === 'Invitation' ? 'secondary' : 'default'} className="shadow-sm">
-                    Billet : {currentUser.ticketType}
+                    <Badge variant={getTicketBadgeVariant(currentUser.ticketType)} className="shadow-sm">
+                        Billet : {currentUser.ticketType}
                     </Badge>
                     <p className="text-xs text-muted-foreground mt-1">Email: {currentUser.email}</p>
                 </div>
@@ -836,4 +851,6 @@ export default function Home() {
 }
 
     
+    
+
     
