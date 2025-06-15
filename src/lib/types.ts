@@ -12,7 +12,7 @@ export interface User {
 
 // Represents a game entity from the "games" collection
 export interface Game {
-  id: string;
+  id:string;
   nom: string; // Name of the game
   description: string;
   imageUrl: string; // URL for the game's image
@@ -63,9 +63,6 @@ export interface Registration {
   timestamp?: Date; // Optional: timestamp of registration
 }
 
-// Define registration phases based on ticket priority
-export const registrationPhases: TicketType[] = ['Stratège', 'Maréchal', 'Général'];
-
 // Represents a participant fetched from Billetweb and stored in Firestore
 export interface Participant {
   id: string; // Billetweb ID or unique ID from Billetweb, used as Firestore document ID
@@ -82,3 +79,17 @@ export interface GameResult {
   playersInGame: number; // Number of participants who played in this game session
   timestamp?: Date; // Optional: when the result was recorded
 }
+
+// Define registration phases with specific start dates
+export interface RegistrationPhase {
+  ticketType: TicketType;
+  name: string; // User-friendly name of the phase/ticket
+  startDate: Date; // The date and time when this phase opens (UTC)
+  description: string; // Description for display on the page
+}
+
+export const REGISTRATION_SCHEDULE: RegistrationPhase[] = [
+  { ticketType: 'Stratège', name: 'Stratège', startDate: new Date('2024-06-20T00:00:00Z'), description: "Ouverture pour billets Stratège" },
+  { ticketType: 'Maréchal', name: 'Maréchal', startDate: new Date('2024-06-22T00:00:00Z'), description: "Ouverture pour billets Maréchal et Stratège" },
+  { ticketType: 'Général', name: 'Général', startDate: new Date('2024-06-24T00:00:00Z'), description: "Ouverture pour billets Général, Maréchal et Stratège" },
+];

@@ -23,7 +23,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Import Tooltip components
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import {
     getGameTables,
@@ -33,12 +33,12 @@ import {
     getAvailableSeats,
     hasTimeConflict,
     canRegisterBasedOnTicket,
-    registrationPhases as importedRegistrationPhases,
     getParticipantByEmail,
     getParticipants,
-    getAllGameResults, // Import for Hall of Fame Live
+    getAllGameResults,
 } from '@/lib/data';
-import type { GameTable, User, Registration, Participant, GameResult, TicketType } from '@/lib/types';
+import type { GameTable, User, Registration, Participant, GameResult, TicketType, RegistrationPhase } from '@/lib/types';
+import { REGISTRATION_SCHEDULE } from '@/lib/types'; // Import new schedule
 import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban } from 'lucide-react';
 
 const conventionDays = [
@@ -48,7 +48,6 @@ const conventionDays = [
     { name: 'Dimanche', date: '06/07', value: 'dimanche' }
 ];
 
-// Simplified types for live ranking, adapted from HallOfFamePage
 const conventionDayNames = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
 type ConventionDay = typeof conventionDayNames[number];
 
@@ -61,6 +60,38 @@ interface RankedLivePlayer extends LivePlayerScore {
   rank: number;
 }
 
+const getCurrentRegistrationPhaseDisplay = (currentDate: Date = new Date()): string => {
+  let displayMessage = "Les inscriptions ne sont pas encore ouvertes.";
+  let applicablePhase: RegistrationPhase | null = null;
+
+  // Iterate backwards to find the latest applicable phase that has started
+  // Assumes REGISTRATION_SCHEDULE is sorted by startDate
+  for (let i = REGISTRATION_SCHEDULE.length - 1; i >= 0; i--) {
+    if (currentDate >= REGISTRATION_SCHEDULE[i].startDate) {
+      applicablePhase = REGISTRATION_SCHEDULE[i];
+      break;
+    }
+  }
+
+  if (applicablePhase) {
+    displayMessage = applicablePhase.description;
+    const currentIndex = REGISTRATION_SCHEDULE.findIndex(p => p.ticketType === applicablePhase!.ticketType);
+    if (currentIndex !== -1 && currentIndex + 1 < REGISTRATION_SCHEDULE.length) {
+        const nextPhase = REGISTRATION_SCHEDULE[currentIndex + 1];
+        displayMessage += `. Prochaine ouverture : ${nextPhase.name} le ${nextPhase.startDate.toLocaleDateString('fr-FR')}.`;
+    } else {
+        displayMessage += ". Toutes les phases sont ouvertes.";
+    }
+  } else {
+    // If no phase has started, find the very first phase for "next up" message
+    if (REGISTRATION_SCHEDULE.length > 0) {
+      const firstPhase = REGISTRATION_SCHEDULE[0];
+      displayMessage = `Inscriptions fermées. Prochaine ouverture : ${firstPhase.name} le ${firstPhase.startDate.toLocaleDateString('fr-FR')}.`;
+    }
+  }
+  return displayMessage;
+};
+
 
 export default function Home() {
   const [tables, setTables] = useState<GameTable[]>([]);
@@ -70,11 +101,10 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
-  const [currentRegistrationPhaseIndex, setCurrentRegistrationPhaseIndex] = useState(0);
+  // currentRegistrationPhaseIndex is removed
   const [tableToConfirm, setTableToConfirm] = useState<GameTable | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const { toast } = useToast();
-  const registrationPhases = importedRegistrationPhases;
 
   const [emailInput, setEmailInput] = useState('');
   const [isLookingUpUser, setIsLookingUpUser] = useState(false);
@@ -82,6 +112,7 @@ export default function Home() {
   const [currentLiveConventionDay, setCurrentLiveConventionDay] = useState<ConventionDay | null>(null);
   const [topPlayersToday, setTopPlayersToday] = useState<RankedLivePlayer[]>([]);
   const [isLoadingLiveHof, setIsLoadingLiveHof] = useState(true);
+  const [currentPhaseMessage, setCurrentPhaseMessage] = useState('');
 
 
   const loadPageData = useCallback(async () => {
@@ -102,6 +133,9 @@ export default function Home() {
       fetchedGameResults.forEach(result => resultsMap.set(result.tableId, result));
       setGameResultsData(resultsMap);
 
+      setCurrentPhaseMessage(getCurrentRegistrationPhaseDisplay());
+
+
     } catch (error) {
       console.error("Échec du chargement des données de la page:", error);
       toast({
@@ -111,50 +145,30 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
-      // Live HoF loading will be set to false after calculations
     }
   }, [toast]);
 
   useEffect(() => {
     loadPageData();
+    // Removed useEffect for phase timers
   }, [loadPageData]);
 
+   // Effect to update phase message periodically if needed, or on specific events
    useEffect(() => {
-    const phaseTimer1 = setTimeout(() => {
-      setCurrentRegistrationPhaseIndex(1);
-    }, 15000);
-
-    const phaseTimer2 = setTimeout(() => {
-      setCurrentRegistrationPhaseIndex(2);
-    }, 30000);
-
-    return () => {
-        clearTimeout(phaseTimer1);
-        clearTimeout(phaseTimer2);
-    }
+    const interval = setInterval(() => {
+      setCurrentPhaseMessage(getCurrentRegistrationPhaseDisplay());
+    }, 60000); // Update every minute, for example
+    return () => clearInterval(interval);
   }, []);
+
 
   // Effect for Live Hall of Fame
   useEffect(() => {
-    if (isLoading) return; // Wait for main data to load
+    if (isLoading) return; 
 
     setIsLoadingLiveHof(true);
     
-    // --- TEMPORARY MODIFICATION FOR VISUALIZATION ---
-    // Force a specific day to see the live HoF in action.
-    // Replace 'Jeudi' with any other conventionDay.name if needed.
-    // REMEMBER TO REVERT THIS for production to use the actual current date.
-    const liveDayName: ConventionDay | null = 'Jeudi'; // conventionDays[0].name as ConventionDay; 
-    // const today = new Date();
-    // // For simplicity, using DD/MM matching. A robust solution would handle year.
-    // const day = String(today.getDate()).padStart(2, '0');
-    // const month = String(today.getMonth() + 1).padStart(2, '0'); // JS months are 0-indexed
-    // const formattedToday = `${day}/${month}`;
-
-    // const activeDayEntry = conventionDays.find(d => d.date === formattedToday);
-    // const liveDayName = activeDayEntry ? activeDayEntry.name as ConventionDay : null;
-    // --- END OF TEMPORARY MODIFICATION ---
-
+    const liveDayName: ConventionDay | null = 'Jeudi'; 
     setCurrentLiveConventionDay(liveDayName);
 
     if (liveDayName && allParticipantsData.length > 0 && tables.length > 0 && gameResultsData.size > 0) {
@@ -176,9 +190,9 @@ export default function Home() {
 
         Array.from(gameResultsData.values()).forEach(result => {
             const table = gameTablesMap.get(result.tableId);
-            if (!table || table.day !== liveDayName) return; // Only consider results for the current live day
+            if (!table || table.day !== liveDayName) return; 
 
-            const pointsPerWin = result.playersInGame >= 5 ? 2 : 1; // Condition changed to >= 5
+            const pointsPerWin = result.playersInGame >= 5 ? 2 : 1; 
 
             result.winnerIds.forEach(winnerId => {
                 const playerData = playerScoresMap.get(winnerId);
@@ -189,14 +203,11 @@ export default function Home() {
             });
             
              registrations.forEach(reg => {
-                if (reg.tableId === result.tableId) { // Check if this registration belongs to the game result's table
+                if (reg.tableId === result.tableId) { 
                     const tableOfRegistration = gameTablesMap.get(reg.tableId);
-                    // Ensure this game was played on the current liveDayName
                     if (tableOfRegistration && tableOfRegistration.day === liveDayName) {
                         const playerData = playerScoresMap.get(reg.userId);
                         if (playerData) {
-                            // Check if this game is among those in gameResultsData for *this* liveDayName
-                            // This ensures we only count games for the specific liveDayName
                             if (gameResultsData.has(reg.tableId) && gameTablesMap.get(reg.tableId)?.day === liveDayName) {
                                 playerData.gamesPlayedToday +=1;
                             }
@@ -207,9 +218,9 @@ export default function Home() {
         });
 
         const rankedToday = Array.from(playerScoresMap.values())
-            .filter(p => p.score > 0 || p.winsToday > 0) // Consider players with score or wins today
+            .filter(p => p.score > 0 || p.winsToday > 0) 
             .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
-            .slice(0, 5) // Top 5
+            .slice(0, 5) 
             .map((player, index) => ({
                 id: player.id,
                 name: player.name,
@@ -265,11 +276,16 @@ export default function Home() {
       return;
     }
 
-    if (!canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex)) {
+    if (!canRegisterBasedOnTicket(currentUser.ticketType)) {
+       const userPhase = REGISTRATION_SCHEDULE.find(p => p.ticketType === currentUser.ticketType);
+       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas encore ouverte.`;
+       if (userPhase) {
+         description = `L'inscription pour votre type de billet (${currentUser.ticketType}) ouvrira le ${userPhase.startDate.toLocaleDateString('fr-FR')}. Phase actuelle: ${currentPhaseMessage}`;
+       }
        toast({
         variant: "destructive",
-        title: "Inscription pas encore ouverte",
-        description: `L'inscription pour votre type de billet (${currentUser.ticketType}) ouvre plus tard. Phase actuelle : ${registrationPhases[currentRegistrationPhaseIndex]}.`,
+        title: "Inscription non disponible",
+        description: description,
       });
       return;
     }
@@ -309,11 +325,16 @@ export default function Home() {
       return;
     }
 
-    if (!canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex)) {
+    if (!canRegisterBasedOnTicket(currentUser.ticketType)) {
+       const userPhase = REGISTRATION_SCHEDULE.find(p => p.ticketType === currentUser.ticketType);
+       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas encore ouverte.`;
+       if (userPhase) {
+         description = `L'inscription pour votre type de billet (${currentUser.ticketType}) ouvrira le ${userPhase.startDate.toLocaleDateString('fr-FR')}. Phase actuelle: ${currentPhaseMessage}`;
+       }
        toast({
         variant: "destructive",
-        title: "Inscription pas encore ouverte",
-        description: `L'inscription pour votre type de billet (${currentUser.ticketType}) ouvre plus tard. Phase actuelle : ${registrationPhases[currentRegistrationPhaseIndex]}.`,
+        title: "Inscription non disponible",
+        description: description,
       });
       return;
     }
@@ -412,10 +433,9 @@ export default function Home() {
   };
 
   return (
-    <TooltipProvider> {/* Wrap with TooltipProvider for tooltips to work */}
+    <TooltipProvider> 
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
-          {/* Column 1: Connexion Participant & Infos */}
           <Card className="shadow-lg rounded-lg h-full flex flex-col">
               <CardHeader>
               <div className="flex flex-row items-center justify-between">
@@ -467,13 +487,12 @@ export default function Home() {
                   </Button>
                   </div>
               )}
-              <Badge variant="outline" className="shadow-sm mt-2">
-                  Phase d'inscription actuelle : <span className="font-semibold ml-1">{registrationPhases[currentRegistrationPhaseIndex]}</span>
+              <Badge variant="outline" className="shadow-sm mt-2 text-xs">
+                 {currentPhaseMessage || 'Chargement des phases...'}
               </Badge>
               </CardContent>
           </Card>
 
-          {/* Column 2: Hall of Fame - En Direct */}
           <Card className="shadow-lg rounded-lg h-full flex flex-col">
               <CardHeader>
                   <div className="flex items-center justify-between">
@@ -568,7 +587,7 @@ export default function Home() {
                               <Card className="shadow-md rounded-lg">
                                   <CardHeader>
                                       <CardTitle>Tables de jeu du {day.name} {day.date}</CardTitle>
-                                      <CardDescription>Jeux disponibles pour {day.name}. Priorité d'inscription : Stratège &gt; Maréchal &gt; Général.</CardDescription>
+                                      <CardDescription>Jeux disponibles pour {day.name}.</CardDescription>
                                   </CardHeader>
                                   <CardContent>
                                       {isLoading && tables.length > 0 && <div className="text-center py-4"><Loader2 className="inline h-6 w-6 animate-spin text-primary mr-2" />Chargement des tables...</div>}
@@ -591,7 +610,7 @@ export default function Home() {
                                                   {dayTables.map((table) => {
                                                       const availableSeats = getAvailableSeats(table.id, registrations, tables);
                                                       const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
-                                                      const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex);
+                                                      const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType);
                                                       const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
                                                       const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
 
@@ -603,13 +622,11 @@ export default function Home() {
                                                       const occupiedSeatsCount = registeredParticipantDetails.length;
                                                       const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
 
-
                                                       let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration || isLookingUpUser;
                                                       if (!isRegisteredByUser) {
                                                           isDisabled = isDisabled || availableSeats <= 0 || (conflict && !isRegisteredByUser);
                                                       }
                                                        if (currentUser?.ticketType === 'Invitation') isDisabled = true;
-
 
                                                       let buttonText = "S'inscrire";
                                                       let buttonVariant: "default" | "secondary" | "destructive" = "default";
@@ -629,10 +646,10 @@ export default function Home() {
                                                           tooltipText = "Cliquez pour vous désinscrire";
                                                           icon = <CheckCircle className="mr-2 h-4 w-4" />;
                                                       } else if (!currentUser && availableSeats <=0) {
-                                                          buttonText = "Complet !"; // Will be replaced by a badge below
+                                                          buttonText = "Complet !"; 
                                                           buttonVariant = "destructive"; 
                                                           tooltipText = "Cette table est complète.";
-                                                          onClickAction = undefined; // Not clickable
+                                                          onClickAction = undefined; 
                                                       } else if (!currentUser) {
                                                           tooltipText = "Connectez-vous pour vous inscrire";
                                                           buttonText = "Connectez-vous";
@@ -643,12 +660,13 @@ export default function Home() {
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                       } else if (!canRegisterNow) {
-                                                          tooltipText = `Inscription pas encore ouverte pour ${currentUser.ticketType}`;
+                                                          const userPhase = REGISTRATION_SCHEDULE.find(p => p.ticketType === currentUser.ticketType);
+                                                          tooltipText = `Inscription pour ${currentUser.ticketType} ouvre le ${userPhase?.startDate.toLocaleDateString('fr-FR') || 'plus tard'}`;
                                                           buttonText = "Indisponible";
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                       } else if (conflict) {
-                                                          renderAsIconOnly = true; // Flag to render just the icon
+                                                          renderAsIconOnly = true; 
                                                           tooltipText = "Conflit avec votre planning";
                                                       } else if (availableSeats <= 0) {
                                                           tooltipText = "Table est complète";
@@ -869,4 +887,3 @@ export default function Home() {
     </TooltipProvider>
   );
 }
-

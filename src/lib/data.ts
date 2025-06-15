@@ -1,6 +1,6 @@
 
 import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult } from '@/lib/types';
-import { registrationPhases as importedRegistrationPhases } from '@/lib/types';
+import { REGISTRATION_SCHEDULE } from '@/lib/types'; // Import new schedule
 import { db } from '@/firebase/clientApp';
 import {
     collection,
@@ -24,7 +24,7 @@ export const mockUsers: Record<string, User> = {
   'user-000': { id: 'user-000', name: 'David (Invitation)', ticketType: 'Invitation', email: 'david@example.com' },
 };
 
-export const registrationPhases = importedRegistrationPhases;
+// Removed old registrationPhases export, REGISTRATION_SCHEDULE from types.ts is now used.
 
 const GAMES_COLLECTION = 'games';
 const TABLES_COLLECTION = 'gameTables';
@@ -252,14 +252,10 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
             batch.delete(gameResultRef);
         }
 
-        // Check for registrations (optional: you might want to prevent deletion if registrations exist,
-        // or handle them as needed. Current logic from previous step is to throw an error if regs exist.)
         const registrationsQuery = query(collection(db, REGISTRATIONS_COLLECTION), where("tableId", "==", tableId));
         const registrationsSnapshot = await getDocs(registrationsQuery);
 
         if (registrationsSnapshot.docs.length > 0) {
-             // If you want to delete registrations along with the table, uncomment the next lines:
-             // registrationsSnapshot.docs.forEach(regDoc => batch.delete(regDoc.ref));
             throw new Error(`La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée (ou les inscriptions doivent être supprimées manuellement/automatiquement).`);
         }
 
@@ -489,12 +485,12 @@ export const saveGameResult = async (tableId: string, winnerIds: string[], playe
     try {
         const gameResultRef = doc(db, GAME_RESULTS_COLLECTION, tableId);
         const resultData: GameResult = {
-            tableId, // Storing tableId also in the document for easier querying if needed, though doc ID is tableId
+            tableId, 
             winnerIds,
             playersInGame,
             timestamp: new Date(),
         };
-        await setDoc(gameResultRef, resultData, { merge: true }); // Use setDoc with merge to create or update
+        await setDoc(gameResultRef, resultData, { merge: true }); 
         return resultData;
     } catch (error) {
         console.error("Firestore - Erreur lors de la sauvegarde du résultat du jeu:", error);
@@ -571,11 +567,18 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
     });
 };
 
-export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentPhaseIndex: number): boolean => {
-    if (userTicketType === 'Invitation') return false;
-    const userPhaseIndex = importedRegistrationPhases.indexOf(userTicketType);
-    return userPhaseIndex !== -1 && userPhaseIndex <= currentPhaseIndex;
+export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentDate: Date = new Date()): boolean => {
+  if (userTicketType === 'Invitation') return false;
+
+  const userPhaseDefinition = REGISTRATION_SCHEDULE.find(phase => phase.ticketType === userTicketType);
+
+  if (!userPhaseDefinition) {
+    console.warn(`Aucune phase d'inscription définie pour le type de billet : ${userTicketType}`);
+    return false;
+  }
+  return currentDate >= userPhaseDefinition.startDate;
 };
+
 
 // Helper for deleteGameTable toast, not exported
 const toast = (options: any) => {
