@@ -214,8 +214,6 @@ export default function Home() {
 
     setIsSubmittingRegistration(true);
     try {
-        // IMPORTANT: For addRegistrationToDb, ensure currentUser.id is the Firebase Auth UID if using real auth.
-        // For now, it's the participant's Firestore ID. This needs alignment if full Firebase Auth is added for users.
         await addRegistrationToDb(currentUser.id, tableId);
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
@@ -332,8 +330,8 @@ export default function Home() {
         </CardContent>
       </Card>
 
-       {isLoading && !tables.length ? ( // Show loader only on initial full load
-           <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]"> {/* Adjusted height */}
+       {isLoading && !tables.length ? ( 
+           <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]"> 
              <Loader2 className="h-12 w-12 animate-spin text-primary" />
              <p className="ml-4 text-muted-foreground">Chargement des tables de jeu...</p>
            </div>
@@ -424,6 +422,8 @@ export default function Home() {
                                                         onClickAction = () => handleUnregister(table.id);
                                                         tooltipText = "Cliquez pour vous désinscrire";
                                                     } else if (!currentUser) {
+                                                        // This case is now only hit if !currentUser AND availableSeats > 0
+                                                        // due to the new conditional rendering for the "Complet !" badge.
                                                         tooltipText = "Connectez-vous pour vous inscrire";
                                                         buttonText = "Connectez-vous";
                                                         buttonVariant = "secondary";
@@ -439,7 +439,7 @@ export default function Home() {
                                                         tooltipText = "Conflit avec votre planning";
                                                         buttonText = "Conflit";
                                                         buttonVariant = "destructive";
-                                                    } else if (availableSeats <= 0) {
+                                                    } else if (availableSeats <= 0) { // User is logged in, table is full
                                                         tooltipText = "Table est complète";
                                                         buttonText = "Complet";
                                                         buttonVariant = "destructive";
@@ -490,21 +490,25 @@ export default function Home() {
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell className="text-center">
-                                                                <Button
-                                                                    onClick={onClickAction}
-                                                                    size="sm"
-                                                                    variant={buttonVariant}
-                                                                    disabled={isDisabled}
-                                                                    aria-label={tooltipText || buttonText}
-                                                                    title={tooltipText || buttonText}
-                                                                    className="shadow-sm rounded-md"
-                                                                >
-                                                                    {(isSubmittingRegistration && (tableToConfirm?.id === table.id || isRegisteredByUser)) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                                    {isLookingUpUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                                    {!isSubmittingRegistration && !isLookingUpUser && isRegisteredByUser && <CheckCircle className="mr-2 h-4 w-4" />}
-                                                                    {!isSubmittingRegistration && !isLookingUpUser && !isRegisteredByUser && (availableSeats <= 0 || conflict || (currentUser?.ticketType === 'Invitation')) && <AlertCircle className="mr-2 h-4 w-4" />}
-                                                                    {buttonText}
-                                                                </Button>
+                                                                {(!currentUser && availableSeats <= 0) ? (
+                                                                    <Badge variant="destructive" title="Cette table est complète">Complet !</Badge>
+                                                                ) : (
+                                                                    <Button
+                                                                        onClick={onClickAction}
+                                                                        size="sm"
+                                                                        variant={buttonVariant}
+                                                                        disabled={isDisabled}
+                                                                        aria-label={tooltipText || buttonText}
+                                                                        title={tooltipText || buttonText}
+                                                                        className="shadow-sm rounded-md"
+                                                                    >
+                                                                        {(isSubmittingRegistration && (tableToConfirm?.id === table.id || isRegisteredByUser)) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                                        {isLookingUpUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                                        {!isSubmittingRegistration && !isLookingUpUser && isRegisteredByUser && <CheckCircle className="mr-2 h-4 w-4" />}
+                                                                        {!isSubmittingRegistration && !isLookingUpUser && !isRegisteredByUser && (availableSeats <= 0 || conflict || (currentUser?.ticketType === 'Invitation')) && <AlertCircle className="mr-2 h-4 w-4" />}
+                                                                        {buttonText}
+                                                                    </Button>
+                                                                )}
                                                             </TableCell>
                                                         </TableRow>
                                                     );
