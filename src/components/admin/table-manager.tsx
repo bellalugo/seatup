@@ -39,6 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from '@/hooks/use-toast';
 import {
   getGameTables,
@@ -53,7 +54,7 @@ import {
   removeRegistration as removeRegistrationFromDb,
 } from '@/lib/data';
 import type { GameTable, GameTableInput, Registration, Game, Participant } from '@/lib/types';
-import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users } from 'lucide-react';
+import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy } from 'lucide-react';
 import GameManager from './game-manager';
 
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
@@ -87,12 +88,20 @@ export default function ConventionManager() {
   const [selectedParticipantToAdd, setSelectedParticipantToAdd] = useState<string>('');
   const [isManagingParticipant, setIsManagingParticipant] = useState(false);
 
-
   const [tableToDelete, setTableToDelete] = useState<GameTable | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
   
   const [tableFormData, setTableFormData] = useState<GameTableInput>(defaultTableFormData);
   const { toast } = useToast();
+
+  // State for "Partie en cours" and winner selection
+  const [inProgressTables, setInProgressTables] = useState<Map<string, boolean>>(new Map());
+  const [tableWinners, setTableWinners] = useState<Map<string, string[]>>(new Map()); // Map tableId to array of winner participantIds
+  const [isWinnerSelectDialogOpen, setIsWinnerSelectDialogOpen] = useState(false);
+  const [currentTableForWinnerSelection, setCurrentTableForWinnerSelection] = useState<GameTable | null>(null);
+  const [participantsForWinnerDialog, setParticipantsForWinnerDialog] = useState<Participant[]>([]);
+  const [selectedWinnerIdsInDialog, setSelectedWinnerIdsInDialog] = useState<string[]>([]);
+
 
   const fetchTableData = useCallback(async (setPageLoadingState = true) => {
     if (setPageLoadingState) setIsLoadingTables(true);
@@ -187,7 +196,7 @@ export default function ConventionManager() {
   };
 
   const handleDuplicateTable = (table: GameTable) => {
-    setEditingTable(null); // Not editing, but duplicating
+    setEditingTable(null); 
     setTableFormData({
       gameId: table.gameId,
       day: table.day, 
@@ -196,7 +205,7 @@ export default function ConventionManager() {
       tableNumber: '', 
       authorAnimator: table.authorAnimator || undefined,
     });
-    setCurrentTableRegistrants([]); // New table starts with no registrants
+    setCurrentTableRegistrants([]); 
     setSelectableParticipantsForDialog(allParticipantsData.filter(p => p.typeBillet !== 'Invitation'));
     setIsTableDialogOpen(true);
     toast({
@@ -227,7 +236,7 @@ export default function ConventionManager() {
         } else {
             await deleteGameTable(tableToDelete.id); 
             toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) a été supprimée avec succès.` });
-            fetchTableData(false); // Refresh data without full load
+            fetchTableData(false); 
         }
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
@@ -276,19 +285,18 @@ export default function ConventionManager() {
         if (editingTable) {
             await updateGameTable({ ...payload, id: editingTable.id });
             toast({ title: "Table mise à jour", description: "Détails de la table de jeu enregistrés." });
-        } else { // Adding a new table
+        } else { 
             const newTable = await addGameTable(payload);
-            setEditingTable(newTable); // Set editingTable to allow participant management on new tables
+            setEditingTable(newTable); 
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée avec succès. Vous pouvez maintenant gérer les participants." });
         }
         await fetchTableData(false); 
-        // Keep dialog open if it was an add, or if editingTable is set. Close if not editing anything new.
-        if (!editingTable && !payload.id) { // This condition might need refinement
+        
+        if (!editingTable && !payload.id) { 
              setIsTableDialogOpen(false);
              setEditingTable(null);
              setTableFormData(defaultTableFormData);
         } else if (editingTable) {
-            // Refresh registrants for the dialog if it's still open for the same table
              fetchRegistrantsForDialog(editingTable.id);
         }
 
@@ -314,8 +322,8 @@ export default function ConventionManager() {
         await addRegistrationToDb(selectedParticipantToAdd, editingTable.id);
         toast({title: "Participant ajouté", description: "Le participant a été inscrit à la table."});
         setSelectedParticipantToAdd('');
-        await fetchTableData(false); // Refresh main list
-        fetchRegistrantsForDialog(editingTable.id); // Refresh dialog list
+        await fetchTableData(false); 
+        fetchRegistrantsForDialog(editingTable.id); 
     } catch (error) {
         toast({variant: "destructive", title: "Erreur d'ajout", description: (error as Error).message});
     } finally {
@@ -329,14 +337,65 @@ export default function ConventionManager() {
     try {
         await removeRegistrationFromDb(participantId, editingTable.id);
         toast({title: "Participant désinscrit", description: "Le participant a été retiré de la table."});
-        await fetchTableData(false); // Refresh main list
-        fetchRegistrantsForDialog(editingTable.id); // Refresh dialog list
+        await fetchTableData(false); 
+        fetchRegistrantsForDialog(editingTable.id); 
     } catch (error) {
         toast({variant: "destructive", title: "Erreur de désinscription", description: (error as Error).message});
     } finally {
         setIsManagingParticipant(false);
     }
   };
+
+  const toggleGameInProgress = (tableId: string) => {
+    setInProgressTables(prev => {
+      const newMap = new Map(prev);
+      newMap.set(tableId, !newMap.get(tableId));
+      if (!newMap.get(tableId)) { // If game is no longer in progress
+        // Optionally clear winners if game is ended
+        // setTableWinners(prevWinners => {
+        //   const newWinners = new Map(prevWinners);
+        //   newWinners.delete(tableId);
+        //   return newWinners;
+        // });
+      }
+      return newMap;
+    });
+  };
+
+  const handleOpenWinnerDialog = (table: GameTable) => {
+    setCurrentTableForWinnerSelection(table);
+    const regsForTable = registrations.filter(r => r.tableId === table.id);
+    const registrantIds = regsForTable.map(r => r.userId);
+    const registrantsDetails = allParticipantsData.filter(p => registrantIds.includes(p.id));
+    setParticipantsForWinnerDialog(registrantsDetails);
+    setSelectedWinnerIdsInDialog(tableWinners.get(table.id) || []);
+    setIsWinnerSelectDialogOpen(true);
+  };
+
+  const handleWinnerSelectionInDialog = (participantId: string) => {
+    setSelectedWinnerIdsInDialog(prev => {
+      if (prev.includes(participantId)) {
+        return prev.filter(id => id !== participantId);
+      } else {
+        return [...prev, participantId];
+      }
+    });
+  };
+
+  const handleConfirmWinners = () => {
+    if (currentTableForWinnerSelection) {
+      setTableWinners(prev => {
+        const newMap = new Map(prev);
+        newMap.set(currentTableForWinnerSelection.id, selectedWinnerIdsInDialog);
+        return newMap;
+      });
+      toast({ title: "Vainqueur(s) enregistré(s)", description: `Les vainqueurs pour la table ${currentTableForWinnerSelection.tableNumber} ont été mis à jour.`});
+    }
+    setIsWinnerSelectDialogOpen(false);
+    setCurrentTableForWinnerSelection(null);
+    setSelectedWinnerIdsInDialog([]);
+  };
+
 
   const renderTableManagerContent = () => {
     if (isLoadingTables) {
@@ -371,7 +430,6 @@ export default function ConventionManager() {
                 {editingTable ? `Gestion des détails et des participants pour la table N° ${editingTable.tableNumber} - ${editingTable.gameName}.` : 'Entrez les détails de la nouvelle table de jeu.'}
               </DialogDescription>
             </DialogHeader>
-            {/* Form for Table Details */}
             <form onSubmit={handleTableDetailsSubmit} className="space-y-4 max-h-[calc(80vh-150px)] overflow-y-auto pr-2">
               <fieldset className="grid grid-cols-1 gap-4 py-4 border p-4 rounded-md">
                 <legend className="text-sm font-medium px-1">Détails de la table</legend>
@@ -418,7 +476,7 @@ export default function ConventionManager() {
                     <Label htmlFor="totalSeats" className="text-right">Places</Label>
                     <Input id="totalSeats" name="totalSeats" type="number" value={tableFormData.totalSeats} onChange={handleTableNonSelectInputChange} className="col-span-3 rounded-md shadow-sm" min="1" required disabled={isSubmittingTable} />
                  </div>
-                 <DialogFooter className="pt-2"> {/* This footer is part of the fieldset's grid */}
+                 <DialogFooter className="pt-2"> 
                     <Button type="submit" disabled={isSubmittingTable || allGames.length === 0} className="shadow-sm rounded-md">
                         {isSubmittingTable && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {editingTable ? 'Enregistrer Détails Table' : 'Ajouter et Continuer'}
@@ -427,13 +485,11 @@ export default function ConventionManager() {
               </fieldset>
             </form>
 
-            {/* Participant Management Section (only if editingTable exists) */}
             {editingTable && (
             <div className="space-y-4 mt-4 border p-4 rounded-md max-h-[calc(80vh-350px)] overflow-y-auto pr-2">
                 <h3 className="text-md font-medium">Gestion des Participants ({currentTableRegistrants.length} / {tableFormData.totalSeats} inscrits)</h3>
                 <Separator />
                 
-                {/* List of current registrants */}
                 {currentTableRegistrants.length > 0 ? (
                     <div className="space-y-2">
                         <Label>Participants inscrits :</Label>
@@ -452,7 +508,6 @@ export default function ConventionManager() {
                     <p className="text-sm text-muted-foreground">Aucun participant inscrit à cette table.</p>
                 )}
 
-                {/* Add new participant section */}
                 {currentTableRegistrants.length < tableFormData.totalSeats && (
                     <div className="space-y-2 pt-2">
                         <Label htmlFor="add-participant-select">Ajouter un participant :</Label>
@@ -521,6 +576,48 @@ export default function ConventionManager() {
             </AlertDialogContent>
         </AlertDialog>
 
+        {/* Dialog for Winner Selection */}
+        <Dialog open={isWinnerSelectDialogOpen} onOpenChange={(open) => {
+            setIsWinnerSelectDialogOpen(open);
+            if (!open) {
+                setCurrentTableForWinnerSelection(null);
+                setSelectedWinnerIdsInDialog([]);
+            }
+        }}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Désigner Vainqueur(s) pour Table {currentTableForWinnerSelection?.tableNumber}</DialogTitle>
+                    <DialogDescription>
+                        Sélectionnez le(s) vainqueur(s) parmi les participants inscrits.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto">
+                    {participantsForWinnerDialog.length > 0 ? (
+                        participantsForWinnerDialog.map(participant => (
+                            <div key={participant.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={`winner-${participant.id}`}
+                                    checked={selectedWinnerIdsInDialog.includes(participant.id)}
+                                    onCheckedChange={(checked) => handleWinnerSelectionInDialog(participant.id)}
+                                />
+                                <Label htmlFor={`winner-${participant.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    {participant.prenom} {participant.nom}
+                                </Label>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-sm text-muted-foreground">Aucun participant inscrit à cette table pour désigner un vainqueur.</p>
+                    )}
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="outline">Annuler</Button></DialogClose>
+                    <Button type="button" onClick={handleConfirmWinners} disabled={participantsForWinnerDialog.length === 0}>
+                        <Trophy className="mr-2 h-4 w-4" /> Confirmer Vainqueur(s)
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
 
         {tables.length > 0 ? (
             <Table>
@@ -541,7 +638,7 @@ export default function ConventionManager() {
                  {tables.sort((a, b) => {
                     const tableNumA_raw = a.tableNumber || '';
                     const tableNumB_raw = b.tableNumber || '';
-                    const numA_parsed = parseFloat(tableNumA_raw.replace(',', '.')); // Handle comma as decimal
+                    const numA_parsed = parseFloat(tableNumA_raw.replace(',', '.')); 
                     const numB_parsed = parseFloat(tableNumB_raw.replace(',', '.'));
                     const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw.match(/^[\d,.]+$/);
                     const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw.match(/^[\d,.]+$/);
@@ -549,8 +646,8 @@ export default function ConventionManager() {
                     if (isPurelyNumericA && isPurelyNumericB) {
                         if (numA_parsed < numB_parsed) return -1;
                         if (numA_parsed > numB_parsed) return 1;
-                    } else if (isPurelyNumericA) return -1; // Numeric before alphanumeric
-                      else if (isPurelyNumericB) return 1;  // Alphanumeric after numeric
+                    } else if (isPurelyNumericA) return -1; 
+                      else if (isPurelyNumericB) return 1;  
                     
                     const strA = tableNumA_raw.toLowerCase();
                     const strB = tableNumB_raw.toLowerCase();
@@ -583,9 +680,10 @@ export default function ConventionManager() {
                   const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
                   const imageUrl = table.gameImageUrl || table.imageUrl; 
                   const isFull = table.totalSeats > 0 && occupiedSeatsCount >= table.totalSeats;
+                  const isGameInProgress = inProgressTables.get(table.id) || false;
 
                   return (
-                    <TableRow key={table.id} className={isFull ? "bg-primary/20" : ""}>
+                    <TableRow key={table.id} className={isFull && !isGameInProgress ? "bg-primary/20" : isGameInProgress ? "bg-green-100 dark:bg-green-900/30" : ""}>
                         <TableCell className="font-bold text-center w-20">{table.tableNumber || 'N/A'}</TableCell>
                         <TableCell className="w-48 px-1 py-1">
                             {imageUrl ? (
@@ -626,6 +724,17 @@ export default function ConventionManager() {
                                     </li>
                                 )}
                             </ul>
+                             {tableWinners.has(table.id) && (tableWinners.get(table.id)?.length || 0) > 0 && (
+                                <div className="mt-1 text-xs">
+                                    <span className="font-semibold text-amber-600">Vainqueur(s):</span>
+                                    <ul className="list-disc list-inside">
+                                        {tableWinners.get(table.id)?.map(winnerId => {
+                                            const winner = allParticipantsData.find(p => p.id === winnerId);
+                                            return <li key={winnerId} className="text-amber-700">{winner ? `${winner.prenom} ${winner.nom}` : 'Inconnu'}</li>;
+                                        })}
+                                    </ul>
+                                </div>
+                            )}
                             {table.totalSeats > 0 && (
                                 <p className={`text-xs mt-1 ${isFull ? 'font-bold text-destructive' : 'text-muted-foreground'}`}>
                                     ({occupiedSeatsCount} / {table.totalSeats} occupées) {isFull ? " - COMPLET" : ""}
@@ -633,25 +742,56 @@ export default function ConventionManager() {
                             )}
                         </TableCell>
                         <TableCell className="text-right space-x-1">
-                        <Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Dupliquer la table">
-                            <Copy className="h-4 w-4" />
-                            <span className="sr-only">Dupliquer</span>
-                        </Button>
-                        <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Modifier la table">
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Modifier</span>
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            size="icon"
-                            disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id}
-                            className="shadow-sm rounded-md h-8 w-8 hover:bg-red-700"
-                            title={`Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
-                            onClick={() => openDeleteConfirmationDialog(table)}
-                        >
-                            {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                            <span className="sr-only">Supprimer</span>
-                        </Button>
+                            {isGameInProgress ? (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => handleOpenWinnerDialog(table)}
+                                        className="shadow-sm rounded-md h-8 w-8 border-amber-500 text-amber-600 hover:bg-amber-100"
+                                        title="Désigner Vainqueur(s)"
+                                    >
+                                        <Trophy className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        size="icon"
+                                        onClick={() => toggleGameInProgress(table.id)}
+                                        className="shadow-sm rounded-md h-8 w-8 bg-red-600 hover:bg-red-700 text-white"
+                                        title="Terminer la partie"
+                                    >
+                                        <Square className="h-4 w-4" />
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    <Button
+                                        variant="default"
+                                        size="icon"
+                                        onClick={() => toggleGameInProgress(table.id)}
+                                        className="shadow-sm rounded-md h-8 w-8 bg-green-600 hover:bg-green-700 text-white"
+                                        title="Démarrer la partie"
+                                    >
+                                        <Timer className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Dupliquer la table">
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Modifier la table">
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                </>
+                            )}
+                            <Button
+                                variant="destructive"
+                                size="icon"
+                                disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id || isGameInProgress}
+                                className="shadow-sm rounded-md h-8 w-8 hover:bg-red-700"
+                                title={isGameInProgress ? "Terminez la partie avant de supprimer" : `Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
+                                onClick={() => openDeleteConfirmationDialog(table)}
+                            >
+                                {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            </Button>
                         </TableCell>
                     </TableRow>
                   );
