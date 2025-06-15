@@ -627,7 +627,7 @@ export default function ConventionManager() {
                                 )}
                             </ul>
                             {table.totalSeats > 0 && (
-                                <p className={`text-xs mt-1 ${isFull ? 'font-semibold text-primary' : 'text-muted-foreground'}`}>
+                                <p className={`text-xs mt-1 ${isFull ? 'font-bold text-destructive' : 'text-muted-foreground'}`}>
                                     ({occupiedSeatsCount} / {table.totalSeats} occupées) {isFull ? " - COMPLET" : ""}
                                 </p>
                             )}
