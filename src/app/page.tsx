@@ -31,10 +31,11 @@ import {
     hasTimeConflict,
     canRegisterBasedOnTicket,
     registrationPhases as importedRegistrationPhases,
-    getParticipantByEmail, // Nouvelle fonction importée
+    getParticipantByEmail,
+    getParticipants, // Import getParticipants
 } from '@/lib/data';
-import type { GameTable, User, Registration, Participant } from '@/lib/types'; // User type est déjà là
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail } from 'lucide-react';
+import type { GameTable, User, Registration, Participant } from '@/lib/types';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck } from 'lucide-react';
 
 const conventionDays = [
     { name: 'Jeudi', date: '03/07', value: 'jeudi' },
@@ -46,6 +47,7 @@ const conventionDays = [
 export default function Home() {
   const [tables, setTables] = useState<GameTable[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [allParticipantsData, setAllParticipantsData] = useState<Participant[]>([]); // State for all participants
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
@@ -61,18 +63,20 @@ export default function Home() {
   const loadPageData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [fetchedTables, fetchedRegistrations] = await Promise.all([
+      const [fetchedTables, fetchedRegistrations, fetchedAllParticipants] = await Promise.all([
         getGameTables(),
-        getRegistrations()
+        getRegistrations(),
+        getParticipants() // Fetch all participants
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrations);
+      setAllParticipantsData(fetchedAllParticipants); // Store all participants
     } catch (error) {
       console.error("Échec du chargement des données de la page:", error);
       toast({
         variant: "destructive",
         title: "Erreur de chargement des données",
-        description: (error as Error).message || "Impossible de récupérer les tables ou les inscriptions.",
+        description: (error as Error).message || "Impossible de récupérer les tables, les inscriptions ou les participants.",
       });
     } finally {
       setIsLoading(false);
@@ -86,19 +90,17 @@ export default function Home() {
    useEffect(() => {
     const phaseTimer1 = setTimeout(() => {
       setCurrentRegistrationPhaseIndex(1);
-      // toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Maréchaux et Stratèges." });
     }, 15000);
 
     const phaseTimer2 = setTimeout(() => {
       setCurrentRegistrationPhaseIndex(2);
-      // toast({ title: "Mise à jour de la phase d'inscription", description: "Inscription maintenant ouverte pour les Généraux, Maréchaux et Stratèges." });
     }, 30000);
 
     return () => {
         clearTimeout(phaseTimer1);
         clearTimeout(phaseTimer2);
     }
-  }, []); // Retiré toast des dépendances pour éviter les notifications répétitives au re-render
+  }, []);
 
   const handleUserLookup = async () => {
     if (!emailInput.trim()) {
@@ -106,12 +108,12 @@ export default function Home() {
       return;
     }
     setIsLookingUpUser(true);
-    setCurrentUser(null); // Clear previous user
+    setCurrentUser(null);
     try {
       const participant = await getParticipantByEmail(emailInput.trim());
       if (participant) {
         setCurrentUser({
-          id: participant.id, // Firestore document ID of the participant
+          id: participant.id,
           name: `${participant.prenom} ${participant.nom}`,
           ticketType: participant.typeBillet,
           email: participant.email
@@ -330,8 +332,8 @@ export default function Home() {
         </CardContent>
       </Card>
 
-       {isLoading && !tables.length ? ( 
-           <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]"> 
+       {isLoading && !tables.length ? (
+           <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]">
              <Loader2 className="h-12 w-12 animate-spin text-primary" />
              <p className="ml-4 text-muted-foreground">Chargement des tables de jeu...</p>
            </div>
@@ -388,18 +390,26 @@ export default function Home() {
                                                     <TableHead>Jeu</TableHead>
                                                     <TableHead>Auteur/Animateur</TableHead>
                                                     <TableHead>Créneau horaire</TableHead>
-                                                    <TableHead className="text-center">Places disponibles</TableHead>
+                                                    <TableHead className="text-left">Places disponibles</TableHead>
                                                     <TableHead className="text-center">Action</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {dayTables.map((table) => {
                                                     const availableSeats = getAvailableSeats(table.id, registrations, tables);
-                                                    const occupiedSeats = table.totalSeats - availableSeats;
                                                     const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
                                                     const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, currentRegistrationPhaseIndex);
                                                     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
                                                     const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
+
+                                                    const registrationsForThisTable = registrations.filter(r => r.tableId === table.id);
+                                                    const registeredParticipantDetails = registrationsForThisTable.map(reg => {
+                                                        return allParticipantsData.find(p => p.id === reg.userId);
+                                                    }).filter(p => p !== undefined) as Participant[];
+
+                                                    const occupiedSeatsCount = registeredParticipantDetails.length;
+                                                    const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
+
 
                                                     let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration || isLookingUpUser;
                                                     if (!isRegisteredByUser) {
@@ -422,8 +432,6 @@ export default function Home() {
                                                         onClickAction = () => handleUnregister(table.id);
                                                         tooltipText = "Cliquez pour vous désinscrire";
                                                     } else if (!currentUser) {
-                                                        // This case is now only hit if !currentUser AND availableSeats > 0
-                                                        // due to the new conditional rendering for the "Complet !" badge.
                                                         tooltipText = "Connectez-vous pour vous inscrire";
                                                         buttonText = "Connectez-vous";
                                                         buttonVariant = "secondary";
@@ -439,7 +447,7 @@ export default function Home() {
                                                         tooltipText = "Conflit avec votre planning";
                                                         buttonText = "Conflit";
                                                         buttonVariant = "destructive";
-                                                    } else if (availableSeats <= 0) { // User is logged in, table is full
+                                                    } else if (availableSeats <= 0) {
                                                         tooltipText = "Table est complète";
                                                         buttonText = "Complet";
                                                         buttonVariant = "destructive";
@@ -478,16 +486,32 @@ export default function Home() {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
-                                                            <TableCell className="text-center">
-                                                                <div className="flex justify-center items-center space-x-1" title={`${availableSeats} / ${table.totalSeats} places disponibles`}>
-                                                                    {Array.from({ length: table.totalSeats }).map((_, i) => (
-                                                                        <UserCircle2
-                                                                            key={i}
-                                                                            className={`h-5 w-5 ${i < occupiedSeats ? 'text-red-600' : 'text-emerald-600'}`}
-                                                                            aria-label={i < occupiedSeats ? 'Place occupée' : 'Place disponible'}
-                                                                        />
+                                                            <TableCell className="text-left align-top">
+                                                                <ul className="list-none p-0 m-0 text-xs space-y-1">
+                                                                    {registeredParticipantDetails.map(participant => (
+                                                                        <li key={participant.id} className="flex items-center">
+                                                                            <UserCheck className="h-4 w-4 mr-1.5 text-green-600 flex-shrink-0" />
+                                                                            <span>{participant.prenom} {participant.nom}</span>
+                                                                        </li>
                                                                     ))}
-                                                                </div>
+                                                                    {Array.from({ length: freeSeatsCount }).map((_, i) => (
+                                                                        <li key={`free-${i}`} className="flex items-center">
+                                                                            <UserCircle2 className="h-4 w-4 mr-1.5 text-gray-400 flex-shrink-0" />
+                                                                            <span className="italic text-muted-foreground">Place libre</span>
+                                                                        </li>
+                                                                    ))}
+                                                                    {table.totalSeats === 0 && freeSeatsCount === 0 && registeredParticipantDetails.length === 0 && (
+                                                                        <li className="flex items-center">
+                                                                            <Info className="h-4 w-4 mr-1.5 text-blue-500 flex-shrink-0" />
+                                                                            <span className="italic text-muted-foreground">Aucune place définie</span>
+                                                                        </li>
+                                                                    )}
+                                                                </ul>
+                                                                {table.totalSeats > 0 && (
+                                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                                        ({occupiedSeatsCount} / {table.totalSeats} occupées)
+                                                                    </p>
+                                                                )}
                                                             </TableCell>
                                                             <TableCell className="text-center">
                                                                 {(!currentUser && availableSeats <= 0) ? (
