@@ -178,7 +178,7 @@ export default function Home() {
             const table = gameTablesMap.get(result.tableId);
             if (!table || table.day !== liveDayName) return; // Only consider results for the current live day
 
-            const pointsPerWin = result.playersInGame >= 4 ? 2 : 1;
+            const pointsPerWin = result.playersInGame >= 5 ? 2 : 1; // Condition changed to >= 5
 
             result.winnerIds.forEach(winnerId => {
                 const playerData = playerScoresMap.get(winnerId);
@@ -869,3 +869,4 @@ export default function Home() {
     </TooltipProvider>
   );
 }
+

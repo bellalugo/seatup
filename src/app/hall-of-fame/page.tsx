@@ -72,7 +72,7 @@ export default function HallOfFamePage() {
       if (!table || !conventionDays.includes(table.day as ConventionDay)) return;
 
       const day = table.day as ConventionDay;
-      const pointsPerWin = result.playersInGame >= 4 ? 2 : 1;
+      const pointsPerWin = result.playersInGame >= 5 ? 2 : 1; // Condition changed to >= 5
 
       result.winnerIds.forEach(winnerId => {
         const participantData = playerScores.get(winnerId);
@@ -228,7 +228,7 @@ export default function HallOfFamePage() {
           <CardDescription className="text-lg text-muted-foreground">
             Classement des Maîtres Stratèges de la convention !
           </CardDescription>
-          <Badge variant="outline" className="mx-auto mt-2">Points: 1 par victoire (+1 bonus si 4+ joueurs)</Badge>
+          <Badge variant="outline" className="mx-auto mt-2">Points: 1 par victoire (+1 bonus si 5+ joueurs)</Badge>
         </CardHeader>
       </Card>
 
