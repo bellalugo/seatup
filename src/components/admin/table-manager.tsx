@@ -32,27 +32,26 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from "@/components/ui/alert-dialog"; // AlertDialogTrigger was removed as it's not directly used here
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge'; // Badge was not used
 import { useToast } from '@/hooks/use-toast';
 import {
   getGameTables,
   addGameTable,
   updateGameTable,
   deleteGameTable,
-  getRegistrationsForTable, // To check before deleting a table
+  getRegistrationsForTable,
   getRegistrations,
   getGames,
   getParticipants,
 } from '@/lib/data';
 import type { GameTable, GameTableInput, Registration, Game, Participant } from '@/lib/types';
-import { Pencil, Trash2, Loader2, AlertTriangle, Users, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy } from 'lucide-react';
+import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info } from 'lucide-react';
 import GameManager from './game-manager';
 
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
@@ -72,6 +71,7 @@ export default function ConventionManager() {
   const [tables, setTables] = useState<GameTable[]>([]);
   const [allGames, setAllGames] = useState<Game[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [allParticipantsData, setAllParticipantsData] = useState<Participant[]>([]);
   const [invitationParticipants, setInvitationParticipants] = useState<Participant[]>([]);
   const [isLoadingTables, setIsLoadingTables] = useState(true);
   const [isSubmittingTable, setIsSubmittingTable] = useState(false);
@@ -99,6 +99,7 @@ export default function ConventionManager() {
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrationsResult);
       setAllGames(fetchedGamesList);
+      setAllParticipantsData(fetchedParticipants); // Store all participants
       
       const invites = fetchedParticipants.filter(p => p.typeBillet === 'Invitation');
       setInvitationParticipants(invites);
@@ -441,7 +442,7 @@ export default function ConventionManager() {
                 <TableHead>Auteur/Animateur</TableHead>
                 <TableHead>Jour</TableHead>
                 <TableHead>Créneau horaire</TableHead>
-                <TableHead className="text-center">Places</TableHead>
+                <TableHead className="text-left">Sièges</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
@@ -483,7 +484,13 @@ export default function ConventionManager() {
 
                     return 0;
                 }).map((table) => {
-                  const occupiedSeats = registrations.filter(r => r.tableId === table.id).length;
+                  const registrationsForThisTable = registrations.filter(r => r.tableId === table.id);
+                  const registeredParticipantDetails = registrationsForThisTable.map(reg => {
+                      return allParticipantsData.find(p => p.id === reg.userId);
+                  }).filter(p => p !== undefined) as Participant[];
+
+                  const occupiedSeatsCount = registeredParticipantDetails.length;
+                  const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
                   const imageUrl = table.gameImageUrl || table.imageUrl; 
                   return (
                     <TableRow key={table.id}>
@@ -506,16 +513,32 @@ export default function ConventionManager() {
                         <TableCell>{table.authorAnimator ? <span className="font-bold flex items-center"><UserSquare2 className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.authorAnimator}</span> : <span className="text-muted-foreground italic">N/A</span>}</TableCell>
                         <TableCell>{table.day}</TableCell>
                         <TableCell>{table.timeSlot}</TableCell>
-                        <TableCell className="text-center">
-                           <div className="flex justify-center items-center space-x-1" title={`${table.totalSeats - occupiedSeats} / ${table.totalSeats} places disponibles`}>
-                                {Array.from({ length: table.totalSeats }).map((_, i) => (
-                                    <UserCircle2
-                                        key={i}
-                                        className={`h-5 w-5 ${i < occupiedSeats ? 'text-red-600' : 'text-emerald-600'}`}
-                                        aria-label={i < occupiedSeats ? 'Place occupée' : 'Place disponible'}
-                                    />
+                        <TableCell className="text-left align-top">
+                            <ul className="list-none p-0 m-0 text-xs space-y-1">
+                                {registeredParticipantDetails.map(participant => (
+                                    <li key={participant.id} className="flex items-center">
+                                        <UserCheck className="h-4 w-4 mr-1.5 text-green-600 flex-shrink-0" />
+                                        <span>{participant.prenom} {participant.nom}</span>
+                                    </li>
                                 ))}
-                            </div>
+                                {Array.from({ length: freeSeatsCount }).map((_, i) => (
+                                    <li key={`free-admin-${table.id}-${i}`} className="flex items-center">
+                                        <UserCircle2 className="h-4 w-4 mr-1.5 text-gray-400 flex-shrink-0" />
+                                        <span className="italic text-muted-foreground">Place libre</span>
+                                    </li>
+                                ))}
+                                {table.totalSeats === 0 && freeSeatsCount === 0 && registeredParticipantDetails.length === 0 && (
+                                    <li className="flex items-center">
+                                        <Info className="h-4 w-4 mr-1.5 text-blue-500 flex-shrink-0" />
+                                        <span className="italic text-muted-foreground">Aucune place définie</span>
+                                    </li>
+                                )}
+                            </ul>
+                            {table.totalSeats > 0 && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    ({occupiedSeatsCount} / {table.totalSeats} occupées)
+                                </p>
+                            )}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
                         <Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md" title="Dupliquer la table">
