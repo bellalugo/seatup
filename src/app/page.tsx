@@ -2,8 +2,9 @@
 'use client';
 
 import type React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
+import Link from 'next/link'; // Import Link for navigation
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,10 +33,11 @@ import {
     canRegisterBasedOnTicket,
     registrationPhases as importedRegistrationPhases,
     getParticipantByEmail,
-    getParticipants, // Import getParticipants
+    getParticipants,
+    getAllGameResults, // Import for Hall of Fame Live
 } from '@/lib/data';
-import type { GameTable, User, Registration, Participant } from '@/lib/types';
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck } from 'lucide-react';
+import type { GameTable, User, Registration, Participant, GameResult } from '@/lib/types';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks } from 'lucide-react';
 
 const conventionDays = [
     { name: 'Jeudi', date: '03/07', value: 'jeudi' },
@@ -44,10 +46,25 @@ const conventionDays = [
     { name: 'Dimanche', date: '06/07', value: 'dimanche' }
 ];
 
+// Simplified types for live ranking, adapted from HallOfFamePage
+const conventionDayNames = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
+type ConventionDay = typeof conventionDayNames[number];
+
+interface LivePlayerScore {
+  id: string;
+  name: string;
+  score: number;
+}
+interface RankedLivePlayer extends LivePlayerScore {
+  rank: number;
+}
+
+
 export default function Home() {
   const [tables, setTables] = useState<GameTable[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [allParticipantsData, setAllParticipantsData] = useState<Participant[]>([]); // State for all participants
+  const [allParticipantsData, setAllParticipantsData] = useState<Participant[]>([]);
+  const [gameResultsData, setGameResultsData] = useState<Map<string, GameResult>>(new Map());
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
@@ -60,26 +77,39 @@ export default function Home() {
   const [emailInput, setEmailInput] = useState('');
   const [isLookingUpUser, setIsLookingUpUser] = useState(false);
 
+  const [currentLiveConventionDay, setCurrentLiveConventionDay] = useState<ConventionDay | null>(null);
+  const [topPlayersToday, setTopPlayersToday] = useState<RankedLivePlayer[]>([]);
+  const [isLoadingLiveHof, setIsLoadingLiveHof] = useState(true);
+
+
   const loadPageData = useCallback(async () => {
     setIsLoading(true);
+    setIsLoadingLiveHof(true);
     try {
-      const [fetchedTables, fetchedRegistrations, fetchedAllParticipants] = await Promise.all([
+      const [fetchedTables, fetchedRegistrations, fetchedAllParticipants, fetchedGameResults] = await Promise.all([
         getGameTables(),
         getRegistrations(),
-        getParticipants() // Fetch all participants
+        getParticipants(),
+        getAllGameResults(),
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrations);
-      setAllParticipantsData(fetchedAllParticipants); // Store all participants
+      setAllParticipantsData(fetchedAllParticipants);
+
+      const resultsMap = new Map<string, GameResult>();
+      fetchedGameResults.forEach(result => resultsMap.set(result.tableId, result));
+      setGameResultsData(resultsMap);
+
     } catch (error) {
       console.error("Échec du chargement des données de la page:", error);
       toast({
         variant: "destructive",
         title: "Erreur de chargement des données",
-        description: (error as Error).message || "Impossible de récupérer les tables, les inscriptions ou les participants.",
+        description: (error as Error).message || "Impossible de récupérer les tables, les inscriptions, les participants ou les résultats.",
       });
     } finally {
       setIsLoading(false);
+      // Live HoF loading will be set to false after calculations
     }
   }, [toast]);
 
@@ -101,6 +131,84 @@ export default function Home() {
         clearTimeout(phaseTimer2);
     }
   }, []);
+
+  // Effect for Live Hall of Fame
+  useEffect(() => {
+    if (isLoading) return; // Wait for main data to load
+
+    setIsLoadingLiveHof(true);
+    const today = new Date();
+    // For simplicity, using DD/MM matching. A robust solution would handle year.
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0'); // JS months are 0-indexed
+    const formattedToday = `${day}/${month}`;
+
+    const activeDayEntry = conventionDays.find(d => d.date === formattedToday);
+    const liveDayName = activeDayEntry ? activeDayEntry.name as ConventionDay : null;
+    setCurrentLiveConventionDay(liveDayName);
+
+    if (liveDayName && allParticipantsData.length > 0 && tables.length > 0 && gameResultsData.size > 0) {
+        const playerScoresMap: Map<string, { id: string, name: string, score: number, gamesPlayedToday: number, winsToday: number }> = new Map();
+
+        allParticipantsData.forEach(p => {
+            if (p.ticketType !== 'Invitation') {
+                playerScoresMap.set(p.id, {
+                    id: p.id,
+                    name: `${p.prenom} ${p.nom}`,
+                    score: 0,
+                    gamesPlayedToday: 0,
+                    winsToday: 0,
+                });
+            }
+        });
+
+        const gameTablesMap = new Map(tables.map(t => [t.id, t]));
+
+        Array.from(gameResultsData.values()).forEach(result => {
+            const table = gameTablesMap.get(result.tableId);
+            if (!table || table.day !== liveDayName) return; // Only consider results for the current live day
+
+            const pointsPerWin = result.playersInGame >= 4 ? 2 : 1;
+
+            result.winnerIds.forEach(winnerId => {
+                const playerData = playerScoresMap.get(winnerId);
+                if (playerData) {
+                    playerData.score += pointsPerWin;
+                    playerData.winsToday +=1;
+                    // gamesPlayedToday would require tracking all participations for the day, not just wins.
+                    // For now, focusing on score and wins for simplicity in this live view.
+                }
+            });
+            // Increment gamesPlayedToday for all participants of this game on this day
+            // This requires knowing all participants of the game, not just winners.
+            // Current `registrations` state has userIds for tables.
+             registrations.forEach(reg => {
+                if (reg.tableId === result.tableId) {
+                    const playerData = playerScoresMap.get(reg.userId);
+                    if (playerData) {
+                        playerData.gamesPlayedToday +=1;
+                    }
+                }
+            })
+        });
+
+        const rankedToday = Array.from(playerScoresMap.values())
+            .filter(p => p.score > 0 || p.winsToday > 0) // Consider players with score or wins today
+            .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+            .slice(0, 5) // Top 5
+            .map((player, index) => ({
+                id: player.id,
+                name: player.name,
+                score: player.score,
+                rank: index + 1,
+            }));
+        setTopPlayersToday(rankedToday);
+    } else {
+        setTopPlayersToday([]);
+    }
+    setIsLoadingLiveHof(false);
+  }, [isLoading, allParticipantsData, tables, gameResultsData, registrations]); // Added registrations
+
 
   const handleUserLookup = async () => {
     if (!emailInput.trim()) {
@@ -217,8 +325,15 @@ export default function Home() {
     setIsSubmittingRegistration(true);
     try {
         await addRegistrationToDb(currentUser.id, tableId);
-        const updatedRegistrations = await getRegistrations();
+        const updatedRegistrations = await getRegistrations(); // Re-fetch all registrations
         setRegistrations(updatedRegistrations);
+        // Also re-fetch game results as new registration might impact "playersInGame" if we auto-update
+        // For now, playersInGame is set at winner confirmation.
+        // const updatedGameResults = await getAllGameResults();
+        // const resultsMap = new Map<string, GameResult>();
+        // updatedGameResults.forEach(result => resultsMap.set(result.tableId, result));
+        // setGameResultsData(resultsMap);
+
 
         toast({
         title: "Inscription réussie !",
@@ -245,6 +360,10 @@ export default function Home() {
         await removeRegistrationFromDb(currentUser.id, tableId);
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
+        // const updatedGameResults = await getAllGameResults();
+        // const resultsMap = new Map<string, GameResult>();
+        // updatedGameResults.forEach(result => resultsMap.set(result.tableId, result));
+        // setGameResultsData(resultsMap);
 
         toast({
             title: "Désinscrit(e)",
@@ -275,62 +394,116 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-lg rounded-lg">
-        <CardHeader>
-          <div className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Connexion Participant &amp; Infos</CardTitle>
-              <CardDescription>Entrez votre email pour vous identifier et accéder aux inscriptions.</CardDescription>
-            </div>
-            <Button onClick={() => loadPageData()} variant="outline" size="sm" disabled={isLoading || isSubmittingRegistration || isLookingUpUser}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${(isLoading || isSubmittingRegistration || isLookingUpUser) ? 'animate-spin' : ''}`} />
-              Actualiser les données
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!currentUser ? (
-            <div className="flex flex-col sm:flex-row items-end gap-3">
-              <div className="flex-grow w-full sm:w-auto">
-                <Label htmlFor="email-lookup" className="mb-1 block text-sm font-medium">Votre Email (associé à votre billet)</Label>
-                <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                    id="email-lookup"
-                    type="email"
-                    placeholder="exemple@domaine.com"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    disabled={isLookingUpUser}
-                    className="pl-10 shadow-sm rounded-md"
-                    />
+      <div className="grid grid-cols-1 md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
+        {/* Column 1: Connexion Participant & Infos */}
+        <Card className="shadow-lg rounded-lg h-full flex flex-col">
+            <CardHeader>
+            <div className="flex flex-row items-center justify-between">
+                <div>
+                <CardTitle>Connexion Participant &amp; Infos</CardTitle>
+                <CardDescription>Entrez votre email pour vous identifier et accéder aux inscriptions.</CardDescription>
                 </div>
-              </div>
-              <Button onClick={handleUserLookup} disabled={isLookingUpUser || !emailInput.trim()} className="w-full sm:w-auto shadow-sm rounded-md">
-                {isLookingUpUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                Vérifier et Connecter
-              </Button>
+                <Button onClick={() => loadPageData()} variant="outline" size="sm" disabled={isLoading || isSubmittingRegistration || isLookingUpUser}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${(isLoading || isSubmittingRegistration || isLookingUpUser) ? 'animate-spin' : ''}`} />
+                Actualiser
+                </Button>
             </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-accent/10 rounded-md">
-              <div>
-                <p className="font-semibold text-lg">Bienvenue, {currentUser.name} !</p>
-                <Badge variant={currentUser.ticketType === 'Invitation' ? 'secondary' : 'default'} className="shadow-sm">
-                  Billet : {currentUser.ticketType}
-                </Badge>
-                 <p className="text-xs text-muted-foreground mt-1">Email: {currentUser.email}</p>
-              </div>
-              <Button onClick={handleLogout} variant="outline" className="shadow-sm rounded-md">
-                <LogOut className="mr-2 h-4 w-4" />
-                Se déconnecter
-              </Button>
-            </div>
-          )}
-           <Badge variant="outline" className="shadow-sm mt-2">
-             Phase d'inscription actuelle : <span className="font-semibold ml-1">{registrationPhases[currentRegistrationPhaseIndex]}</span>
-           </Badge>
-        </CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent className="space-y-4 flex-grow">
+            {!currentUser ? (
+                <div className="flex flex-col sm:flex-row items-end gap-3">
+                <div className="flex-grow w-full sm:w-auto">
+                    <Label htmlFor="email-lookup" className="mb-1 block text-sm font-medium">Votre Email (associé à votre billet)</Label>
+                    <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                        id="email-lookup"
+                        type="email"
+                        placeholder="exemple@domaine.com"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        disabled={isLookingUpUser}
+                        className="pl-10 shadow-sm rounded-md"
+                        />
+                    </div>
+                </div>
+                <Button onClick={handleUserLookup} disabled={isLookingUpUser || !emailInput.trim()} className="w-full sm:w-auto shadow-sm rounded-md">
+                    {isLookingUpUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+                    Vérifier et Connecter
+                </Button>
+                </div>
+            ) : (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-accent/10 rounded-md">
+                <div>
+                    <p className="font-semibold text-lg">Bienvenue, {currentUser.name} !</p>
+                    <Badge variant={currentUser.ticketType === 'Invitation' ? 'secondary' : 'default'} className="shadow-sm">
+                    Billet : {currentUser.ticketType}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground mt-1">Email: {currentUser.email}</p>
+                </div>
+                <Button onClick={handleLogout} variant="outline" className="shadow-sm rounded-md">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Se déconnecter
+                </Button>
+                </div>
+            )}
+            <Badge variant="outline" className="shadow-sm mt-2">
+                Phase d'inscription actuelle : <span className="font-semibold ml-1">{registrationPhases[currentRegistrationPhaseIndex]}</span>
+            </Badge>
+            </CardContent>
+        </Card>
+
+        {/* Column 2: Hall of Fame - En Direct */}
+        <Card className="shadow-lg rounded-lg h-full flex flex-col">
+            <CardHeader>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle className="flex items-center">
+                            <Trophy className="mr-2 h-6 w-6 text-amber-500" /> Hall of Fame - En Direct
+                        </CardTitle>
+                        <CardDescription>
+                            {currentLiveConventionDay ? `Classement du ${currentLiveConventionDay}` : "Aucun jour de convention actif."}
+                        </CardDescription>
+                    </div>
+                     <Link href="/hall-of-fame" passHref>
+                        <Button variant="outline" size="sm">
+                            <BarChart3 className="mr-2 h-4 w-4" /> Classement Détaillé
+                        </Button>
+                    </Link>
+                </div>
+            </CardHeader>
+            <CardContent className="flex-grow">
+                {isLoadingLiveHof ? (
+                    <div className="flex items-center justify-center h-full">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <p className="ml-2 text-muted-foreground">Chargement du classement du jour...</p>
+                    </div>
+                ) : currentLiveConventionDay && topPlayersToday.length > 0 ? (
+                    <ul className="space-y-2">
+                        {topPlayersToday.map((player) => (
+                        <li key={player.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-md shadow-sm">
+                            <div className="flex items-center">
+                            <span className="font-bold w-6 text-center mr-2">
+                                {player.rank === 1 && <Trophy className="inline h-4 w-4 text-amber-500" />}
+                                {player.rank === 2 && <Trophy className="inline h-4 w-4 text-slate-400" />}
+                                {player.rank === 3 && <Trophy className="inline h-4 w-4 text-yellow-700" />}
+                                {player.rank > 3 && player.rank}
+                            </span>
+                            <span className="text-sm">{player.name}</span>
+                            </div>
+                            <Badge variant="secondary" className="font-semibold">{player.score} pts</Badge>
+                        </li>
+                        ))}
+                    </ul>
+                ) : currentLiveConventionDay ? (
+                     <p className="text-muted-foreground text-center py-4">Aucun score enregistré pour {currentLiveConventionDay} pour le moment.</p>
+                ) : (
+                    <p className="text-muted-foreground text-center py-4">La convention n'est pas en cours aujourd'hui.</p>
+                )}
+            </CardContent>
+        </Card>
+      </div>
+
 
        {isLoading && !tables.length ? (
            <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]">
@@ -431,6 +604,11 @@ export default function Home() {
                                                         buttonVariant = "secondary";
                                                         onClickAction = () => handleUnregister(table.id);
                                                         tooltipText = "Cliquez pour vous désinscrire";
+                                                    } else if (!currentUser && availableSeats <=0) { // Condition for "Complet !"
+                                                        buttonText = "Complet !";
+                                                        buttonVariant = "destructive"; // Or any other appropriate variant
+                                                        // onClickAction might be disabled or do nothing
+                                                        tooltipText = "Cette table est complète.";
                                                     } else if (!currentUser) {
                                                         tooltipText = "Connectez-vous pour vous inscrire";
                                                         buttonText = "Connectez-vous";
@@ -521,7 +699,7 @@ export default function Home() {
                                                                         onClick={onClickAction}
                                                                         size="sm"
                                                                         variant={buttonVariant}
-                                                                        disabled={isDisabled}
+                                                                        disabled={isDisabled || (!currentUser && availableSeats <=0)} // Disable button if "Complet !" for non-logged user
                                                                         aria-label={tooltipText || buttonText}
                                                                         title={tooltipText || buttonText}
                                                                         className="shadow-sm rounded-md"
@@ -529,7 +707,7 @@ export default function Home() {
                                                                         {(isSubmittingRegistration && (tableToConfirm?.id === table.id || isRegisteredByUser)) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                                                         {isLookingUpUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                                                         {!isSubmittingRegistration && !isLookingUpUser && isRegisteredByUser && <CheckCircle className="mr-2 h-4 w-4" />}
-                                                                        {!isSubmittingRegistration && !isLookingUpUser && !isRegisteredByUser && (availableSeats <= 0 || conflict || (currentUser?.ticketType === 'Invitation')) && <AlertCircle className="mr-2 h-4 w-4" />}
+                                                                        {!isSubmittingRegistration && !isLookingUpUser && !isRegisteredByUser && (availableSeats <= 0 || conflict || (currentUser?.ticketType === 'Invitation')) && !(!currentUser && availableSeats <=0) && <AlertCircle className="mr-2 h-4 w-4" />}
                                                                         {buttonText}
                                                                     </Button>
                                                                 )}
@@ -657,3 +835,4 @@ export default function Home() {
   );
 }
 
+    
