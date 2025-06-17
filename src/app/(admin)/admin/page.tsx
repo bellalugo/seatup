@@ -14,6 +14,7 @@ import { getRegistrationControl, updateRegistrationControl } from "@/lib/data";
 import type { ManualRegistrationControls, TicketType } from "@/lib/types"; 
 // REGISTRATION_SCHEDULE is no longer imported
 import { Separator } from "@/components/ui/separator";
+import { REGISTRATION_SCHEDULE } from "@/lib/types"; // Import for getPhaseStatusMessage
 
 
 export default function AdminPage() {
@@ -49,37 +50,41 @@ export default function AdminPage() {
         generalManuallyOpen: registrationControls?.generalManuallyOpen || false,
     };
 
+    const currentControls = registrationControls || { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false };
+
     if (phaseToOpen === 'reset') {
         newControls = { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false };
     } else if (phaseToOpen === 'Stratège') {
-        newControls.strategistManuallyOpen = !newControls.strategistManuallyOpen; // Toggle
-        if (newControls.strategistManuallyOpen) {
-            // No automatic closing of higher phases, admin manages this.
-        } else {
-            // If turning off strategist, also turn off marshal and general if they were on
+        // This button is only enabled if marshal and general are false.
+        // So, toggling strategist only affects strategist.
+        newControls.strategistManuallyOpen = !currentControls.strategistManuallyOpen;
+        if (!newControls.strategistManuallyOpen) { // If turning OFF strategist
             newControls.marshalManuallyOpen = false;
             newControls.generalManuallyOpen = false;
         }
     } else if (phaseToOpen === 'Maréchal') {
-        newControls.marshalManuallyOpen = !newControls.marshalManuallyOpen; // Toggle
-        if (newControls.marshalManuallyOpen) {
-            newControls.strategistManuallyOpen = true; // Opening Marshal implies Strategist is also open
-        } else {
-             // If turning off marshal, also turn off general if it was on
-            newControls.generalManuallyOpen = false;
+        // This button is only enabled if general is false.
+        newControls.marshalManuallyOpen = !currentControls.marshalManuallyOpen;
+        if (newControls.marshalManuallyOpen) { // If turning ON marshal
+            newControls.strategistManuallyOpen = true; 
+        } else { // If turning OFF marshal
+            newControls.generalManuallyOpen = false; 
+            // strategistManuallyOpen remains as it was unless explicitly turned off by strategist button or reset
         }
     } else if (phaseToOpen === 'Général') {
-        newControls.generalManuallyOpen = !newControls.generalManuallyOpen; // Toggle
-         if (newControls.generalManuallyOpen) {
-            newControls.strategistManuallyOpen = true; // Opening General implies Strategist & Marshal are open
+        newControls.generalManuallyOpen = !currentControls.generalManuallyOpen;
+        if (newControls.generalManuallyOpen) { // If turning ON general
+            newControls.strategistManuallyOpen = true; 
             newControls.marshalManuallyOpen = true;
         }
+        // If turning OFF general, strategist and marshal remain as they were unless explicitly turned off
     }
+
 
     try {
         await updateRegistrationControl(newControls);
         setRegistrationControls(prev => ({...(prev || { id: 'registrationControl' }), ...newControls })); 
-        toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'fermée (tous types)' : phaseToOpen + ' (et précédentes si applicable)'} modifiée manuellement.` });
+        toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'fermée (tous types)' : phaseToOpen } modifiée manuellement.` });
     } catch (error) {
         toast({ variant: "destructive", title: "Erreur de mise à jour", description: (error as Error).message });
     } finally {
@@ -91,6 +96,9 @@ export default function AdminPage() {
   const handleSyncBilletweb = async () => {
     setIsSyncingBilletweb(true);
     try {
+      // Simulate API call delay
+      // await new Promise(resolve => setTimeout(resolve, 2000));
+      // const result = { message: "Simulated: 50 participants synchronisés.", participantsSynced: 50 };
       toast({
         title: "Synchronisation Billetweb en cours...",
         description: "Récupération des participants depuis Billetweb.",
@@ -134,6 +142,25 @@ export default function AdminPage() {
     return "INSCRIPTIONS FERMÉES. (Contrôles manuels uniquement)";
   };
 
+  const strategistsButtonText = () => {
+    if (registrationControls?.generalManuallyOpen) return "Stratèges (via Général)";
+    if (registrationControls?.marshalManuallyOpen) return "Stratèges (via Maréchal)";
+    if (registrationControls?.strategistManuallyOpen) return "Fermer Stratèges";
+    return "Ouvrir Stratèges";
+  };
+
+  const marshalsButtonText = () => {
+    if (registrationControls?.generalManuallyOpen) return "Maréchaux (via Général)";
+    if (registrationControls?.marshalManuallyOpen) return "Fermer Maréchaux";
+    return "Ouvrir Maréchaux";
+  };
+
+  const generalsButtonText = () => {
+    if (registrationControls?.generalManuallyOpen) return "Fermer Généraux";
+    return "Ouvrir Généraux";
+  };
+
+
   return (
     <div className="space-y-6">
       <Card className="shadow-lg">
@@ -156,20 +183,20 @@ export default function AdminPage() {
                     <Button 
                         variant={registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Stratège')} 
-                        disabled={isUpdatingControls}
+                        disabled={isUpdatingControls || !!registrationControls?.marshalManuallyOpen || !!registrationControls?.generalManuallyOpen}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
-                        {registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "Fermer Stratèges" : "Ouvrir Stratèges"}
+                        {strategistsButtonText()}
                     </Button>
                     <Button 
                         variant={registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Maréchal')} 
-                        disabled={isUpdatingControls}
+                        disabled={isUpdatingControls || !!registrationControls?.generalManuallyOpen}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
-                        {registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "Fermer Maréchaux" : "Ouvrir Maréchaux"}
+                        {marshalsButtonText()}
                     </Button>
                     <Button 
                         variant={registrationControls?.generalManuallyOpen ? "default" : "outline"}
@@ -178,7 +205,7 @@ export default function AdminPage() {
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
-                        {registrationControls?.generalManuallyOpen ? "Fermer Généraux" : "Ouvrir Généraux"}
+                        {generalsButtonText()}
                     </Button>
                     <Button 
                         variant="destructive" 
