@@ -342,7 +342,14 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
         return { id: docRef.id, ...newRegistrationData };
     } catch (error) {
         console.error("Firestore - Erreur lors de l'ajout de l'inscription:", error);
-        throw new Error("Impossible d'ajouter l'inscription à Firestore.");
+        let detail = "Vérifiez les logs du serveur Next.js ou la console du navigateur pour l'erreur Firebase d'origine.";
+        if (error instanceof Error && 'code' in error) {
+            const fbError = error as {code: string, message: string};
+            detail = `Erreur Firebase: ${fbError.message} (Code: ${fbError.code}). Vérifiez les index Firestore si le code est 'failed-precondition'.`;
+        } else if (error instanceof Error) {
+            detail = `Détail: ${error.message}`;
+        }
+        throw new Error(`Impossible d'ajouter l'inscription à Firestore. ${detail}`);
     }
 };
 
@@ -487,12 +494,12 @@ export const saveGameResult = async (tableId: string, winnerIds: string[], playe
     try {
         const gameResultRef = doc(db, GAME_RESULTS_COLLECTION, tableId);
         const resultData: GameResult = {
-            tableId, 
+            tableId,
             winnerIds,
             playersInGame,
             timestamp: new Date(),
         };
-        await setDoc(gameResultRef, resultData, { merge: true }); 
+        await setDoc(gameResultRef, resultData, { merge: true });
         return resultData;
     } catch (error) {
         console.error("Firestore - Erreur lors de la sauvegarde du résultat du jeu:", error);
@@ -556,7 +563,7 @@ export const getRegistrationControl = async (): Promise<ManualRegistrationContro
     }
     // Default if not found
     return {
-      id: REGISTRATION_CONTROL_DOC_ID, 
+      id: REGISTRATION_CONTROL_DOC_ID,
       strategistManuallyOpen: false,
       marshalManuallyOpen: false,
       generalManuallyOpen: false,
@@ -621,7 +628,7 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
 
         if (!registeredSlot || !newSlot) {
             // Should not happen if not "Off" but handle defensively
-            return registeredTable.timeSlot === newTable.timeSlot; 
+            return registeredTable.timeSlot === newTable.timeSlot;
         }
         // True if they overlap
         return !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
@@ -634,7 +641,7 @@ export const canRegisterBasedOnTicket = (
 ): boolean => {
   if (userTicketType === 'Invitation') return false;
 
-  if (manualControls.generalManuallyOpen) { 
+  if (manualControls.generalManuallyOpen) {
       return true;
   }
   if (manualControls.marshalManuallyOpen) {
@@ -643,8 +650,8 @@ export const canRegisterBasedOnTicket = (
   if (manualControls.strategistManuallyOpen) {
       return userTicketType === 'Stratège';
   }
-  
-  return false; 
+
+  return false;
 };
 
 
