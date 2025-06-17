@@ -60,7 +60,7 @@ import GameManager from './game-manager';
 
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
 type ConventionDayAdmin = typeof conventionDayOrder[number];
-const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00"];
+const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00", "Off"];
 
 const defaultTableFormData: GameTableInput = {
   gameId: '',
@@ -710,7 +710,7 @@ export default function ConventionManager() {
                     <Label htmlFor="timeSlot" className="text-right">Créneau</Label>
                      <Select name="timeSlot" value={tableFormData.timeSlot} onValueChange={handleTableSelectChange('timeSlot')} required disabled={isSubmittingTable}>
                          <SelectTrigger className="col-span-3 rounded-md shadow-sm"><SelectValue placeholder="Créneau" /></SelectTrigger>
-                         <SelectContent>{timeSlotOrder.map(ts => (<SelectItem key={ts} value={ts}>{ts.replace(' - ', ' à ')}</SelectItem>))}</SelectContent>
+                         <SelectContent>{timeSlotOrder.map(ts => (<SelectItem key={ts} value={ts}>{ts === 'Off' ? ts : ts.replace(' - ', ' à ')}</SelectItem>))}</SelectContent>
                      </Select>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
