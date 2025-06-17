@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Loader2, Eye, EyeOff } from 'lucide-react'; // Import icons
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('WellDone'); // Default admin email
+  const [email, setEmail] = useState('olivier@asynconv.fr'); // Default admin email
   const [password, setPassword] = useState('p4SIT/ASYNCONV25%'); // Default admin password
   const [showPassword, setShowPassword] = useState(false); // State for password visibility
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,7 @@ export default function LoginPage() {
     // 1. Check your .env.local file and Firebase Project settings.
     //    Ensure NEXT_PUBLIC_FIREBASE_API_KEY and other config variables are correctly set.
     //    The "auth/invalid-api-key" or "auth/api-key-not-valid" error means the key is missing or wrong.
-    // 2. Ensure the user 'WellDone' exists in your Firebase project's
+    // 2. Ensure the user 'olivier@asynconv.fr' exists in your Firebase project's
     //    Authentication section and has the password 'p4SIT/ASYNCONV25%'.
     //    Firebase doesn't create users automatically. You might need to create this
     //    user manually in the Firebase console (Authentication -> Add user).
@@ -55,7 +55,7 @@ export default function LoginPage() {
                errorMessage = 'Identifiant ou mot de passe invalide.';
                break;
              case 'auth/invalid-email':
-                errorMessage = 'Format d\'identifiant invalide.'; // Adjusted for "Identifiant"
+                errorMessage = 'Format d\'email invalide.'; // Adjusted for "Identifiant"
                 break;
              case 'auth/invalid-api-key':
              case 'auth/api-key-not-valid': // Handle variations of the API key error
@@ -65,7 +65,7 @@ export default function LoginPage() {
                 errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion internet.';
                 break;
               case 'auth/operation-not-allowed':
-                 errorMessage = 'L\'authentification par identifiant/mot de passe n\'est pas activée dans votre projet Firebase.'; // Adjusted
+                 errorMessage = 'L\'authentification par email/mot de passe n\'est pas activée dans votre projet Firebase.'; // Adjusted
                  break;
              default:
                 // Keep generic message but log the specific code
@@ -101,17 +101,17 @@ export default function LoginPage() {
           <CardDescription>Entrez vos identifiants pour accéder à l'espace admin.</CardDescription>
            {/* Display default credentials for easy access during development/demo */}
            <CardDescription className="text-xs text-muted-foreground pt-2">
-             (Démo : WellDone / p4SIT/ASYNCONV25%)
+             (Démo : olivier@asynconv.fr / p4SIT/ASYNCONV25%)
            </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Identifiant</Label> {/* Changed from Email to Identifiant */}
+              <Label htmlFor="email">Email</Label> {/* Changed from Email to Identifiant */}
               <Input
                 id="email" // ID remains 'email' for signInWithEmailAndPassword which expects an email field
-                type="text" // Changed from email to text, Firebase handles non-email format if allowed in project
-                placeholder="WellDone"
+                type="email" // Changed from email to text, Firebase handles non-email format if allowed in project
+                placeholder="olivier@asynconv.fr"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
