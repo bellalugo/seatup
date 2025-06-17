@@ -1,4 +1,3 @@
-
 'use client';
 
 import type React from 'react';
@@ -60,39 +59,12 @@ interface RankedLivePlayer extends LivePlayerScore {
   rank: number;
 }
 
-const getCurrentRegistrationPhaseDisplay = (
-  manualControls: ManualRegistrationControls | null
-): string => {
-  if (!manualControls) return '<strong>Chargement de l\'état des inscriptions...</strong>';
-
-  let line1 = "";
-  let line1Color = "hsl(var(--foreground))"; // Default color
-  let line2 = "";
-  const line2Color = "hsl(var(--muted-foreground))";
-
-  if (manualControls.generalManuallyOpen) {
-    line1 = "Ouvert : Général, Maréchal, Stratège";
-    line1Color = "hsl(var(--badge-general-foreground))";
-    line2 = "Toutes les inscriptions (hors Invitation) sont ouvertes.";
-  } else if (manualControls.marshalManuallyOpen) {
-    line1 = "Ouvert : Maréchal, Stratège";
-    line1Color = "hsl(var(--badge-marshal-foreground))";
-    line2 = "Fermé : Général.";
-  } else if (manualControls.strategistManuallyOpen) {
-    line1 = "Ouvert : Stratège";
-    line1Color = "hsl(var(--badge-strategist-foreground))";
-    line2 = "Fermé : Maréchal, Général.";
-  } else {
-    line1 = "Inscriptions Fermées";
-    line2 = "Toutes les phases sont actuellement fermées.";
-  }
-
-  return `<div style="text-align: left; line-height: 1.4;">
-            <strong style="color: ${line1Color};">${line1}</strong>
-            <br />
-            <small style="color: ${line2Color};">${line2}</small>
-          </div>`;
-};
+interface TicketPhaseStatusInfo {
+  ticketType: TicketType;
+  text: string;
+  variant: 'strategist' | 'marshal' | 'general' | 'outline' | 'secondary';
+  isOpen: boolean;
+}
 
 
 export default function Home() {
@@ -115,7 +87,7 @@ export default function Home() {
   const [isLoadingLiveHof, setIsLoadingLiveHof] = useState(true);
 
   const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls | null>(null);
-  const [currentPhaseMessage, setCurrentPhaseMessage] = useState('<strong>Chargement de l\'état des inscriptions...</strong>');
+  const [ticketPhaseStatuses, setTicketPhaseStatuses] = useState<TicketPhaseStatusInfo[]>([]);
 
 
   const loadPageData = useCallback(async () => {
@@ -144,8 +116,6 @@ export default function Home() {
       fetchedGameResults.forEach(result => resultsMap.set(result.tableId, result));
       setGameResultsData(resultsMap);
 
-      setCurrentPhaseMessage(getCurrentRegistrationPhaseDisplay(fetchedRegistrationControls));
-
     } catch (error) {
       console.error("Échec du chargement des données de la page:", error);
       toast({
@@ -166,11 +136,43 @@ export default function Home() {
     const interval = setInterval(() => {
       getRegistrationControl().then(controls => {
         setRegistrationControls(controls);
-        setCurrentPhaseMessage(getCurrentRegistrationPhaseDisplay(controls));
       });
     }, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (registrationControls) {
+      const statuses: TicketPhaseStatusInfo[] = [];
+      
+      const isStrategistOpen = registrationControls.strategistManuallyOpen;
+      statuses.push({
+        ticketType: 'Stratège',
+        text: `Stratège : ${isStrategistOpen ? 'Ouvert' : 'Fermé'}`,
+        variant: isStrategistOpen ? 'strategist' : 'outline',
+        isOpen: isStrategistOpen,
+      });
+
+      const isMarshalOpen = registrationControls.marshalManuallyOpen;
+      statuses.push({
+        ticketType: 'Maréchal',
+        text: `Maréchal : ${isMarshalOpen ? 'Ouvert' : 'Fermé'}`,
+        variant: isMarshalOpen ? 'marshal' : 'outline',
+        isOpen: isMarshalOpen,
+      });
+
+      const isGeneralOpen = registrationControls.generalManuallyOpen;
+      statuses.push({
+        ticketType: 'Général',
+        text: `Général : ${isGeneralOpen ? 'Ouvert' : 'Fermé'}`,
+        variant: isGeneralOpen ? 'general' : 'outline',
+        isOpen: isGeneralOpen,
+      });
+      setTicketPhaseStatuses(statuses);
+    } else {
+      setTicketPhaseStatuses([]);
+    }
+  }, [registrationControls]);
 
 
   // Effect for Live Hall of Fame
@@ -288,7 +290,7 @@ export default function Home() {
     }
 
     if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) {
-       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. L'ouverture est gérée manuellement.`;
+       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment.`;
        toast({
         variant: "destructive",
         title: "Inscription non disponible",
@@ -334,7 +336,7 @@ export default function Home() {
     }
 
     if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) {
-      let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. L'ouverture est gérée manuellement.`;
+      let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment.`;
        toast({
         variant: "destructive",
         title: "Inscription non disponible",
@@ -436,6 +438,9 @@ export default function Home() {
         return 'secondary';
     }
   };
+  
+  const openPhaseBadges = ticketPhaseStatuses.filter(s => s.isOpen);
+  const closedPhaseBadges = ticketPhaseStatuses.filter(s => !s.isOpen);
 
   return (
     <TooltipProvider>
@@ -492,11 +497,45 @@ export default function Home() {
                   </Button>
                   </div>
               )}
-              <Badge
-                variant="outline"
-                className="shadow-sm mt-2 text-xs h-auto py-2 px-3 items-start text-left block"
-                dangerouslySetInnerHTML={{ __html: currentPhaseMessage || '<strong>Chargement de l\'état des inscriptions...</strong>' }}
-              />
+              
+              <div className="space-y-2 mt-3 pt-3 border-t">
+                {isLoading && !registrationControls && (
+                     <p className="text-sm text-muted-foreground">Chargement de l'état des inscriptions...</p>
+                )}
+                {registrationControls && (
+                    <>
+                        {openPhaseBadges.length > 0 && (
+                        <div>
+                            <p className="text-xs font-medium text-foreground mb-1">Accès aux tables ouvert pour :</p>
+                            <div className="flex flex-wrap gap-2">
+                            {openPhaseBadges.map(phase => (
+                                <Badge key={phase.ticketType} variant={phase.variant} className="shadow-sm text-sm py-1">
+                                {phase.text}
+                                </Badge>
+                            ))}
+                            </div>
+                        </div>
+                        )}
+
+                        {closedPhaseBadges.length > 0 && (
+                        <div className={openPhaseBadges.length > 0 ? "mt-3" : ""}>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Accès aux tables fermé pour :</p>
+                            <div className="flex flex-wrap gap-2">
+                            {closedPhaseBadges.map(phase => (
+                                <Badge key={phase.ticketType} variant={phase.variant} className="shadow-sm text-sm py-1">
+                                {phase.text}
+                                </Badge>
+                            ))}
+                            </div>
+                        </div>
+                        )}
+                        
+                        {openPhaseBadges.length === 0 && closedPhaseBadges.length === 3 && (
+                            <p className="text-sm font-semibold text-destructive">Inscriptions actuellement fermées.</p>
+                        )}
+                    </>
+                )}
+              </div>
               </CardContent>
           </Card>
 
@@ -667,7 +706,7 @@ export default function Home() {
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                       } else if (!canRegisterNow) {
-                                                          tooltipText = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. L'ouverture est gérée manuellement.`;
+                                                          tooltipText = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment.`;
                                                           buttonText = "Indisponible";
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
