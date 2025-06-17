@@ -179,7 +179,7 @@ export default function HallOfFamePage() {
           <TableRow>
             <TableHead className="w-16 text-center">Rang</TableHead>
             <TableHead>Participant</TableHead>
-            <TableHead className="text-center">Parties Jouées</TableHead>
+            <TableHead className="text-center">Nombre de parties jouées</TableHead>
             <TableHead className="text-center">Victoires</TableHead>
             <TableHead className="w-24 text-center">Score</TableHead>
           </TableRow>
@@ -242,12 +242,12 @@ export default function HallOfFamePage() {
            <div className="mx-auto bg-black rounded-full p-4 w-fit mb-4 shadow-md">
              <Trophy className="h-10 w-10 text-primary" />
            </div>
-          <CardTitle className="text-4xl font-bold tracking-tight text-primary-foreground">Hall of Fame - ASYNCONV</CardTitle>
+          <CardTitle className="text-4xl font-bold tracking-tight text-primary-foreground">ASYNCONV25 : HALL OF FAME</CardTitle>
           <CardDescription className="text-lg text-primary-foreground/90">
-            Classement des Maîtres Stratèges de la convention !
+            Classement des Grands Maîtres de la convention !
           </CardDescription>
-          <Badge variant="outline" className="mx-auto mt-2 border-primary-foreground/50 text-primary-foreground/90">
-            Points: 1 par victoire (+1 bonus si 5+ joueurs)
+          <Badge variant="outline" className="mx-auto mt-2 border-primary-foreground/50 text-primary-foreground/90 flex items-center gap-1">
+            <Star className="inline-block h-3.5 w-3.5 text-primary-foreground fill-primary-foreground" /> par victoire | Bonus de <Star className="inline-block h-3.5 w-3.5 text-primary-foreground fill-primary-foreground" /> par victoire si la partie compte 5 joueurs ou plus
           </Badge>
         </CardHeader>
       </Card>
@@ -296,5 +296,6 @@ export default function HallOfFamePage() {
     
 
     
+
 
 
