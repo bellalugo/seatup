@@ -11,7 +11,8 @@ import { syncBilletwebParticipants } from "@/ai/flows/sync-billetweb-participant
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ParticipantList from "@/components/admin/participant-list";
 import { getRegistrationControl, updateRegistrationControl } from "@/lib/data";
-import type { ManualRegistrationControls, TicketType } from "@/lib/types";
+import type { ManualRegistrationControls, TicketType, RegistrationPhase } from "@/lib/types"; // Added RegistrationPhase
+import { REGISTRATION_SCHEDULE } from "@/lib/types"; // Added REGISTRATION_SCHEDULE
 import { Separator } from "@/components/ui/separator";
 
 
@@ -52,8 +53,10 @@ export default function AdminPage() {
         newControls = { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false };
     } else if (phaseToOpen === 'Stratège') {
         newControls.strategistManuallyOpen = true;
-        // Keep others as they are or potentially reset higher levels if logic requires
-        // For now, only explicitly set the target and its prerequisites
+        // Marshal and General become false if strategist is the *only* one meant to be open
+        // However, the current logic is if Stratège is open, lower phases could remain open or follow schedule.
+        // For simplicity, opening a phase implies opening its prerequisites if not already open by a higher override.
+        // If "reset" is used, all manual flags are cleared.
     } else if (phaseToOpen === 'Maréchal') {
         newControls.strategistManuallyOpen = true; // Prerequisite
         newControls.marshalManuallyOpen = true;
@@ -66,7 +69,7 @@ export default function AdminPage() {
     try {
         await updateRegistrationControl(newControls);
         // Optimistically update local state or re-fetch
-        setRegistrationControls(prev => ({...(prev || { id: 'registrationControl' }), ...newControls }));
+        setRegistrationControls(prev => ({...(prev || { id: 'registrationControl' }), ...newControls })); // Ensure ID is preserved
         toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'réinitialisée (suit le planning)' : phaseToOpen + ' (et précédentes si applicable)'} ouverte manuellement.` });
     } catch (error) {
         toast({ variant: "destructive", title: "Erreur de mise à jour", description: (error as Error).message });
@@ -114,10 +117,53 @@ export default function AdminPage() {
 
   const getPhaseStatusMessage = () => {
     if (!registrationControls) return "Chargement de l'état des phases...";
+
+    // Manual Overrides
     if (registrationControls.generalManuallyOpen) return "OUVERT MANUELLEMENT : Général, Maréchal, Stratège.";
     if (registrationControls.marshalManuallyOpen) return "OUVERT MANUELLEMENT : Maréchal, Stratège. (Général suit le planning)";
     if (registrationControls.strategistManuallyOpen) return "OUVERT MANUELLEMENT : Stratège. (Maréchal, Général suivent le planning)";
-    return "AUTOMATIQUE : Les inscriptions suivent le planning par date.";
+
+    // Automatic (Schedule-based)
+    const currentDate = new Date();
+    let messageParts: string[] = ["AUTOMATIQUE (Planning) :"];
+    let lastOpenedScheduledPhase: RegistrationPhase | null = null;
+
+    for (let i = REGISTRATION_SCHEDULE.length - 1; i >= 0; i--) {
+      if (currentDate >= REGISTRATION_SCHEDULE[i].startDate) {
+        lastOpenedScheduledPhase = REGISTRATION_SCHEDULE[i];
+        break;
+      }
+    }
+
+    if (lastOpenedScheduledPhase) {
+      messageParts.push(`${lastOpenedScheduledPhase.name} ouvert.`);
+      
+      const lastOpenedPhaseIndex = REGISTRATION_SCHEDULE.findIndex(p => p.ticketType === lastOpenedScheduledPhase!.ticketType);
+      let nextScheduledPhaseToOpen: RegistrationPhase | null = null;
+      if (lastOpenedPhaseIndex < REGISTRATION_SCHEDULE.length - 1) {
+        for (let i = lastOpenedPhaseIndex + 1; i < REGISTRATION_SCHEDULE.length; i++) {
+          if (currentDate < REGISTRATION_SCHEDULE[i].startDate) {
+            nextScheduledPhaseToOpen = REGISTRATION_SCHEDULE[i];
+            break;
+          }
+        }
+      }
+
+      if (nextScheduledPhaseToOpen) {
+        messageParts.push(`Prochaine ouverture : ${nextScheduledPhaseToOpen.name} le ${nextScheduledPhaseToOpen.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`);
+      } else {
+         messageParts.push("Toutes les phases du planning sont ouvertes.");
+      }
+    } else {
+      if (REGISTRATION_SCHEDULE.length > 0) {
+        const firstPhase = REGISTRATION_SCHEDULE[0];
+        messageParts.push(`Inscriptions fermées.`);
+        messageParts.push(`Prochaine ouverture : ${firstPhase.name} le ${firstPhase.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`);
+      } else {
+        messageParts.push("Aucun planning d'inscription défini.");
+      }
+    }
+    return messageParts.join(' ');
   };
 
   return (
@@ -227,4 +273,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
