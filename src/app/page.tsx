@@ -1,3 +1,4 @@
+
 'use client';
 
 import type React from 'react';
@@ -441,6 +442,12 @@ export default function Home() {
   
   const openPhaseBadges = ticketPhaseStatuses.filter(s => s.isOpen);
   const closedPhaseBadges = ticketPhaseStatuses.filter(s => !s.isOpen);
+  
+  const showUserSpecificWarning = currentUser && 
+                                registrationControls && 
+                                currentUser.ticketType !== 'Invitation' && 
+                                !canRegisterBasedOnTicket(currentUser.ticketType, registrationControls) &&
+                                openPhaseBadges.length > 0;
 
   return (
     <TooltipProvider>
@@ -484,17 +491,23 @@ export default function Home() {
                   </div>
               ) : (
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-accent/10 rounded-md">
-                  <div>
-                      <p className="font-semibold text-lg">Bienvenue, {currentUser.name} !</p>
-                      <Badge variant={getTicketBadgeVariant(currentUser.ticketType)} className="shadow-sm">
-                          Billet : {currentUser.ticketType}
-                      </Badge>
-                      <p className="text-xs text-muted-foreground mt-1">Email: {currentUser.email}</p>
-                  </div>
-                  <Button onClick={handleLogout} variant="outline" className="shadow-sm rounded-md">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Se déconnecter
-                  </Button>
+                    <div>
+                        <p className="font-semibold text-lg">Bienvenue, {currentUser.name} !</p>
+                        <Badge variant={getTicketBadgeVariant(currentUser.ticketType)} className="shadow-sm">
+                            Billet : {currentUser.ticketType}
+                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-1">Email: {currentUser.email}</p>
+                        {showUserSpecificWarning && (
+                            <p className="text-xs text-destructive mt-1 font-medium">
+                                <AlertCircle className="inline h-3.5 w-3.5 mr-1" />
+                                L'inscription aux tables pour votre type de billet ({currentUser.ticketType}) n'est pas encore ouverte.
+                            </p>
+                        )}
+                    </div>
+                    <Button onClick={handleLogout} variant="outline" className="shadow-sm rounded-md">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Se déconnecter
+                    </Button>
                   </div>
               )}
               
@@ -517,8 +530,8 @@ export default function Home() {
                         </div>
                         )}
 
-                        {closedPhaseBadges.length > 0 && (
-                        <div className={openPhaseBadges.length > 0 ? "mt-3" : ""}>
+                        {closedPhaseBadges.length > 0 && openPhaseBadges.length > 0 && ( // Only show closed if some are open
+                          <div className="mt-3"> 
                             <p className="text-xs font-medium text-muted-foreground mb-1">Accès aux tables fermé pour :</p>
                             <div className="flex flex-wrap gap-2">
                             {closedPhaseBadges.map(phase => (
@@ -527,10 +540,10 @@ export default function Home() {
                                 </Badge>
                             ))}
                             </div>
-                        </div>
+                          </div>
                         )}
                         
-                        {openPhaseBadges.length === 0 && closedPhaseBadges.length === 3 && (
+                        {openPhaseBadges.length === 0 && (
                             <p className="text-sm font-semibold text-destructive">Inscriptions actuellement fermées.</p>
                         )}
                     </>
@@ -932,3 +945,4 @@ export default function Home() {
     </TooltipProvider>
   );
 }
+
