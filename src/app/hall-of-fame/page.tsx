@@ -19,7 +19,7 @@ type ConventionDay = typeof conventionDays[number];
 interface PlayerScore {
   id: string;
   name: string;
-  email: string;
+  email: string; // Email is kept in the data structure, but not displayed
   dailyScores: Record<ConventionDay, number>;
   dailyGamesPlayed: Record<ConventionDay, number>; 
   dailyWins: Record<ConventionDay, number>; 
@@ -197,7 +197,6 @@ export default function HallOfFamePage() {
                 </TableCell>
                 <TableCell>
                   <div className="font-medium">{player.name}</div>
-                  <div className="text-xs text-muted-foreground">{player.email}</div>
                 </TableCell>
                 <TableCell className="text-center">
                   {isDaily && day ? player.dailyGamesPlayed[day] : player.gamesPlayed}
