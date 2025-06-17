@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3, Star } from 'lucide-react'; // Import Star
+import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getAllGameResults, getGameTables, getParticipants, getRegistrations } from '@/lib/data';
 import type { GameResult, GameTable, Participant, Registration } from '@/lib/types';
@@ -237,16 +237,16 @@ export default function HallOfFamePage() {
 
   return (
     <div className="space-y-8">
-      <Card className="shadow-xl bg-primary text-white">
+      <Card className="shadow-xl bg-primary">
         <CardHeader className="text-center">
            <div className="mx-auto bg-black rounded-full p-4 w-fit mb-4 shadow-md">
              <Trophy className="h-10 w-10 text-primary" />
            </div>
-          <CardTitle className="text-4xl font-bold tracking-tight text-white">Hall of Fame - ASYNCONV</CardTitle>
-          <CardDescription className="text-lg text-white/90">
+          <CardTitle className="text-4xl font-bold tracking-tight text-primary-foreground">Hall of Fame - ASYNCONV</CardTitle>
+          <CardDescription className="text-lg text-primary-foreground/90">
             Classement des Maîtres Stratèges de la convention !
           </CardDescription>
-          <Badge variant="outline" className="mx-auto mt-2 border-white/50 text-white/90">
+          <Badge variant="outline" className="mx-auto mt-2 border-primary-foreground/50 text-primary-foreground/90">
             Points: 1 par victoire (+1 bonus si 5+ joueurs)
           </Badge>
         </CardHeader>
@@ -296,4 +296,5 @@ export default function HallOfFamePage() {
     
 
     
+
 
