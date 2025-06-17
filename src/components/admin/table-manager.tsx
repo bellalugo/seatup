@@ -46,20 +46,20 @@ import {
   addGameTable,
   updateGameTable,
   deleteGameTable,
-  getRegistrationsForTable,
   getRegistrations,
   getGames,
   getParticipants,
   addRegistration as addRegistrationToDb,
   removeRegistration as removeRegistrationFromDb,
-  saveGameResult, // New import
-  getAllGameResults, // New import
+  saveGameResult,
+  getAllGameResults,
 } from '@/lib/data';
-import type { GameTable, GameTableInput, Registration, Game, Participant, GameResult } from '@/lib/types'; // GameResult added
-import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy } from 'lucide-react';
+import type { GameTable, GameTableInput, Registration, Game, Participant, GameResult } from '@/lib/types';
+import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy, CalendarDays } from 'lucide-react';
 import GameManager from './game-manager';
 
-const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
+type ConventionDayAdmin = typeof conventionDayOrder[number];
 const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00"];
 
 const defaultTableFormData: GameTableInput = {
@@ -72,13 +72,15 @@ const defaultTableFormData: GameTableInput = {
 };
 
 export default function ConventionManager() {
-  const [activeTab, setActiveTab] = useState("games");
+  const [activeMainTab, setActiveMainTab] = useState("games");
+  const [activeDayTab, setActiveDayTab] = useState<ConventionDayAdmin>(conventionDayOrder[0]);
+
   const [tables, setTables] = useState<GameTable[]>([]);
   const [allGames, setAllGames] = useState<Game[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [allParticipantsData, setAllParticipantsData] = useState<Participant[]>([]);
   const [invitationParticipants, setInvitationParticipants] = useState<Participant[]>([]);
-  const [gameResultsData, setGameResultsData] = useState<Map<string, GameResult>>(new Map()); // For storing fetched game results
+  const [gameResultsData, setGameResultsData] = useState<Map<string, GameResult>>(new Map());
 
   const [isLoadingTables, setIsLoadingTables] = useState(true);
   const [isSubmittingTable, setIsSubmittingTable] = useState(false);
@@ -94,7 +96,6 @@ export default function ConventionManager() {
   const [tableToDelete, setTableToDelete] = useState<GameTable | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
 
-  const [tableFormData, setTableFormData] = useState<GameTableInput>(defaultTableFormData);
   const { toast } = useToast();
 
   const [inProgressTables, setInProgressTables] = useState<Map<string, boolean>>(new Map());
@@ -112,13 +113,13 @@ export default function ConventionManager() {
         fetchedRegistrationsResult,
         fetchedGamesList,
         fetchedParticipants,
-        fetchedGameResults // Fetch game results
+        fetchedGameResults
       ] = await Promise.all([
         getGameTables(),
         getRegistrations(),
         getGames(),
         getParticipants(),
-        getAllGameResults() // New call
+        getAllGameResults()
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrationsResult);
@@ -140,10 +141,10 @@ export default function ConventionManager() {
   }, [toast]);
 
   useEffect(() => {
-    if (activeTab === "tables") {
+    if (activeMainTab === "tables") {
       fetchPageData(true);
     }
-  }, [fetchPageData, activeTab]);
+  }, [fetchPageData, activeMainTab]);
 
   const fetchRegistrantsForDialog = useCallback(async (tableId: string) => {
     if (!tableId) return;
@@ -215,7 +216,7 @@ export default function ConventionManager() {
       day: table.day,
       timeSlot: table.timeSlot,
       totalSeats: table.totalSeats,
-      tableNumber: '',
+      tableNumber: '', // Clear table number for duplication
       authorAnimator: table.authorAnimator || undefined,
     });
     setCurrentTableRegistrants([]);
@@ -223,7 +224,7 @@ export default function ConventionManager() {
     setIsTableDialogOpen(true);
     toast({
       title: "Table dupliquée",
-      description: `Les informations de la table "${table.gameName}" (N° ${table.tableNumber}) ont été copiées. Modifiez le créneau horaire et/ou le numéro de table, puis enregistrez.`,
+      description: `Les informations de la table "${table.gameName}" (N° ${table.tableNumber}) ont été copiées. Modifiez le numéro de table et/ou le créneau horaire, puis enregistrez.`,
       duration: 7000,
     });
   };
@@ -237,18 +238,16 @@ export default function ConventionManager() {
     if (!tableToDelete) return;
     setIsDeletingTable(tableToDelete.id);
     try {
-        // The deleteGameTable function now also handles deleting associated gameResults
         await deleteGameTable(tableToDelete.id);
-        toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) et ses résultats ont été supprimés avec succès.` });
-        fetchPageData(false); // Re-fetch all data including game results
+        toast({ title: "Table supprimée", description: `La table "${tableToDelete.gameName}" (N° ${tableToDelete.tableNumber}) et ses résultats ont été supprimés.` });
+        fetchPageData(false); 
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
-         // Check if the error is about existing registrations
          if (err instanceof Error && err.message.includes("joueur(s) inscrit(s)")) {
              toast({
                 variant: "destructive",
                 title: "Suppression impossible",
-                description: errorMessage, // Display the specific error message from deleteGameTable
+                description: errorMessage,
                 action: <AlertTriangle className="text-destructive-foreground h-5 w-5" />,
                 duration: 7000,
             });
@@ -264,7 +263,7 @@ export default function ConventionManager() {
 
   const handleOpenTableDialogForAdd = () => {
     setEditingTable(null);
-    setTableFormData(defaultTableFormData);
+    setTableFormData({...defaultTableFormData, day: activeDayTab}); // Pre-fill day from active tab
     setCurrentTableRegistrants([]);
     setSelectableParticipantsForDialog(allParticipantsData.filter(p => p.typeBillet !== 'Invitation'));
     setIsTableDialogOpen(true);
@@ -304,11 +303,11 @@ export default function ConventionManager() {
         }
         await fetchPageData(false);
 
-        if (!editingTable && !payload.id) {
-             setIsTableDialogOpen(false);
+        if (!editingTable && !(payload as any).id) { // Check if it was a new table
+             setIsTableDialogOpen(false); // Close dialog only for truly new tables
              setEditingTable(null);
              setTableFormData(defaultTableFormData);
-        } else if (editingTable) {
+        } else if (editingTable) { // If editing, re-fetch registrants for dialog
              fetchRegistrantsForDialog(editingTable.id);
         }
 
@@ -392,11 +391,10 @@ export default function ConventionManager() {
   const handleConfirmWinners = async () => {
     if (currentTableForWinnerSelection && currentTableForWinnerSelection.id) {
       const tableId = currentTableForWinnerSelection.id;
-      const playersInGame = participantsForWinnerDialog.length; // Number of registered players at the moment of confirmation
+      const playersInGame = participantsForWinnerDialog.length;
       try {
         await saveGameResult(tableId, selectedWinnerIdsInDialog, playersInGame);
         toast({ title: "Vainqueur(s) enregistré(s)", description: `Les vainqueurs pour la table ${currentTableForWinnerSelection.tableNumber} ont été sauvegardés.`});
-        // Update local gameResultsData to reflect the change immediately
         setGameResultsData(prev => {
             const newMap = new Map(prev);
             newMap.set(tableId, { tableId, winnerIds: selectedWinnerIdsInDialog, playersInGame, timestamp: new Date() });
@@ -409,6 +407,186 @@ export default function ConventionManager() {
     setIsWinnerSelectDialogOpen(false);
     setCurrentTableForWinnerSelection(null);
     setSelectedWinnerIdsInDialog([]);
+  };
+
+  const renderSingleDayTable = (day: ConventionDayAdmin) => {
+    const dayTables = tables
+        .filter(table => table.day === day)
+        .sort((a, b) => {
+            const tableNumA_raw = a.tableNumber || '';
+            const tableNumB_raw = b.tableNumber || '';
+            const numA_parsed = parseFloat(tableNumA_raw.replace(',', '.'));
+            const numB_parsed = parseFloat(tableNumB_raw.replace(',', '.'));
+            const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw.match(/^[\d,.]+$/);
+            const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw.match(/^[\d,.]+$/);
+
+            if (isPurelyNumericA && isPurelyNumericB) {
+                if (numA_parsed < numB_parsed) return -1;
+                if (numA_parsed > numB_parsed) return 1;
+            } else if (isPurelyNumericA) return -1;
+            else if (isPurelyNumericB) return 1;
+            else {
+                const strA = tableNumA_raw.toLowerCase();
+                const strB = tableNumB_raw.toLowerCase();
+                if (strA < strB) return -1;
+                if (strA > strB) return 1;
+            }
+            const timeSlotAIndex = timeSlotOrder.indexOf(a.timeSlot);
+            const timeSlotBIndex = timeSlotOrder.indexOf(b.timeSlot);
+            if (timeSlotAIndex < timeSlotBIndex) return -1;
+            if (timeSlotAIndex > timeSlotBIndex) return 1;
+            return 0;
+        });
+
+    if (dayTables.length === 0) {
+        return <p className="text-muted-foreground text-center py-4">Aucune table configurée pour {day}.</p>;
+    }
+
+    return (
+        <Table>
+            <TableCaption>Liste des tables de jeu pour {day}.</TableCaption>
+            <TableHeader>
+                <TableRow>
+                    <TableHead className="w-20 text-center">Table n°</TableHead>
+                    <TableHead className="w-48 px-1 py-1">Visuel</TableHead>
+                    <TableHead>Jeu</TableHead>
+                    <TableHead>Auteur/Animateur</TableHead>
+                    <TableHead>Créneau horaire</TableHead>
+                    <TableHead className="text-left">Sièges</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {dayTables.map((table) => {
+                    const registrationsForThisTable = registrations.filter(r => r.tableId === table.id);
+                    const registeredParticipantDetails = registrationsForThisTable.map(reg => {
+                        return allParticipantsData.find(p => p.id === reg.userId);
+                    }).filter(p => p !== undefined) as Participant[];
+
+                    const occupiedSeatsCount = registeredParticipantDetails.length;
+                    const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
+                    const imageUrl = table.gameImageUrl || table.imageUrl;
+                    const isFull = table.totalSeats > 0 && occupiedSeatsCount >= table.totalSeats;
+                    const isGameInProgress = inProgressTables.get(table.id) || false;
+                    const gameResult = gameResultsData.get(table.id);
+
+                    return (
+                        <TableRow key={table.id} className={isFull && !isGameInProgress ? "bg-primary/20" : isGameInProgress ? "bg-green-100 dark:bg-green-900/30" : ""}>
+                            <TableCell className="font-bold text-center w-20">{table.tableNumber || 'N/A'}</TableCell>
+                            <TableCell className="w-48 px-1 py-1">
+                                {imageUrl ? (
+                                    <Image
+                                        src={imageUrl}
+                                        alt={`Visuel ${table.gameName || 'Jeu inconnu'}`}
+                                        width={192}
+                                        height={108}
+                                        className="rounded object-contain h-20 w-auto shadow-sm"
+                                        data-ai-hint="game cover"
+                                    />
+                                ) : (
+                                    <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
+                                )}
+                            </TableCell>
+                            <TableCell><strong className="font-bold">{table.gameName || 'Jeu inconnu'}</strong></TableCell>
+                            <TableCell>{table.authorAnimator ? <span className="font-medium flex items-center"><UserSquare2 className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.authorAnimator}</span> : <span className="text-muted-foreground italic">N/A</span>}</TableCell>
+                            <TableCell>{table.timeSlot}</TableCell>
+                            <TableCell className="text-left align-top min-w-[200px]">
+                                <ul className="list-none p-0 m-0 text-xs space-y-0.5">
+                                    {registeredParticipantDetails.map(participant => (
+                                        <li key={participant.id} className="flex items-center">
+                                            <UserCheck className="h-3.5 w-3.5 mr-1.5 text-green-600 flex-shrink-0" />
+                                            <span className="truncate" title={`${participant.prenom} ${participant.nom}`}>{participant.prenom} {participant.nom.substring(0,1)}.</span>
+                                        </li>
+                                    ))}
+                                    {Array.from({ length: freeSeatsCount }).map((_, i) => (
+                                        <li key={`free-admin-${table.id}-${i}`} className="flex items-center">
+                                            <UserCircle2 className="h-3.5 w-3.5 mr-1.5 text-gray-400 flex-shrink-0" />
+                                            <span className="italic text-muted-foreground">Place libre</span>
+                                        </li>
+                                    ))}
+                                    {table.totalSeats === 0 && freeSeatsCount === 0 && registeredParticipantDetails.length === 0 && (
+                                        <li className="flex items-center">
+                                            <Info className="h-3.5 w-3.5 mr-1.5 text-blue-500 flex-shrink-0" />
+                                            <span className="italic text-muted-foreground">0 place définie</span>
+                                        </li>
+                                    )}
+                                </ul>
+                                {gameResult && gameResult.winnerIds.length > 0 && (
+                                    <div className="mt-1 text-xs">
+                                        <span className="font-semibold text-amber-600">Vainqueur(s):</span>
+                                        <ul className="list-disc list-inside">
+                                            {gameResult.winnerIds.map(winnerId => {
+                                                const winner = allParticipantsData.find(p => p.id === winnerId);
+                                                return <li key={winnerId} className="text-amber-700">{winner ? `${winner.prenom} ${winner.nom}` : 'Inconnu'}</li>;
+                                            })}
+                                        </ul>
+                                    </div>
+                                )}
+                                {table.totalSeats > 0 && (
+                                    <p className={`text-xs mt-1 ${isFull ? 'font-bold text-destructive' : 'text-muted-foreground'}`}>
+                                        ({occupiedSeatsCount} / {table.totalSeats} occupées) {isFull ? " - COMPLET" : ""}
+                                    </p>
+                                )}
+                            </TableCell>
+                            <TableCell className="text-right space-x-1">
+                                {isGameInProgress ? (
+                                    <>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => handleOpenWinnerDialog(table)}
+                                            className="shadow-sm rounded-md h-8 w-8 border-amber-500 text-amber-600 hover:bg-amber-100"
+                                            title="Désigner Vainqueur(s)"
+                                        >
+                                            <Trophy className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="destructive"
+                                            size="icon"
+                                            onClick={() => toggleGameInProgress(table.id)}
+                                            className="shadow-sm rounded-md h-8 w-8 bg-red-600 hover:bg-red-700 text-white"
+                                            title="Terminer la partie"
+                                        >
+                                            <Square className="h-4 w-4" />
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Button
+                                            variant="default"
+                                            size="icon"
+                                            onClick={() => toggleGameInProgress(table.id)}
+                                            className="shadow-sm rounded-md h-8 w-8 bg-green-600 hover:bg-green-700 text-white"
+                                            title="Démarrer la partie"
+                                            disabled={occupiedSeatsCount === 0}
+                                        >
+                                            <Timer className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Dupliquer la table">
+                                            <Copy className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Modifier la table">
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                    </>
+                                )}
+                                <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id || isGameInProgress}
+                                    className="shadow-sm rounded-md h-8 w-8 hover:bg-red-700"
+                                    title={isGameInProgress ? "Terminez la partie avant de supprimer" : `Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
+                                    onClick={() => openDeleteConfirmationDialog(table)}
+                                >
+                                    {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                </Button>
+                            </TableCell>
+                        </TableRow>
+                    );
+                })}
+            </TableBody>
+        </Table>
+    );
   };
 
 
@@ -425,10 +603,26 @@ export default function ConventionManager() {
       <>
         <div className="flex justify-end mb-4">
             <Button onClick={handleOpenTableDialogForAdd} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md">
-              <TableIcon className="mr-2 h-4 w-4" /> Ajouter une table
+              <TableIcon className="mr-2 h-4 w-4" /> Ajouter une table ({activeDayTab})
             </Button>
         </div>
 
+        <Tabs value={activeDayTab} onValueChange={(value) => setActiveDayTab(value as ConventionDayAdmin)} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+                {conventionDayOrder.map(day => (
+                    <TabsTrigger key={day} value={day} className="flex items-center gap-1.5">
+                        <CalendarDays className="h-4 w-4" /> {day}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+            {conventionDayOrder.map(day => (
+                <TabsContent key={`content-${day}`} value={day} className="mt-4">
+                    {renderSingleDayTable(day)}
+                </TabsContent>
+            ))}
+        </Tabs>
+
+        {/* Dialogs remain outside the Tabs structure as they are global */}
         <Dialog open={isTableDialogOpen} onOpenChange={(open) => {
           setIsTableDialogOpen(open);
           if (!open) {
@@ -591,7 +785,6 @@ export default function ConventionManager() {
             </AlertDialogContent>
         </AlertDialog>
 
-        {/* Dialog for Winner Selection */}
         <Dialog open={isWinnerSelectDialogOpen} onOpenChange={(open) => {
             setIsWinnerSelectDialogOpen(open);
             if (!open) {
@@ -632,191 +825,6 @@ export default function ConventionManager() {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-
-
-        {tables.length > 0 ? (
-            <Table>
-            <TableCaption>Liste des tables de jeu configurées.</TableCaption>
-            <TableHeader>
-                <TableRow>
-                <TableHead className="w-20 text-center">Table n°</TableHead>
-                <TableHead className="w-48 px-1 py-1">Visuel</TableHead>
-                <TableHead>Jeu</TableHead>
-                <TableHead>Auteur/Animateur</TableHead>
-                <TableHead>Jour</TableHead>
-                <TableHead>Créneau horaire</TableHead>
-                <TableHead className="text-left">Sièges</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                 {tables.sort((a, b) => {
-                    const tableNumA_raw = a.tableNumber || '';
-                    const tableNumB_raw = b.tableNumber || '';
-                    const numA_parsed = parseFloat(tableNumA_raw.replace(',', '.'));
-                    const numB_parsed = parseFloat(tableNumB_raw.replace(',', '.'));
-                    const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw.match(/^[\d,.]+$/);
-                    const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw.match(/^[\d,.]+$/);
-
-                    if (isPurelyNumericA && isPurelyNumericB) {
-                        if (numA_parsed < numB_parsed) return -1;
-                        if (numA_parsed > numB_parsed) return 1;
-                    } else if (isPurelyNumericA) return -1;
-                      else if (isPurelyNumericB) return 1;
-
-                    const strA = tableNumA_raw.toLowerCase();
-                    const strB = tableNumB_raw.toLowerCase();
-                    if (strA < strB) return -1;
-                    if (strA > strB) return 1;
-
-                    const nameA = a.gameName?.toLowerCase() || '';
-                    const nameB = b.gameName?.toLowerCase() || '';
-                    if (nameA < nameB) return -1;
-                    if (nameA > nameB) return 1;
-
-                    const dayAIndex = conventionDayOrder.indexOf(a.day);
-                    const dayBIndex = conventionDayOrder.indexOf(b.day);
-                    if (dayAIndex < dayBIndex) return -1;
-                    if (dayAIndex > dayBIndex) return 1;
-
-                    const timeSlotAIndex = timeSlotOrder.indexOf(a.timeSlot);
-                    const timeSlotBIndex = timeSlotOrder.indexOf(b.timeSlot);
-                    if (timeSlotAIndex < timeSlotBIndex) return -1;
-                    if (timeSlotAIndex > timeSlotBIndex) return 1;
-
-                    return 0;
-                }).map((table) => {
-                  const registrationsForThisTable = registrations.filter(r => r.tableId === table.id);
-                  const registeredParticipantDetails = registrationsForThisTable.map(reg => {
-                      return allParticipantsData.find(p => p.id === reg.userId);
-                  }).filter(p => p !== undefined) as Participant[];
-
-                  const occupiedSeatsCount = registeredParticipantDetails.length;
-                  const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
-                  const imageUrl = table.gameImageUrl || table.imageUrl;
-                  const isFull = table.totalSeats > 0 && occupiedSeatsCount >= table.totalSeats;
-                  const isGameInProgress = inProgressTables.get(table.id) || false;
-                  const gameResult = gameResultsData.get(table.id);
-
-                  return (
-                    <TableRow key={table.id} className={isFull && !isGameInProgress ? "bg-primary/20" : isGameInProgress ? "bg-green-100 dark:bg-green-900/30" : ""}>
-                        <TableCell className="font-bold text-center w-20">{table.tableNumber || 'N/A'}</TableCell>
-                        <TableCell className="w-48 px-1 py-1">
-                            {imageUrl ? (
-                                <Image
-                                    src={imageUrl}
-                                    alt={`Visuel ${table.gameName || 'Jeu inconnu'}`}
-                                    width={192}
-                                    height={108}
-                                    className="rounded object-contain h-20 w-auto shadow-sm"
-                                    data-ai-hint="game cover"
-                                />
-                            ) : (
-                                <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
-                            )}
-                        </TableCell>
-                        <TableCell><strong className="font-bold">{table.gameName || 'Jeu inconnu'}</strong></TableCell>
-                        <TableCell>{table.authorAnimator ? <span className="font-medium flex items-center"><UserSquare2 className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.authorAnimator}</span> : <span className="text-muted-foreground italic">N/A</span>}</TableCell>
-                        <TableCell>{table.day}</TableCell>
-                        <TableCell>{table.timeSlot}</TableCell>
-                        <TableCell className="text-left align-top min-w-[200px]">
-                            <ul className="list-none p-0 m-0 text-xs space-y-0.5">
-                                {registeredParticipantDetails.map(participant => (
-                                    <li key={participant.id} className="flex items-center">
-                                        <UserCheck className="h-3.5 w-3.5 mr-1.5 text-green-600 flex-shrink-0" />
-                                        <span className="truncate" title={`${participant.prenom} ${participant.nom}`}>{participant.prenom} {participant.nom.substring(0,1)}.</span>
-                                    </li>
-                                ))}
-                                {Array.from({ length: freeSeatsCount }).map((_, i) => (
-                                    <li key={`free-admin-${table.id}-${i}`} className="flex items-center">
-                                        <UserCircle2 className="h-3.5 w-3.5 mr-1.5 text-gray-400 flex-shrink-0" />
-                                        <span className="italic text-muted-foreground">Place libre</span>
-                                    </li>
-                                ))}
-                                {table.totalSeats === 0 && freeSeatsCount === 0 && registeredParticipantDetails.length === 0 && (
-                                    <li className="flex items-center">
-                                        <Info className="h-3.5 w-3.5 mr-1.5 text-blue-500 flex-shrink-0" />
-                                        <span className="italic text-muted-foreground">0 place définie</span>
-                                    </li>
-                                )}
-                            </ul>
-                             {gameResult && gameResult.winnerIds.length > 0 && (
-                                <div className="mt-1 text-xs">
-                                    <span className="font-semibold text-amber-600">Vainqueur(s):</span>
-                                    <ul className="list-disc list-inside">
-                                        {gameResult.winnerIds.map(winnerId => {
-                                            const winner = allParticipantsData.find(p => p.id === winnerId);
-                                            return <li key={winnerId} className="text-amber-700">{winner ? `${winner.prenom} ${winner.nom}` : 'Inconnu'}</li>;
-                                        })}
-                                    </ul>
-                                </div>
-                            )}
-                            {table.totalSeats > 0 && (
-                                <p className={`text-xs mt-1 ${isFull ? 'font-bold text-destructive' : 'text-muted-foreground'}`}>
-                                    ({occupiedSeatsCount} / {table.totalSeats} occupées) {isFull ? " - COMPLET" : ""}
-                                </p>
-                            )}
-                        </TableCell>
-                        <TableCell className="text-right space-x-1">
-                            {isGameInProgress ? (
-                                <>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => handleOpenWinnerDialog(table)}
-                                        className="shadow-sm rounded-md h-8 w-8 border-amber-500 text-amber-600 hover:bg-amber-100"
-                                        title="Désigner Vainqueur(s)"
-                                    >
-                                        <Trophy className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="destructive"
-                                        size="icon"
-                                        onClick={() => toggleGameInProgress(table.id)}
-                                        className="shadow-sm rounded-md h-8 w-8 bg-red-600 hover:bg-red-700 text-white"
-                                        title="Terminer la partie"
-                                    >
-                                        <Square className="h-4 w-4" />
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
-                                    <Button
-                                        variant="default"
-                                        size="icon"
-                                        onClick={() => toggleGameInProgress(table.id)}
-                                        className="shadow-sm rounded-md h-8 w-8 bg-green-600 hover:bg-green-700 text-white"
-                                        title="Démarrer la partie"
-                                    >
-                                        <Timer className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Dupliquer la table">
-                                        <Copy className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Modifier la table">
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
-                                </>
-                            )}
-                            <Button
-                                variant="destructive"
-                                size="icon"
-                                disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id || isGameInProgress}
-                                className="shadow-sm rounded-md h-8 w-8 hover:bg-red-700"
-                                title={isGameInProgress ? "Terminez la partie avant de supprimer" : `Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
-                                onClick={() => openDeleteConfirmationDialog(table)}
-                            >
-                                {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                            </Button>
-                        </TableCell>
-                    </TableRow>
-                  );
-                })}
-            </TableBody>
-            </Table>
-        ) : (
-             <p className="text-muted-foreground text-center py-4">Aucune table configurée. Cliquez sur <strong>Ajouter une table</strong>.</p>
-        )}
       </>
     );
   }
@@ -828,7 +836,7 @@ export default function ConventionManager() {
           <CardDescription>Ajouter, modifier ou supprimer des jeux ou des tables de jeu.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 shadow-sm rounded-md">
             <TabsTrigger value="games" className="flex items-center gap-2"><Gamepad2 className="h-4 w-4" />Gestion des jeux</TabsTrigger>
             <TabsTrigger value="tables" className="flex items-center gap-2"><TableIcon className="h-4 w-4" />Gestion des tables</TabsTrigger>
@@ -844,3 +852,4 @@ export default function ConventionManager() {
     </Card>
   );
 }
+    
