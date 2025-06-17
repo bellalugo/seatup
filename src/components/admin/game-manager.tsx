@@ -211,11 +211,11 @@ export default function GameManager() {
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="imageUrl" className="text-right">URL de l'image</Label>
-                    <Input id="imageUrl" name="imageUrl" value={gameFormData.imageUrl} onChange={handleGameInputChange} className="col-span-3 rounded-md shadow-sm" required disabled={isSubmitting} placeholder="https://exemple.com/image.png"/>
+                    <Input id="imageUrl" name="imageUrl" value={gameFormData.imageUrl} onChange={handleGameInputChange} className="col-span-3 rounded-md shadow-sm" disabled={isSubmitting} placeholder="https://exemple.com/image.png"/>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="asynconvURL" className="text-right">Page ASYNCONV</Label>
-                    <Input id="asynconvURL" name="asynconvURL" value={gameFormData.asynconvURL} onChange={handleGameInputChange} className="col-span-3 rounded-md shadow-sm" required disabled={isSubmitting} placeholder="https://www.asynconv.fr/..." />
+                    <Input id="asynconvURL" name="asynconvURL" value={gameFormData.asynconvURL} onChange={handleGameInputChange} className="col-span-3 rounded-md shadow-sm" disabled={isSubmitting} placeholder="https://www.asynconv.fr/..."/>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="nbre_min" className="text-right">Joueurs Min.</Label>
