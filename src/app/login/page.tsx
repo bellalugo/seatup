@@ -99,10 +99,6 @@ export default function LoginPage() {
            </div>
           <CardTitle>Connexion Admin</CardTitle>
           <CardDescription>Entrez vos identifiants pour accéder à l'espace admin.</CardDescription>
-           {/* Display default credentials for easy access during development/demo */}
-           <CardDescription className="text-xs text-muted-foreground pt-2">
-             (Démo : olivier@asynconv.fr / p4SIT/ASYNCONV25%)
-           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -116,7 +112,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
-                aria-invalid={!!error} 
+                aria-invalid={!!error}
                 aria-describedby={error ? "login-error" : undefined}
               />
             </div>
@@ -125,22 +121,22 @@ export default function LoginPage() {
               <div className="relative">
                   <Input
                     id="password"
-                    type={showPassword ? 'text' : 'password'} 
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={loading}
-                    className="pr-10" 
-                    aria-invalid={!!error} 
+                    className="pr-10"
+                    aria-invalid={!!error}
                     aria-describedby={error ? "login-error" : undefined}
                   />
                   <Button
-                    type="button" 
+                    type="button"
                     variant="ghost"
                     size="sm"
                     className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
-                    onClick={togglePasswordVisibility} 
+                    onClick={togglePasswordVisibility}
                     disabled={loading}
                     aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                     title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
