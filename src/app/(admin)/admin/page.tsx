@@ -28,7 +28,11 @@ export default function AdminPage() {
       const controls = await getRegistrationControl();
       setRegistrationControls(controls);
     } catch (error) {
-      toast({ variant: "destructive", title: "Erreur", description: "Impossible de charger les contrôles d'inscription."});
+      toast({ 
+        variant: "destructive", 
+        title: "Erreur de chargement des contrôles", 
+        description: error instanceof Error ? error.message : "Impossible de charger les contrôles d'inscription."
+      });
     }
   }, [toast]);
 
@@ -48,19 +52,22 @@ export default function AdminPage() {
         newControls = { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false };
     } else if (phaseToOpen === 'Stratège') {
         newControls.strategistManuallyOpen = true;
+        // Keep others as they are or potentially reset higher levels if logic requires
+        // For now, only explicitly set the target and its prerequisites
     } else if (phaseToOpen === 'Maréchal') {
-        newControls.strategistManuallyOpen = true;
+        newControls.strategistManuallyOpen = true; // Prerequisite
         newControls.marshalManuallyOpen = true;
     } else if (phaseToOpen === 'Général') {
-        newControls.strategistManuallyOpen = true;
-        newControls.marshalManuallyOpen = true;
+        newControls.strategistManuallyOpen = true; // Prerequisite
+        newControls.marshalManuallyOpen = true;  // Prerequisite
         newControls.generalManuallyOpen = true;
     }
 
     try {
         await updateRegistrationControl(newControls);
-        setRegistrationControls(prev => ({...prev, ...newControls, id: prev?.id || 'registrationControl' }));
-        toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'réinitialisée' : phaseToOpen + ' (et précédentes)'} ouverte manuellement.` });
+        // Optimistically update local state or re-fetch
+        setRegistrationControls(prev => ({...(prev || { id: 'registrationControl' }), ...newControls }));
+        toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'réinitialisée (suit le planning)' : phaseToOpen + ' (et précédentes si applicable)'} ouverte manuellement.` });
     } catch (error) {
         toast({ variant: "destructive", title: "Erreur de mise à jour", description: (error as Error).message });
     } finally {
@@ -135,7 +142,7 @@ export default function AdminPage() {
                     <Button 
                         variant="outline" 
                         onClick={() => handleUpdateControls('Stratège')} 
-                        disabled={isUpdatingControls || registrationControls?.strategistManuallyOpen}
+                        disabled={isUpdatingControls || (registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen)}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
@@ -144,7 +151,7 @@ export default function AdminPage() {
                     <Button 
                         variant="outline" 
                         onClick={() => handleUpdateControls('Maréchal')} 
-                        disabled={isUpdatingControls || registrationControls?.marshalManuallyOpen}
+                        disabled={isUpdatingControls || (registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen)}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
@@ -166,7 +173,7 @@ export default function AdminPage() {
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4"/>}
-                        Réinitialiser
+                        Réinitialiser (Planning)
                     </Button>
                 </div>
             </div>
@@ -220,3 +227,4 @@ export default function AdminPage() {
     </div>
   );
 }
+

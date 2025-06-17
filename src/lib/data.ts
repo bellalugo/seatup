@@ -556,13 +556,18 @@ export const getRegistrationControl = async (): Promise<ManualRegistrationContro
     }
     // Default if not found
     return {
+      id: REGISTRATION_CONTROL_DOC_ID, // Ensure ID is part of the default return for consistency
       strategistManuallyOpen: false,
       marshalManuallyOpen: false,
       generalManuallyOpen: false,
     };
   } catch (error) {
     console.error("Firestore - Erreur lors de la récupération des contrôles d'inscription:", error);
-    throw new Error("Impossible de récupérer les contrôles d'inscription.");
+    if (error instanceof Error) {
+        // Prepend a more user-friendly message, append original error for details.
+        throw new Error(`Impossible de récupérer les contrôles d'inscription. Détails: ${error.message}`);
+    }
+    throw new Error("Impossible de récupérer les contrôles d'inscription (erreur Firebase inconnue).");
   }
 };
 
@@ -576,7 +581,10 @@ export const updateRegistrationControl = async (updates: Partial<ManualRegistrat
     await setDoc(controlRef, { ...updates, lastUpdated: new Date() }, { merge: true });
   } catch (error) {
     console.error("Firestore - Erreur lors de la mise à jour des contrôles d'inscription:", error);
-    throw new Error("Impossible de mettre à jour les contrôles d'inscription.");
+    if (error instanceof Error) {
+        throw new Error(`Impossible de mettre à jour les contrôles d'inscription. Détails: ${error.message}`);
+    }
+    throw new Error("Impossible de mettre à jour les contrôles d'inscription (erreur Firebase inconnue).");
   }
 };
 
@@ -608,7 +616,8 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
         const newSlot = parseTimeSlot(newTable.timeSlot);
 
         if (!registeredSlot || !newSlot) {
-            return registeredTable.timeSlot === newTable.timeSlot; // Handles "Off" vs "Off"
+            // If one or both are "Off" or some other non-standard format
+            return registeredTable.timeSlot === newTable.timeSlot; 
         }
         // True if they overlap
         return !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
@@ -623,10 +632,16 @@ export const canRegisterBasedOnTicket = (
   if (userTicketType === 'Invitation') return false;
 
   // Check manual overrides first
-  if (manualControls.generalManuallyOpen) return true; // If general is open, all are open
-  if (userTicketType === 'Général' && manualControls.generalManuallyOpen) return true;
+  if (manualControls.generalManuallyOpen) return true; 
+  if (userTicketType === 'Général' && manualControls.generalManuallyOpen) return true; // Explicit but covered by above
   if (userTicketType === 'Maréchal' && (manualControls.marshalManuallyOpen || manualControls.generalManuallyOpen)) return true;
   if (userTicketType === 'Stratège' && (manualControls.strategistManuallyOpen || manualControls.marshalManuallyOpen || manualControls.generalManuallyOpen)) return true;
+
+  // If specific manual phase is open for this ticket type, allow
+  if (userTicketType === 'Stratège' && manualControls.strategistManuallyOpen) return true;
+  if (userTicketType === 'Maréchal' && manualControls.marshalManuallyOpen) return true;
+  if (userTicketType === 'Général' && manualControls.generalManuallyOpen) return true;
+
 
   // If no manual override allows, check schedule
   const userPhaseDefinition = REGISTRATION_SCHEDULE.find(phase => phase.ticketType === userTicketType);
@@ -645,3 +660,4 @@ const toast = (options: any) => {
         console.log('Toast:', options.title, options.description);
     }
 };
+
