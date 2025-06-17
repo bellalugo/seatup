@@ -39,7 +39,6 @@ import {
     getRegistrationControl, 
 } from '@/lib/data';
 import type { GameTable, User, Registration, Participant, GameResult, TicketType, ManualRegistrationControls } from '@/lib/types';
-// REGISTRATION_SCHEDULE is no longer imported
 import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban } from 'lucide-react';
 
 const conventionDays = [
@@ -76,7 +75,7 @@ const getCurrentRegistrationPhaseDisplay = (
       return `<b>Ouverture manuelle pour billets Stratège.</b> Les inscriptions pour les billets Maréchal et Général sont actuellement fermées.`;
     }
   
-    return "<b>Inscriptions actuellement fermées.</b> L'ouverture est gérée manuellement par l'organisation.";
+    return "<b>Inscriptions actuellement fermées.</b>";
   };
 
 
@@ -273,7 +272,7 @@ export default function Home() {
     }
 
     if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) { 
-       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte manuellement pour le moment. ${currentPhaseMessage.replace(/<\/?b>/g, '')}`;
+       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. ${currentPhaseMessage.replace(/<\/?b>/g, '')}`;
        toast({
         variant: "destructive",
         title: "Inscription non disponible",
@@ -319,7 +318,7 @@ export default function Home() {
     }
 
     if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) { 
-      let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte manuellement pour le moment. ${currentPhaseMessage.replace(/<\/?b>/g, '')}`;
+      let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. ${currentPhaseMessage.replace(/<\/?b>/g, '')}`;
        toast({
         variant: "destructive",
         title: "Inscription non disponible",
@@ -652,7 +651,7 @@ export default function Home() {
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                       } else if (!canRegisterNow) {
-                                                          tooltipText = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte manuellement pour le moment.`;
+                                                          tooltipText = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. ${currentPhaseMessage.replace(/<\/?b>/g, '')}`;
                                                           buttonText = "Indisponible";
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
