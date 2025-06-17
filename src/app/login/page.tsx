@@ -13,8 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Loader2, Eye, EyeOff } from 'lucide-react'; // Import icons
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@example.com'); // Default admin email
-  const [password, setPassword] = useState('admin123'); // Default admin password
+  const [email, setEmail] = useState('WellDone'); // Default admin email
+  const [password, setPassword] = useState('p4SIT/ASYNCONV25%'); // Default admin password
   const [showPassword, setShowPassword] = useState(false); // State for password visibility
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,8 +30,8 @@ export default function LoginPage() {
     // 1. Check your .env.local file and Firebase Project settings.
     //    Ensure NEXT_PUBLIC_FIREBASE_API_KEY and other config variables are correctly set.
     //    The "auth/invalid-api-key" or "auth/api-key-not-valid" error means the key is missing or wrong.
-    // 2. Ensure the user 'admin@example.com' exists in your Firebase project's
-    //    Authentication section and has the password 'admin123'.
+    // 2. Ensure the user 'WellDone' exists in your Firebase project's
+    //    Authentication section and has the password 'p4SIT/ASYNCONV25%'.
     //    Firebase doesn't create users automatically. You might need to create this
     //    user manually in the Firebase console (Authentication -> Add user).
     // --- --- --- ---
@@ -52,10 +52,10 @@ export default function LoginPage() {
              case 'auth/user-not-found':
              case 'auth/wrong-password':
              case 'auth/invalid-credential': // Often covers both wrong email/password
-               errorMessage = 'Email ou mot de passe invalide.';
+               errorMessage = 'Identifiant ou mot de passe invalide.';
                break;
              case 'auth/invalid-email':
-                errorMessage = 'Format d\'email invalide.';
+                errorMessage = 'Format d\'identifiant invalide.'; // Adjusted for "Identifiant"
                 break;
              case 'auth/invalid-api-key':
              case 'auth/api-key-not-valid': // Handle variations of the API key error
@@ -65,7 +65,7 @@ export default function LoginPage() {
                 errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion internet.';
                 break;
               case 'auth/operation-not-allowed':
-                 errorMessage = 'L\'authentification par email/mot de passe n\'est pas activée dans votre projet Firebase.';
+                 errorMessage = 'L\'authentification par identifiant/mot de passe n\'est pas activée dans votre projet Firebase.'; // Adjusted
                  break;
              default:
                 // Keep generic message but log the specific code
@@ -101,22 +101,22 @@ export default function LoginPage() {
           <CardDescription>Entrez vos identifiants pour accéder à l'espace admin.</CardDescription>
            {/* Display default credentials for easy access during development/demo */}
            <CardDescription className="text-xs text-muted-foreground pt-2">
-             (Démo : admin@example.com / admin123)
+             (Démo : WellDone / p4SIT/ASYNCONV25%)
            </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Identifiant</Label> {/* Changed from Email to Identifiant */}
               <Input
-                id="email"
-                type="email"
-                placeholder="admin@example.com"
+                id="email" // ID remains 'email' for signInWithEmailAndPassword which expects an email field
+                type="text" // Changed from email to text, Firebase handles non-email format if allowed in project
+                placeholder="WellDone"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
-                aria-invalid={!!error} // Indicate error state for accessibility
+                aria-invalid={!!error} 
                 aria-describedby={error ? "login-error" : undefined}
               />
             </div>
@@ -125,27 +125,26 @@ export default function LoginPage() {
               <div className="relative">
                   <Input
                     id="password"
-                    type={showPassword ? 'text' : 'password'} // Dynamically set type
+                    type={showPassword ? 'text' : 'password'} 
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={loading}
-                    className="pr-10" // Add padding for the icon button
-                    aria-invalid={!!error} // Indicate error state for accessibility
+                    className="pr-10" 
+                    aria-invalid={!!error} 
                     aria-describedby={error ? "login-error" : undefined}
                   />
                   <Button
-                    type="button" // Important: type="button" prevents form submission
+                    type="button" 
                     variant="ghost"
                     size="sm"
                     className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
-                    onClick={togglePasswordVisibility} // Correct handler attached
+                    onClick={togglePasswordVisibility} 
                     disabled={loading}
                     aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                     title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                   >
-                    {/* Conditional rendering of the icon */}
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
               </div>
