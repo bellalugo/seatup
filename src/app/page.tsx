@@ -72,7 +72,7 @@ const getCurrentRegistrationPhaseDisplay = (
       return `<b>Ouverture manuelle pour billets Maréchal et Stratège.</b> Les inscriptions pour les billets Général sont actuellement fermées.`;
     }
     if (manualControls.strategistManuallyOpen) {
-      return `<b>Ouverture manuelle pour billets Stratège.</b> Les inscriptions pour les billets Maréchal et Général sont actuellement fermées.`;
+      return `<b>Inscription aux tables ouverte pour les billets Stratège.</b> Les inscriptions pour les billets Maréchal et Général sont actuellement fermées.`;
     }
   
     return "<b>Inscriptions actuellement fermées.</b>";
