@@ -71,6 +71,16 @@ const defaultTableFormData: GameTableInput = {
   authorAnimator: undefined,
 };
 
+const sortParticipantsByName = (participants: Participant[]): Participant[] => {
+  return [...participants].sort((a, b) => {
+    const nameA = `${a.nom} ${a.prenom}`.toLowerCase();
+    const nameB = `${b.nom} ${b.prenom}`.toLowerCase();
+    if (nameA < nameB) return -1;
+    if (nameA > nameB) return 1;
+    return 0;
+  });
+};
+
 export default function ConventionManager() {
   const [activeMainTab, setActiveMainTab] = useState("games");
   const [activeDayTab, setActiveDayTab] = useState<ConventionDayAdmin>(conventionDayOrder[0]);
@@ -157,9 +167,9 @@ export default function ConventionManager() {
       setCurrentTableRegistrants(registrants);
 
       const availableForSelection = allParticipantsData.filter(p =>
-        !registrantIds.includes(p.id) // Only exclude those already registered for THIS table
+        !registrantIds.includes(p.id) 
       );
-      setSelectableParticipantsForDialog(availableForSelection);
+      setSelectableParticipantsForDialog(sortParticipantsByName(availableForSelection));
 
     } catch (error) {
         console.error("Erreur récupération inscrits pour dialogue:", error);
@@ -222,7 +232,7 @@ export default function ConventionManager() {
       authorAnimator: table.authorAnimator || undefined,
     });
     setCurrentTableRegistrants([]);
-    setSelectableParticipantsForDialog(allParticipantsData); // All participants selectable for a duplicated (new) table
+    setSelectableParticipantsForDialog(sortParticipantsByName(allParticipantsData));
     setIsTableDialogOpen(true);
     toast({
       title: "Table dupliquée",
@@ -267,7 +277,7 @@ export default function ConventionManager() {
     setEditingTable(null);
     setTableFormData({...defaultTableFormData, day: activeDayTab, tableNumber: ''}); 
     setCurrentTableRegistrants([]);
-    setSelectableParticipantsForDialog(allParticipantsData); // All participants selectable for a new table
+    setSelectableParticipantsForDialog(sortParticipantsByName(allParticipantsData)); 
     setIsTableDialogOpen(true);
   };
 
@@ -747,7 +757,7 @@ export default function ConventionManager() {
                                 <SelectContent>
                                     {selectableParticipantsForDialog.length === 0 && <SelectItem value="" disabled>Aucun participant disponible</SelectItem>}
                                     {selectableParticipantsForDialog.map(p => (
-                                        <SelectItem key={p.id} value={p.id}>{p.prenom} {p.nom} ({p.typeBillet})</SelectItem>
+                                        <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom} ({p.typeBillet})</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
