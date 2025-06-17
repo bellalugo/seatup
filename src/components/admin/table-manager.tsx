@@ -64,7 +64,7 @@ const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00", "Off"];
 
 const defaultTableFormData: GameTableInput = {
   gameId: '',
-  day: 'Jeudi', // Default day, will be overridden by activeDayTab when adding
+  day: 'Jeudi',
   timeSlot: '09:00 - 13:00',
   totalSeats: 4,
   tableNumber: '',
@@ -93,7 +93,6 @@ export default function ConventionManager() {
   const [selectedParticipantToAdd, setSelectedParticipantToAdd] = useState<string>('');
   const [isManagingParticipant, setIsManagingParticipant] = useState(false);
 
-  // Initialize tableFormData with default values. It will be updated based on activeDayTab when dialog opens for "add".
   const [tableFormData, setTableFormData] = useState<GameTableInput>(defaultTableFormData);
 
   const [tableToDelete, setTableToDelete] = useState<GameTable | null>(null);
@@ -158,7 +157,7 @@ export default function ConventionManager() {
       setCurrentTableRegistrants(registrants);
 
       const availableForSelection = allParticipantsData.filter(p =>
-        !registrantIds.includes(p.id) && p.typeBillet !== 'Invitation'
+        !registrantIds.includes(p.id) // Only exclude those already registered for THIS table
       );
       setSelectableParticipantsForDialog(availableForSelection);
 
@@ -216,14 +215,14 @@ export default function ConventionManager() {
     setEditingTable(null);
     setTableFormData({
       gameId: table.gameId,
-      day: table.day, // Keep original day for duplication, user can change it
-      timeSlot: table.timeSlot, // Keep original slot
+      day: table.day, 
+      timeSlot: table.timeSlot, 
       totalSeats: table.totalSeats,
-      tableNumber: '', // Clear table number for duplication
+      tableNumber: '', 
       authorAnimator: table.authorAnimator || undefined,
     });
     setCurrentTableRegistrants([]);
-    setSelectableParticipantsForDialog(allParticipantsData.filter(p => p.typeBillet !== 'Invitation'));
+    setSelectableParticipantsForDialog(allParticipantsData); // All participants selectable for a duplicated (new) table
     setIsTableDialogOpen(true);
     toast({
       title: "Table dupliquée",
@@ -266,10 +265,9 @@ export default function ConventionManager() {
 
   const handleOpenTableDialogForAdd = () => {
     setEditingTable(null);
-    // Set form data for a new table, using current activeDayTab
     setTableFormData({...defaultTableFormData, day: activeDayTab, tableNumber: ''}); 
     setCurrentTableRegistrants([]);
-    setSelectableParticipantsForDialog(allParticipantsData.filter(p => p.typeBillet !== 'Invitation'));
+    setSelectableParticipantsForDialog(allParticipantsData); // All participants selectable for a new table
     setIsTableDialogOpen(true);
   };
 
@@ -302,22 +300,17 @@ export default function ConventionManager() {
             toast({ title: "Table mise à jour", description: "Détails de la table de jeu enregistrés." });
         } else {
             const newTable = await addGameTable(payload);
-            // After adding a new table, we might want to allow managing participants immediately.
-            // So, update editingTable to the newTable and keep the dialog open.
             setEditingTable(newTable); 
             toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée. Vous pouvez maintenant gérer les participants." });
-             // No, we decided to close it for new tables to simplify flow, or keep it open with newTable set as editingTable
         }
-        await fetchPageData(false); // Refresh tables list
+        await fetchPageData(false); 
 
-        // If it was a truly new table (not an edit), close the dialog and reset form.
-        // If we want to keep it open to add participants to the new table, then don't close/reset here.
         if (!editingTable && !(payload as any).id) { 
              setIsTableDialogOpen(false); 
              setEditingTable(null);
-             setTableFormData({...defaultTableFormData, day: activeDayTab}); // Reset form for next add
+             setTableFormData({...defaultTableFormData, day: activeDayTab}); 
         } else if (editingTable) { 
-             fetchRegistrantsForDialog(editingTable.id); // Re-fetch for current editing table
+             fetchRegistrantsForDialog(editingTable.id); 
         }
 
 
@@ -343,8 +336,8 @@ export default function ConventionManager() {
         await addRegistrationToDb(selectedParticipantToAdd, editingTable.id);
         toast({title: "Participant ajouté", description: "Le participant a été inscrit à la table."});
         setSelectedParticipantToAdd('');
-        await fetchPageData(false); // Refresh all data to update registrations count everywhere
-        fetchRegistrantsForDialog(editingTable.id); // Refresh dialog's list
+        await fetchPageData(false); 
+        fetchRegistrantsForDialog(editingTable.id); 
     } catch (error) {
         toast({variant: "destructive", title: "Erreur d'ajout", description: (error as Error).message});
     } finally {
@@ -358,8 +351,8 @@ export default function ConventionManager() {
     try {
         await removeRegistrationFromDb(participantId, editingTable.id);
         toast({title: "Participant désinscrit", description: "Le participant a été retiré de la table."});
-        await fetchPageData(false); // Refresh all data
-        fetchRegistrantsForDialog(editingTable.id); // Refresh dialog's list
+        await fetchPageData(false); 
+        fetchRegistrantsForDialog(editingTable.id); 
     } catch (error) {
         toast({variant: "destructive", title: "Erreur de désinscription", description: (error as Error).message});
     } finally {
@@ -401,18 +394,15 @@ export default function ConventionManager() {
   const handleConfirmWinners = async () => {
     if (currentTableForWinnerSelection && currentTableForWinnerSelection.id) {
       const tableId = currentTableForWinnerSelection.id;
-      const playersInGame = participantsForWinnerDialog.length; // Number of players actually listed for selection
+      const playersInGame = participantsForWinnerDialog.length; 
       try {
         await saveGameResult(tableId, selectedWinnerIdsInDialog, playersInGame);
         toast({ title: "Vainqueur(s) enregistré(s)", description: `Les vainqueurs pour la table ${currentTableForWinnerSelection.tableNumber} ont été sauvegardés.`});
-        // Update local gameResultsData to reflect change immediately
         setGameResultsData(prev => {
             const newMap = new Map(prev);
             newMap.set(tableId, { tableId, winnerIds: selectedWinnerIdsInDialog, playersInGame, timestamp: new Date() });
             return newMap;
         });
-        // Optionally, re-fetch all page data if other dependent calculations exist elsewhere
-        // await fetchPageData(false); 
       } catch (error) {
         toast({ variant: "destructive", title: "Erreur sauvegarde vainqueurs", description: (error as Error).message });
       }
@@ -428,29 +418,26 @@ export default function ConventionManager() {
         .sort((a, b) => {
             const tableNumA_raw = a.tableNumber || '';
             const tableNumB_raw = b.tableNumber || '';
-            // Attempt to parse as number, supporting comma as decimal for European style if present
             const numA_parsed = parseFloat(tableNumA_raw.replace(',', '.'));
             const numB_parsed = parseFloat(tableNumB_raw.replace(',', '.'));
 
-            // Check if the raw string purely represents a number (e.g., "101", "1.5", "A5.1" would be false)
             const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw.match(/^[\d,.]+$/);
             const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw.match(/^[\d,.]+$/);
 
             if (isPurelyNumericA && isPurelyNumericB) {
                 if (numA_parsed < numB_parsed) return -1;
                 if (numA_parsed > numB_parsed) return 1;
-            } else if (isPurelyNumericA) { // Numeric strings come before alphanumeric
+            } else if (isPurelyNumericA) { 
                 return -1;
             } else if (isPurelyNumericB) {
                 return 1;
-            } else { // Both are alphanumeric or non-numeric, sort alphabetically
+            } else { 
                 const strA = tableNumA_raw.toLowerCase();
                 const strB = tableNumB_raw.toLowerCase();
                 if (strA < strB) return -1;
                 if (strA > strB) return 1;
             }
             
-            // Secondary sort by timeSlot if table numbers are equivalent or non-comparable numerically
             const timeSlotAIndex = timeSlotOrder.indexOf(a.timeSlot);
             const timeSlotBIndex = timeSlotOrder.indexOf(b.timeSlot);
             if (timeSlotAIndex < timeSlotBIndex) return -1;
@@ -458,7 +445,7 @@ export default function ConventionManager() {
             return 0;
         });
 
-    if (isLoadingTables && dayTables.length === 0) { // Show loader only if still loading AND no tables for this day yet
+    if (isLoadingTables && dayTables.length === 0) { 
          return (
             <div className="flex justify-center items-center py-10">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -518,7 +505,7 @@ export default function ConventionManager() {
                             </TableCell>
                             <TableCell><strong className="font-bold">{table.gameName || 'Jeu inconnu'}</strong></TableCell>
                             <TableCell>{table.authorAnimator ? <span className="font-medium flex items-center"><UserSquare2 className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.authorAnimator}</span> : <span className="text-muted-foreground italic">N/A</span>}</TableCell>
-                            <TableCell>{table.timeSlot}</TableCell>
+                            <TableCell>{table.timeSlot === 'Off' ? table.timeSlot : table.timeSlot.replace(' - ', ' à ')}</TableCell>
                             <TableCell className="text-left align-top min-w-[200px]">
                                 <ul className="list-none p-0 m-0 text-xs space-y-0.5">
                                     {registeredParticipantDetails.map(participant => (
@@ -587,7 +574,7 @@ export default function ConventionManager() {
                                             onClick={() => toggleGameInProgress(table.id)}
                                             className="shadow-sm rounded-md h-8 w-8 bg-green-600 hover:bg-green-700 text-white"
                                             title="Démarrer la partie"
-                                            disabled={occupiedSeatsCount === 0 || !!gameResult} // Disable if no players or result already exists
+                                            disabled={occupiedSeatsCount === 0 || !!gameResult} 
                                         >
                                             <Timer className="h-4 w-4" />
                                         </Button>
@@ -620,8 +607,6 @@ export default function ConventionManager() {
 
 
   const renderTableManagerContent = () => {
-    // This top-level loading check is for the initial load of all tables for the first active day or if tables haven't been fetched at all.
-    // The renderSingleDayTable function has its own more granular loading check if dayTables for that specific tab is empty while isLoadingTables is true.
     if (isLoadingTables && tables.length === 0 && activeMainTab === "tables") {
       return (
         <div className="flex justify-center items-center py-10">
@@ -653,12 +638,10 @@ export default function ConventionManager() {
             ))}
         </Tabs>
 
-        {/* Dialogs remain outside the Tabs structure as they are global */}
         <Dialog open={isTableDialogOpen} onOpenChange={(open) => {
           setIsTableDialogOpen(open);
           if (!open) {
             setEditingTable(null);
-            // Reset tableFormData to a clean default state, considering the activeDayTab for new additions
             setTableFormData({ ...defaultTableFormData, day: activeDayTab }); 
             setCurrentTableRegistrants([]);
             setSelectedParticipantToAdd('');
@@ -795,7 +778,7 @@ export default function ConventionManager() {
         </Dialog>
 
         <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={(open) => {
-            if (isDeletingTable) return; // Prevent closing if deletion is in progress
+            if (isDeletingTable) return; 
             setIsConfirmDeleteDialogOpen(open);
             if (!open) setTableToDelete(null);
         }}>
@@ -821,7 +804,7 @@ export default function ConventionManager() {
             setIsWinnerSelectDialogOpen(open);
             if (!open) {
                 setCurrentTableForWinnerSelection(null);
-                setSelectedWinnerIdsInDialog([]); // Reset selected winners when dialog closes
+                setSelectedWinnerIdsInDialog([]); 
             }
         }}>
             <DialogContent className="sm:max-w-md">
