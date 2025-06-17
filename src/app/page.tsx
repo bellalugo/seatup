@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type React from 'react';
@@ -39,7 +40,7 @@ import {
     getRegistrationControl,
 } from '@/lib/data';
 import type { GameTable, User, Registration, Participant, GameResult, TicketType, ManualRegistrationControls } from '@/lib/types';
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban } from 'lucide-react';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban, Star } from 'lucide-react';
 
 const conventionDays = [
     { name: 'Jeudi', date: '03/07', value: 'jeudi' },
@@ -589,7 +590,10 @@ export default function Home() {
                               </span>
                               <span className="text-sm">{player.name}</span>
                               </div>
-                              <Badge variant="secondary" className="font-semibold">{player.score} pts</Badge>
+                              <div className="flex items-center font-semibold">
+                                {player.score}
+                                <Star className="ml-1 h-4 w-4 text-black fill-black" />
+                              </div>
                           </li>
                           ))}
                       </ul>
@@ -945,4 +949,5 @@ export default function Home() {
     </TooltipProvider>
   );
 }
+
 
