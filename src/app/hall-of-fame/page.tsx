@@ -9,8 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getAllGameResults, getGameTables, getParticipants, getRegistrations } from '@/lib/data'; // Added getRegistrations
-import type { GameResult, GameTable, Participant, Registration } from '@/lib/types'; // Added Registration
+import { getAllGameResults, getGameTables, getParticipants, getRegistrations } from '@/lib/data';
+import type { GameResult, GameTable, Participant, Registration } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 
 const conventionDays = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
@@ -21,9 +21,11 @@ interface PlayerScore {
   name: string;
   email: string;
   dailyScores: Record<ConventionDay, number>;
+  dailyGamesPlayed: Record<ConventionDay, number>; // Added for daily stats
+  dailyWins: Record<ConventionDay, number>; // Added for daily stats
   totalScore: number;
-  gamesPlayed: number;
-  wins: number;
+  gamesPlayed: number; // Overall games played
+  wins: number; // Overall wins
 }
 
 interface RankedPlayer extends PlayerScore {
@@ -46,54 +48,61 @@ export default function HallOfFamePage() {
     gameResults: GameResult[],
     gameTables: GameTable[],
     participants: Participant[],
-    registrations: Registration[] // Added registrations parameter
+    registrations: Registration[]
   ): { overall: RankedPlayer[], daily: Record<ConventionDay, RankedPlayer[]> } => {
     const playerScores: Map<string, PlayerScore> = new Map();
     const gameTablesMap = new Map(gameTables.map(t => [t.id, t]));
 
     // Initialize scores for all participants
     participants.forEach(p => {
-      if (p.ticketType !== 'Invitation') { // Exclude 'Invitation' ticket holders from rankings
+      if (p.ticketType !== 'Invitation') {
         playerScores.set(p.id, {
           id: p.id,
           name: `${p.prenom} ${p.nom}`,
           email: p.email,
           dailyScores: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
+          dailyGamesPlayed: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
+          dailyWins: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
           totalScore: 0,
-          gamesPlayed: 0, // Initialized to 0
+          gamesPlayed: 0,
           wins: 0,
         });
       }
     });
     
-    // Calculate wins and scores based on game results
+    // Calculate daily wins, total wins, daily scores, and total scores
     gameResults.forEach(result => {
       const table = gameTablesMap.get(result.tableId);
       if (!table || !conventionDays.includes(table.day as ConventionDay)) return;
 
       const day = table.day as ConventionDay;
-      const pointsPerWin = result.playersInGame >= 5 ? 2 : 1; // Condition changed to >= 5
+      const pointsPerWin = result.playersInGame >= 5 ? 2 : 1;
 
       result.winnerIds.forEach(winnerId => {
         const participantData = playerScores.get(winnerId);
         if (participantData) {
           participantData.dailyScores[day] += pointsPerWin;
           participantData.totalScore += pointsPerWin;
-          participantData.wins += 1;
+          participantData.dailyWins[day] += 1; // Increment daily wins
+          participantData.wins += 1;           // Increment total wins
         }
       });
     });
 
-    // Correctly calculate gamesPlayed
-    // A game is considered "played" by a participant if they were registered for a table
-    // AND that table has a game result recorded.
+    // Calculate daily games played and total games played
     const gameResultTableIds = new Set(gameResults.map(gr => gr.tableId));
-
     registrations.forEach(registration => {
-      if (gameResultTableIds.has(registration.tableId)) {
-        const participantData = playerScores.get(registration.userId);
-        if (participantData) {
-          participantData.gamesPlayed += 1;
+      const table = gameTablesMap.get(registration.tableId);
+      // Ensure the table exists and a result is recorded for it
+      if (table && gameResultTableIds.has(registration.tableId)) {
+        const day = table.day as ConventionDay;
+        // Ensure the table's day is a valid convention day
+        if (conventionDays.includes(day)) {
+          const participantData = playerScores.get(registration.userId);
+          if (participantData) {
+            participantData.dailyGamesPlayed[day] += 1; // Increment daily games played for the specific day
+            participantData.gamesPlayed += 1;          // Increment total games played
+          }
         }
       }
     });
@@ -109,7 +118,7 @@ export default function HallOfFamePage() {
     const daily: Record<ConventionDay, RankedPlayer[]> = { Jeudi: [], Vendredi: [], Samedi: [], Dimanche: [] };
     conventionDays.forEach(day => {
       daily[day] = [...allPlayersArray]
-        .filter(p => p.dailyScores[day] > 0 || playerScores.get(p.id)?.gamesPlayed > 0) // Also include players who played but didn't score on a given day for daily tables
+        .filter(p => p.dailyScores[day] > 0 || p.dailyGamesPlayed[day] > 0) // Include if scored or played on this day
         .sort((a, b) => b.dailyScores[day] - a.dailyScores[day] || a.name.localeCompare(b.name))
         .map((player, index) => ({ ...player, rank: index + 1 }));
     });
@@ -121,18 +130,18 @@ export default function HallOfFamePage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [results, tables, participants, registrationsData] = await Promise.all([ // Added registrationsData
+      const [results, tables, participants, registrationsData] = await Promise.all([
         getAllGameResults(),
         getGameTables(),
         getParticipants(),
-        getRegistrations(), // Fetch registrations
+        getRegistrations(),
       ]);
 
-      if (!results || !tables || !participants || !registrationsData) { // Check registrationsData
+      if (!results || !tables || !participants || !registrationsData) {
           throw new Error("Données de base manquantes (résultats, tables, participants ou inscriptions) pour calculer le Hall of Fame.");
       }
       
-      const { overall, daily } = calculateScores(results, tables, participants, registrationsData); // Pass registrationsData
+      const { overall, daily } = calculateScores(results, tables, participants, registrationsData);
       setRankedPlayersOverall(overall);
       setDailyRankings(daily);
 
@@ -188,8 +197,12 @@ export default function HallOfFamePage() {
                 <div className="font-medium">{player.name}</div>
                 <div className="text-xs text-muted-foreground">{player.email}</div>
               </TableCell>
-              <TableCell className="text-center">{player.gamesPlayed}</TableCell>
-              <TableCell className="text-center">{player.wins}</TableCell>
+              <TableCell className="text-center">
+                {isDaily && day ? player.dailyGamesPlayed[day] : player.gamesPlayed}
+              </TableCell>
+              <TableCell className="text-center">
+                {isDaily && day ? player.dailyWins[day] : player.wins}
+              </TableCell>
               <TableCell className="text-center font-bold">
                 {isDaily && day ? player.dailyScores[day] : player.totalScore}
               </TableCell>
