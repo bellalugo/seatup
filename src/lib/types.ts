@@ -35,7 +35,7 @@ export interface GameTable {
   id: string;
   gameId: string; // Foreign key to the "games" collection
   day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
-  timeSlot: string; // e.g., "09:00 - 13:00"
+  timeSlot: string; // e.g., "09:00 - 13:00", "Off"
   totalSeats: number;
   tableNumber: string; // Added field for table number
   authorAnimator?: string; // Optional field for Author/Animator
@@ -80,22 +80,6 @@ export interface GameResult {
   timestamp?: Date; // Optional: when the result was recorded
 }
 
-// Define registration phases with specific start dates
-export interface RegistrationPhase {
-  ticketType: TicketType;
-  name: string; // User-friendly name of the phase/ticket
-  startDate: Date; // The date and time when this phase opens (UTC)
-  description: string; // Description for display on the page
-}
-
-// Corrected dates to 2024
-export const REGISTRATION_SCHEDULE: RegistrationPhase[] = [
-  { ticketType: 'Stratège', name: 'Stratège', startDate: new Date('2024-06-20T00:00:00Z'), description: "Ouverture pour billets Stratège" },
-  { ticketType: 'Maréchal', name: 'Maréchal', startDate: new Date('2024-06-22T00:00:00Z'), description: "Ouverture pour billets Maréchal et Stratège" },
-  { ticketType: 'Général', name: 'Général', startDate: new Date('2024-06-24T00:00:00Z'), description: "Ouverture pour billets Général, Maréchal et Stratège" },
-  // Invitation n'a pas de phase d'ouverture d'inscription car ils ne peuvent pas s'inscrire
-];
-
 // For manual admin control
 export interface ManualRegistrationControls {
   id?: string; // Firestore document ID, typically fixed like 'currentControls'
@@ -104,3 +88,4 @@ export interface ManualRegistrationControls {
   generalManuallyOpen: boolean;
   lastUpdated?: Date;
 }
+

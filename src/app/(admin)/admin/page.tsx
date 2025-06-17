@@ -11,8 +11,8 @@ import { syncBilletwebParticipants } from "@/ai/flows/sync-billetweb-participant
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ParticipantList from "@/components/admin/participant-list";
 import { getRegistrationControl, updateRegistrationControl } from "@/lib/data";
-import type { ManualRegistrationControls, TicketType, RegistrationPhase } from "@/lib/types"; // Added RegistrationPhase
-import { REGISTRATION_SCHEDULE } from "@/lib/types"; // Added REGISTRATION_SCHEDULE
+import type { ManualRegistrationControls, TicketType } from "@/lib/types"; 
+// REGISTRATION_SCHEDULE is no longer imported
 import { Separator } from "@/components/ui/separator";
 
 
@@ -52,25 +52,34 @@ export default function AdminPage() {
     if (phaseToOpen === 'reset') {
         newControls = { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false };
     } else if (phaseToOpen === 'Stratège') {
-        newControls.strategistManuallyOpen = true;
-        // Marshal and General become false if strategist is the *only* one meant to be open
-        // However, the current logic is if Stratège is open, lower phases could remain open or follow schedule.
-        // For simplicity, opening a phase implies opening its prerequisites if not already open by a higher override.
-        // If "reset" is used, all manual flags are cleared.
+        newControls.strategistManuallyOpen = !newControls.strategistManuallyOpen; // Toggle
+        if (newControls.strategistManuallyOpen) {
+            // No automatic closing of higher phases, admin manages this.
+        } else {
+            // If turning off strategist, also turn off marshal and general if they were on
+            newControls.marshalManuallyOpen = false;
+            newControls.generalManuallyOpen = false;
+        }
     } else if (phaseToOpen === 'Maréchal') {
-        newControls.strategistManuallyOpen = true; // Prerequisite
-        newControls.marshalManuallyOpen = true;
+        newControls.marshalManuallyOpen = !newControls.marshalManuallyOpen; // Toggle
+        if (newControls.marshalManuallyOpen) {
+            newControls.strategistManuallyOpen = true; // Opening Marshal implies Strategist is also open
+        } else {
+             // If turning off marshal, also turn off general if it was on
+            newControls.generalManuallyOpen = false;
+        }
     } else if (phaseToOpen === 'Général') {
-        newControls.strategistManuallyOpen = true; // Prerequisite
-        newControls.marshalManuallyOpen = true;  // Prerequisite
-        newControls.generalManuallyOpen = true;
+        newControls.generalManuallyOpen = !newControls.generalManuallyOpen; // Toggle
+         if (newControls.generalManuallyOpen) {
+            newControls.strategistManuallyOpen = true; // Opening General implies Strategist & Marshal are open
+            newControls.marshalManuallyOpen = true;
+        }
     }
 
     try {
         await updateRegistrationControl(newControls);
-        // Optimistically update local state or re-fetch
-        setRegistrationControls(prev => ({...(prev || { id: 'registrationControl' }), ...newControls })); // Ensure ID is preserved
-        toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'réinitialisée (suit le planning)' : phaseToOpen + ' (et précédentes si applicable)'} ouverte manuellement.` });
+        setRegistrationControls(prev => ({...(prev || { id: 'registrationControl' }), ...newControls })); 
+        toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'fermée (tous types)' : phaseToOpen + ' (et précédentes si applicable)'} modifiée manuellement.` });
     } catch (error) {
         toast({ variant: "destructive", title: "Erreur de mise à jour", description: (error as Error).message });
     } finally {
@@ -118,52 +127,11 @@ export default function AdminPage() {
   const getPhaseStatusMessage = () => {
     if (!registrationControls) return "Chargement de l'état des phases...";
 
-    // Manual Overrides
     if (registrationControls.generalManuallyOpen) return "OUVERT MANUELLEMENT : Général, Maréchal, Stratège.";
-    if (registrationControls.marshalManuallyOpen) return "OUVERT MANUELLEMENT : Maréchal, Stratège. (Général suit le planning)";
-    if (registrationControls.strategistManuallyOpen) return "OUVERT MANUELLEMENT : Stratège. (Maréchal, Général suivent le planning)";
-
-    // Automatic (Schedule-based)
-    const currentDate = new Date();
-    let messageParts: string[] = ["AUTOMATIQUE (Planning) :"];
-    let lastOpenedScheduledPhase: RegistrationPhase | null = null;
-
-    for (let i = REGISTRATION_SCHEDULE.length - 1; i >= 0; i--) {
-      if (currentDate >= REGISTRATION_SCHEDULE[i].startDate) {
-        lastOpenedScheduledPhase = REGISTRATION_SCHEDULE[i];
-        break;
-      }
-    }
-
-    if (lastOpenedScheduledPhase) {
-      messageParts.push(`${lastOpenedScheduledPhase.name} ouvert.`);
-      
-      const lastOpenedPhaseIndex = REGISTRATION_SCHEDULE.findIndex(p => p.ticketType === lastOpenedScheduledPhase!.ticketType);
-      let nextScheduledPhaseToOpen: RegistrationPhase | null = null;
-      if (lastOpenedPhaseIndex < REGISTRATION_SCHEDULE.length - 1) {
-        for (let i = lastOpenedPhaseIndex + 1; i < REGISTRATION_SCHEDULE.length; i++) {
-          if (currentDate < REGISTRATION_SCHEDULE[i].startDate) {
-            nextScheduledPhaseToOpen = REGISTRATION_SCHEDULE[i];
-            break;
-          }
-        }
-      }
-
-      if (nextScheduledPhaseToOpen) {
-        messageParts.push(`Prochaine ouverture : ${nextScheduledPhaseToOpen.name} le ${nextScheduledPhaseToOpen.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`);
-      } else {
-         messageParts.push("Toutes les phases du planning sont ouvertes.");
-      }
-    } else {
-      if (REGISTRATION_SCHEDULE.length > 0) {
-        const firstPhase = REGISTRATION_SCHEDULE[0];
-        messageParts.push(`Inscriptions fermées.`);
-        messageParts.push(`Prochaine ouverture : ${firstPhase.name} le ${firstPhase.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`);
-      } else {
-        messageParts.push("Aucun planning d'inscription défini.");
-      }
-    }
-    return messageParts.join(' ');
+    if (registrationControls.marshalManuallyOpen) return "OUVERT MANUELLEMENT : Maréchal, Stratège. (Général fermé via contrôle manuel).";
+    if (registrationControls.strategistManuallyOpen) return "OUVERT MANUELLEMENT : Stratège. (Maréchal, Général fermés via contrôle manuel).";
+    
+    return "INSCRIPTIONS FERMÉES. (Contrôles manuels uniquement)";
   };
 
   return (
@@ -186,31 +154,31 @@ export default function AdminPage() {
                  </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                     <Button 
-                        variant="outline" 
+                        variant={registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Stratège')} 
-                        disabled={isUpdatingControls || (registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen)}
+                        disabled={isUpdatingControls}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
-                        Ouvrir Stratèges
+                        {registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "Fermer Stratèges" : "Ouvrir Stratèges"}
                     </Button>
                     <Button 
-                        variant="outline" 
+                        variant={registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Maréchal')} 
-                        disabled={isUpdatingControls || (registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen)}
+                        disabled={isUpdatingControls}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
-                        Ouvrir Maréchaux
+                        {registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "Fermer Maréchaux" : "Ouvrir Maréchaux"}
                     </Button>
                     <Button 
-                        variant="outline" 
+                        variant={registrationControls?.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Général')} 
-                        disabled={isUpdatingControls || registrationControls?.generalManuallyOpen}
+                        disabled={isUpdatingControls}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
-                        Ouvrir Généraux
+                        {registrationControls?.generalManuallyOpen ? "Fermer Généraux" : "Ouvrir Généraux"}
                     </Button>
                     <Button 
                         variant="destructive" 
@@ -219,7 +187,7 @@ export default function AdminPage() {
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4"/>}
-                        Réinitialiser (Planning)
+                        Tout Fermer (Manuel)
                     </Button>
                 </div>
             </div>
@@ -231,9 +199,9 @@ export default function AdminPage() {
       <Card className="shadow-lg">
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
-            <Users2 className="h-8 w-8 text-primary" /> {/* Changed Icon */}
+            <Users2 className="h-8 w-8 text-primary" /> 
             <div>
-              <CardTitle>Participants (Billetweb)</CardTitle> {/* Updated Title */}
+              <CardTitle>Participants (Billetweb)</CardTitle> 
               <CardDescription>Gestion et synchronisation des participants de L'ASYNCONV</CardDescription>
             </div>
           </div>
@@ -273,3 +241,4 @@ export default function AdminPage() {
     </div>
   );
 }
+
