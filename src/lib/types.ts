@@ -88,8 +88,19 @@ export interface RegistrationPhase {
   description: string; // Description for display on the page
 }
 
+// Corrected dates to 2024
 export const REGISTRATION_SCHEDULE: RegistrationPhase[] = [
   { ticketType: 'Stratège', name: 'Stratège', startDate: new Date('2024-06-20T00:00:00Z'), description: "Ouverture pour billets Stratège" },
   { ticketType: 'Maréchal', name: 'Maréchal', startDate: new Date('2024-06-22T00:00:00Z'), description: "Ouverture pour billets Maréchal et Stratège" },
   { ticketType: 'Général', name: 'Général', startDate: new Date('2024-06-24T00:00:00Z'), description: "Ouverture pour billets Général, Maréchal et Stratège" },
+  // Invitation n'a pas de phase d'ouverture d'inscription car ils ne peuvent pas s'inscrire
 ];
+
+// For manual admin control
+export interface ManualRegistrationControls {
+  id?: string; // Firestore document ID, typically fixed like 'currentControls'
+  strategistManuallyOpen: boolean;
+  marshalManuallyOpen: boolean;
+  generalManuallyOpen: boolean;
+  lastUpdated?: Date;
+}

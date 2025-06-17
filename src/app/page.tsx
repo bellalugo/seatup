@@ -36,9 +36,10 @@ import {
     getParticipantByEmail,
     getParticipants,
     getAllGameResults,
+    getRegistrationControl, // Import new function
 } from '@/lib/data';
-import type { GameTable, User, Registration, Participant, GameResult, TicketType, RegistrationPhase } from '@/lib/types';
-import { REGISTRATION_SCHEDULE } from '@/lib/types'; // Import new schedule
+import type { GameTable, User, Registration, Participant, GameResult, TicketType, RegistrationPhase, ManualRegistrationControls } from '@/lib/types';
+import { REGISTRATION_SCHEDULE } from '@/lib/types';
 import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban } from 'lucide-react';
 
 const conventionDays = [
@@ -60,37 +61,83 @@ interface RankedLivePlayer extends LivePlayerScore {
   rank: number;
 }
 
-const getCurrentRegistrationPhaseDisplay = (currentDate: Date = new Date()): string => {
-  let displayMessage = "Les inscriptions ne sont pas encore ouvertes.";
-  let applicablePhase: RegistrationPhase | null = null;
-
-  // Iterate backwards to find the latest applicable phase that has started
-  // Assumes REGISTRATION_SCHEDULE is sorted by startDate
-  for (let i = REGISTRATION_SCHEDULE.length - 1; i >= 0; i--) {
-    if (currentDate >= REGISTRATION_SCHEDULE[i].startDate) {
-      applicablePhase = REGISTRATION_SCHEDULE[i];
-      break;
+const getCurrentRegistrationPhaseDisplay = (
+    manualControls: ManualRegistrationControls,
+    currentDate: Date = new Date()
+  ): string => {
+    let messageParts: string[] = [];
+  
+    // Check manual overrides first
+    if (manualControls.generalManuallyOpen) {
+      return `<b>Ouverture manuelle pour billets Général, Maréchal et Stratège.</b> Toutes les phases sont ouvertes.`;
     }
-  }
-
-  if (applicablePhase) {
-    displayMessage = applicablePhase.description;
-    const currentIndex = REGISTRATION_SCHEDULE.findIndex(p => p.ticketType === applicablePhase!.ticketType);
-    if (currentIndex !== -1 && currentIndex + 1 < REGISTRATION_SCHEDULE.length) {
-        const nextPhase = REGISTRATION_SCHEDULE[currentIndex + 1];
-        displayMessage += `. Prochaine ouverture : ${nextPhase.name} le ${nextPhase.startDate.toLocaleDateString('fr-FR')}.`;
+    if (manualControls.marshalManuallyOpen) {
+      messageParts.push(`<b>Ouverture manuelle pour billets Maréchal et Stratège.</b>`);
+      const generalPhase = REGISTRATION_SCHEDULE.find(p => p.ticketType === 'Général');
+      if (generalPhase && currentDate < generalPhase.startDate) {
+        messageParts.push(`Prochaine ouverture selon planning : Général le ${generalPhase.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`);
+      } else if (generalPhase && currentDate >= generalPhase.startDate) {
+        messageParts.push(`Phase Général ouverte selon planning.`);
+      }
+      return messageParts.join(' ');
+    }
+    if (manualControls.strategistManuallyOpen) {
+      messageParts.push(`<b>Ouverture manuelle pour billets Stratège.</b>`);
+      const marshalPhase = REGISTRATION_SCHEDULE.find(p => p.ticketType === 'Maréchal');
+      if (marshalPhase && currentDate < marshalPhase.startDate) {
+        messageParts.push(`Prochaine ouverture selon planning : Maréchal le ${marshalPhase.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`);
+      } else if (marshalPhase && currentDate >= marshalPhase.startDate) {
+        messageParts.push(`Phase Maréchal ouverte selon planning.`);
+      }
+      const generalPhase = REGISTRATION_SCHEDULE.find(p => p.ticketType === 'Général');
+       if (generalPhase && currentDate < generalPhase.startDate && (!marshalPhase || currentDate >= marshalPhase.startDate)) {
+         messageParts.push(`Prochaine ouverture selon planning : Général le ${generalPhase.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`);
+       } else if (generalPhase && currentDate >= generalPhase.startDate) {
+         messageParts.push(`Phase Général ouverte selon planning.`);
+       }
+      return messageParts.join(' ');
+    }
+  
+    // If no manual overrides, use schedule
+    let lastOpenedScheduledPhase: RegistrationPhase | null = null;
+    for (let i = REGISTRATION_SCHEDULE.length - 1; i >= 0; i--) {
+      if (currentDate >= REGISTRATION_SCHEDULE[i].startDate) {
+        lastOpenedScheduledPhase = REGISTRATION_SCHEDULE[i];
+        break;
+      }
+    }
+  
+    if (lastOpenedScheduledPhase) {
+      messageParts.push(`<b>${lastOpenedScheduledPhase.description}.</b>`);
+      
+      const lastOpenedPhaseIndex = REGISTRATION_SCHEDULE.findIndex(p => p.ticketType === lastOpenedScheduledPhase!.ticketType);
+      let nextScheduledPhaseToOpen: RegistrationPhase | null = null;
+      if (lastOpenedPhaseIndex < REGISTRATION_SCHEDULE.length - 1) {
+        for (let i = lastOpenedPhaseIndex + 1; i < REGISTRATION_SCHEDULE.length; i++) {
+          if (currentDate < REGISTRATION_SCHEDULE[i].startDate) {
+            nextScheduledPhaseToOpen = REGISTRATION_SCHEDULE[i];
+            break;
+          }
+        }
+      }
+  
+      if (nextScheduledPhaseToOpen) {
+        messageParts.push(`Prochaine ouverture : ${nextScheduledPhaseToOpen.name} le ${nextScheduledPhaseToOpen.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`);
+      } else {
+         // All scheduled phases are open or current date passed last scheduled phase start.
+         messageParts.push("Toutes les phases du planning sont ouvertes.");
+      }
     } else {
-        displayMessage += ". Toutes les phases sont ouvertes.";
+      // No scheduled phase is open yet
+      if (REGISTRATION_SCHEDULE.length > 0) {
+        const firstPhase = REGISTRATION_SCHEDULE[0];
+        messageParts.push(`<b>Inscriptions fermées.</b> Prochaine ouverture : ${firstPhase.name} le ${firstPhase.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`);
+      } else {
+        messageParts.push("<b>Aucun planning d'inscription défini.</b>");
+      }
     }
-  } else {
-    // If no phase has started, find the very first phase for "next up" message
-    if (REGISTRATION_SCHEDULE.length > 0) {
-      const firstPhase = REGISTRATION_SCHEDULE[0];
-      displayMessage = `Inscriptions fermées. Prochaine ouverture : ${firstPhase.name} le ${firstPhase.startDate.toLocaleDateString('fr-FR')}.`;
-    }
-  }
-  return displayMessage;
-};
+    return messageParts.join(' ');
+  };
 
 
 export default function Home() {
@@ -101,7 +148,6 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
-  // currentRegistrationPhaseIndex is removed
   const [tableToConfirm, setTableToConfirm] = useState<GameTable | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -112,36 +158,49 @@ export default function Home() {
   const [currentLiveConventionDay, setCurrentLiveConventionDay] = useState<ConventionDay | null>(null);
   const [topPlayersToday, setTopPlayersToday] = useState<RankedLivePlayer[]>([]);
   const [isLoadingLiveHof, setIsLoadingLiveHof] = useState(true);
-  const [currentPhaseMessage, setCurrentPhaseMessage] = useState('');
+  
+  const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls>({
+    strategistManuallyOpen: false,
+    marshalManuallyOpen: false,
+    generalManuallyOpen: false,
+  });
+  const [currentPhaseMessage, setCurrentPhaseMessage] = useState('Chargement des phases...');
 
 
   const loadPageData = useCallback(async () => {
     setIsLoading(true);
     setIsLoadingLiveHof(true);
     try {
-      const [fetchedTables, fetchedRegistrations, fetchedAllParticipants, fetchedGameResults] = await Promise.all([
+      const [
+        fetchedTables, 
+        fetchedRegistrations, 
+        fetchedAllParticipants, 
+        fetchedGameResults,
+        fetchedRegistrationControls, // Fetch controls
+    ] = await Promise.all([
         getGameTables(),
         getRegistrations(),
         getParticipants(),
         getAllGameResults(),
+        getRegistrationControl(),
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrations);
       setAllParticipantsData(fetchedAllParticipants);
+      setRegistrationControls(fetchedRegistrationControls);
 
       const resultsMap = new Map<string, GameResult>();
       fetchedGameResults.forEach(result => resultsMap.set(result.tableId, result));
       setGameResultsData(resultsMap);
 
-      setCurrentPhaseMessage(getCurrentRegistrationPhaseDisplay());
-
+      setCurrentPhaseMessage(getCurrentRegistrationPhaseDisplay(fetchedRegistrationControls));
 
     } catch (error) {
       console.error("Échec du chargement des données de la page:", error);
       toast({
         variant: "destructive",
         title: "Erreur de chargement des données",
-        description: (error as Error).message || "Impossible de récupérer les tables, les inscriptions, les participants ou les résultats.",
+        description: (error as Error).message || "Impossible de récupérer les tables, les inscriptions, les participants, les résultats ou les contrôles d'inscription.",
       });
     } finally {
       setIsLoading(false);
@@ -150,14 +209,16 @@ export default function Home() {
 
   useEffect(() => {
     loadPageData();
-    // Removed useEffect for phase timers
   }, [loadPageData]);
 
-   // Effect to update phase message periodically if needed, or on specific events
    useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentPhaseMessage(getCurrentRegistrationPhaseDisplay());
-    }, 60000); // Update every minute, for example
+      // Re-fetch controls and update message periodically or rely on manual refresh by user
+      getRegistrationControl().then(controls => {
+        setRegistrationControls(controls);
+        setCurrentPhaseMessage(getCurrentRegistrationPhaseDisplay(controls));
+      });
+    }, 60000); // Update every minute
     return () => clearInterval(interval);
   }, []);
 
@@ -276,16 +337,13 @@ export default function Home() {
       return;
     }
 
-    if (!canRegisterBasedOnTicket(currentUser.ticketType)) {
-       const userPhase = REGISTRATION_SCHEDULE.find(p => p.ticketType === currentUser.ticketType);
-       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas encore ouverte.`;
-       if (userPhase) {
-         description = `L'inscription pour votre type de billet (${currentUser.ticketType}) ouvrira le ${userPhase.startDate.toLocaleDateString('fr-FR')}. Phase actuelle: ${currentPhaseMessage}`;
-       }
+    if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) { // Pass controls
+       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte. Phase actuelle: ${currentPhaseMessage.replace(/<\/?b>/g, '')}`; // Remove bold tags for toast
        toast({
         variant: "destructive",
         title: "Inscription non disponible",
         description: description,
+        duration: 7000,
       });
       return;
     }
@@ -325,16 +383,13 @@ export default function Home() {
       return;
     }
 
-    if (!canRegisterBasedOnTicket(currentUser.ticketType)) {
-       const userPhase = REGISTRATION_SCHEDULE.find(p => p.ticketType === currentUser.ticketType);
-       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas encore ouverte.`;
-       if (userPhase) {
-         description = `L'inscription pour votre type de billet (${currentUser.ticketType}) ouvrira le ${userPhase.startDate.toLocaleDateString('fr-FR')}. Phase actuelle: ${currentPhaseMessage}`;
-       }
+    if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) { // Pass controls
+      let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte. Phase actuelle: ${currentPhaseMessage.replace(/<\/?b>/g, '')}`; // Remove bold tags
        toast({
         variant: "destructive",
         title: "Inscription non disponible",
         description: description,
+        duration: 7000,
       });
       return;
     }
@@ -487,9 +542,11 @@ export default function Home() {
                   </Button>
                   </div>
               )}
-              <Badge variant="outline" className="shadow-sm mt-2 text-xs">
-                 {currentPhaseMessage || 'Chargement des phases...'}
-              </Badge>
+              <Badge 
+                variant="outline" 
+                className="shadow-sm mt-2 text-xs"
+                dangerouslySetInnerHTML={{ __html: currentPhaseMessage || 'Chargement des phases...' }}
+              />
               </CardContent>
           </Card>
 
@@ -610,7 +667,7 @@ export default function Home() {
                                                   {dayTables.map((table) => {
                                                       const availableSeats = getAvailableSeats(table.id, registrations, tables);
                                                       const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
-                                                      const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType);
+                                                      const canRegisterNow = currentUser && canRegisterBasedOnTicket(currentUser.ticketType, registrationControls); // Pass controls
                                                       const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
                                                       const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
 
@@ -633,7 +690,7 @@ export default function Home() {
                                                       let onClickAction: (() => void) | undefined = () => openConfirmationDialog(table);
                                                       let tooltipText = "";
                                                       let icon = null;
-                                                      let renderAsIconOnly = false;
+                                                      
 
                                                       if (isSubmittingRegistration || isLookingUpUser) {
                                                           buttonText = "Chargement...";
@@ -660,14 +717,13 @@ export default function Home() {
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                       } else if (!canRegisterNow) {
-                                                          const userPhase = REGISTRATION_SCHEDULE.find(p => p.ticketType === currentUser.ticketType);
-                                                          tooltipText = `Inscription pour ${currentUser.ticketType} ouvre le ${userPhase?.startDate.toLocaleDateString('fr-FR') || 'plus tard'}`;
+                                                          tooltipText = currentPhaseMessage.replace(/<\/?b>/g, ''); // Remove bold tags
                                                           buttonText = "Indisponible";
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
-                                                      } else if (conflict) {
-                                                          renderAsIconOnly = true; 
+                                                      } else if (conflict && !isRegisteredByUser) { // Conflict only matters if not already registered for this specific table
                                                           tooltipText = "Conflit avec votre planning";
+                                                          // For this case, we'll render the Ban icon directly below
                                                       } else if (availableSeats <= 0) {
                                                           tooltipText = "Table est complète";
                                                           buttonText = "Complet";
@@ -736,33 +792,33 @@ export default function Home() {
                                                                   )}
                                                               </TableCell>
                                                               <TableCell className="text-center">
-                                                                  {(!currentUser && availableSeats <= 0) ? (
-                                                                      <Badge variant="destructive" title="Cette table est complète">Complet !</Badge>
-                                                                  ) : renderAsIconOnly ? (
-                                                                      <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                          <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-destructive/10 cursor-default" aria-label={tooltipText}>
-                                                                            <Ban className="h-5 w-5 text-destructive" />
-                                                                          </span>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>
-                                                                          <p>{tooltipText}</p>
-                                                                        </TooltipContent>
-                                                                      </Tooltip>
-                                                                  ) : (
-                                                                      <Button
-                                                                          onClick={onClickAction}
-                                                                          size="sm"
-                                                                          variant={buttonVariant}
-                                                                          disabled={isDisabled || (!currentUser && availableSeats <=0)} 
-                                                                          aria-label={tooltipText || buttonText}
-                                                                          title={tooltipText || buttonText}
-                                                                          className="shadow-sm rounded-md"
-                                                                      >
-                                                                          {icon}
-                                                                          {buttonText}
-                                                                      </Button>
-                                                                  )}
+                                                                {(!currentUser && availableSeats <= 0) ? (
+                                                                    <Badge variant="destructive" title="Cette table est complète">Complet !</Badge>
+                                                                ) : (conflict && currentUser && !isRegisteredByUser) ? (
+                                                                    <Tooltip>
+                                                                      <TooltipTrigger asChild>
+                                                                        <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-destructive/10 cursor-default" aria-label={tooltipText}>
+                                                                          <Ban className="h-5 w-5 text-destructive" />
+                                                                        </span>
+                                                                      </TooltipTrigger>
+                                                                      <TooltipContent>
+                                                                        <p>{tooltipText}</p>
+                                                                      </TooltipContent>
+                                                                    </Tooltip>
+                                                                ) : (
+                                                                    <Button
+                                                                        onClick={onClickAction}
+                                                                        size="sm"
+                                                                        variant={buttonVariant}
+                                                                        disabled={isDisabled || (!currentUser && availableSeats <=0)} 
+                                                                        aria-label={tooltipText || buttonText}
+                                                                        title={tooltipText || buttonText}
+                                                                        className="shadow-sm rounded-md"
+                                                                    >
+                                                                        {icon}
+                                                                        {buttonText}
+                                                                    </Button>
+                                                                )}
                                                               </TableCell>
                                                           </TableRow>
                                                       );

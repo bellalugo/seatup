@@ -1,6 +1,6 @@
 
-import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult } from '@/lib/types';
-import { REGISTRATION_SCHEDULE } from '@/lib/types'; // Import new schedule
+import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls } from '@/lib/types';
+import { REGISTRATION_SCHEDULE } from '@/lib/types';
 import { db } from '@/firebase/clientApp';
 import {
     collection,
@@ -15,6 +15,7 @@ import {
     orderBy,
     getDoc,
     setDoc,
+    Timestamp,
 } from 'firebase/firestore';
 
 export const mockUsers: Record<string, User> = {
@@ -24,13 +25,14 @@ export const mockUsers: Record<string, User> = {
   'user-000': { id: 'user-000', name: 'David (Invitation)', ticketType: 'Invitation', email: 'david@example.com' },
 };
 
-// Removed old registrationPhases export, REGISTRATION_SCHEDULE from types.ts is now used.
 
 const GAMES_COLLECTION = 'games';
 const TABLES_COLLECTION = 'gameTables';
 const REGISTRATIONS_COLLECTION = 'registrations';
 const PARTICIPANTS_COLLECTION = 'liste_participants';
 const GAME_RESULTS_COLLECTION = 'gameResults';
+const SYSTEM_SETTINGS_COLLECTION = 'system_settings';
+const REGISTRATION_CONTROL_DOC_ID = 'registrationControl';
 
 
 // --- Games CRUD Functions ---
@@ -533,6 +535,51 @@ export const getAllGameResults = async (): Promise<GameResult[]> => {
     }
 };
 
+// --- Registration Control Functions (Admin) ---
+export const getRegistrationControl = async (): Promise<ManualRegistrationControls> => {
+  if (!db) {
+    console.error("Firestore DB instance is not initialized for getRegistrationControl.");
+    throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les contrôles d'inscription.");
+  }
+  try {
+    const controlRef = doc(db, SYSTEM_SETTINGS_COLLECTION, REGISTRATION_CONTROL_DOC_ID);
+    const docSnap = await getDoc(controlRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        strategistManuallyOpen: data.strategistManuallyOpen || false,
+        marshalManuallyOpen: data.marshalManuallyOpen || false,
+        generalManuallyOpen: data.generalManuallyOpen || false,
+        lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated.toDate() : undefined,
+      };
+    }
+    // Default if not found
+    return {
+      strategistManuallyOpen: false,
+      marshalManuallyOpen: false,
+      generalManuallyOpen: false,
+    };
+  } catch (error) {
+    console.error("Firestore - Erreur lors de la récupération des contrôles d'inscription:", error);
+    throw new Error("Impossible de récupérer les contrôles d'inscription.");
+  }
+};
+
+export const updateRegistrationControl = async (updates: Partial<ManualRegistrationControls>): Promise<void> => {
+  if (!db) {
+    console.error("Firestore DB instance is not initialized for updateRegistrationControl.");
+    throw new Error("La connexion à Firestore n'est pas initialisée pour mettre à jour les contrôles d'inscription.");
+  }
+  try {
+    const controlRef = doc(db, SYSTEM_SETTINGS_COLLECTION, REGISTRATION_CONTROL_DOC_ID);
+    await setDoc(controlRef, { ...updates, lastUpdated: new Date() }, { merge: true });
+  } catch (error) {
+    console.error("Firestore - Erreur lors de la mise à jour des contrôles d'inscription:", error);
+    throw new Error("Impossible de mettre à jour les contrôles d'inscription.");
+  }
+};
+
 
 // --- Utility Functions ---
 
@@ -561,19 +608,31 @@ export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registra
         const newSlot = parseTimeSlot(newTable.timeSlot);
 
         if (!registeredSlot || !newSlot) {
-            return registeredTable.timeSlot === newTable.timeSlot;
+            return registeredTable.timeSlot === newTable.timeSlot; // Handles "Off" vs "Off"
         }
+        // True if they overlap
         return !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
     });
 };
 
-export const canRegisterBasedOnTicket = (userTicketType: TicketType, currentDate: Date = new Date()): boolean => {
+export const canRegisterBasedOnTicket = (
+  userTicketType: TicketType,
+  manualControls: ManualRegistrationControls,
+  currentDate: Date = new Date()
+): boolean => {
   if (userTicketType === 'Invitation') return false;
 
+  // Check manual overrides first
+  if (manualControls.generalManuallyOpen) return true; // If general is open, all are open
+  if (userTicketType === 'Général' && manualControls.generalManuallyOpen) return true;
+  if (userTicketType === 'Maréchal' && (manualControls.marshalManuallyOpen || manualControls.generalManuallyOpen)) return true;
+  if (userTicketType === 'Stratège' && (manualControls.strategistManuallyOpen || manualControls.marshalManuallyOpen || manualControls.generalManuallyOpen)) return true;
+
+  // If no manual override allows, check schedule
   const userPhaseDefinition = REGISTRATION_SCHEDULE.find(phase => phase.ticketType === userTicketType);
 
   if (!userPhaseDefinition) {
-    console.warn(`Aucune phase d'inscription définie pour le type de billet : ${userTicketType}`);
+    console.warn(`Aucune phase d'inscription (planning) définie pour le type de billet : ${userTicketType}`);
     return false;
   }
   return currentDate >= userPhaseDefinition.startDate;
