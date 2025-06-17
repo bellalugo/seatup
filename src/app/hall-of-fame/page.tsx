@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3 } from 'lucide-react';
+import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3, Star } from 'lucide-react'; // Import Star
 import { useToast } from '@/hooks/use-toast';
 import { getAllGameResults, getGameTables, getParticipants, getRegistrations } from '@/lib/data';
 import type { GameResult, GameTable, Participant, Registration } from '@/lib/types';
@@ -21,11 +21,11 @@ interface PlayerScore {
   name: string;
   email: string;
   dailyScores: Record<ConventionDay, number>;
-  dailyGamesPlayed: Record<ConventionDay, number>; // Added for daily stats
-  dailyWins: Record<ConventionDay, number>; // Added for daily stats
+  dailyGamesPlayed: Record<ConventionDay, number>; 
+  dailyWins: Record<ConventionDay, number>; 
   totalScore: number;
-  gamesPlayed: number; // Overall games played
-  wins: number; // Overall wins
+  gamesPlayed: number; 
+  wins: number; 
 }
 
 interface RankedPlayer extends PlayerScore {
@@ -83,8 +83,8 @@ export default function HallOfFamePage() {
         if (participantData) {
           participantData.dailyScores[day] += pointsPerWin;
           participantData.totalScore += pointsPerWin;
-          participantData.dailyWins[day] += 1; // Increment daily wins
-          participantData.wins += 1;           // Increment total wins
+          participantData.dailyWins[day] += 1; 
+          participantData.wins += 1;           
         }
       });
     });
@@ -100,8 +100,8 @@ export default function HallOfFamePage() {
         if (conventionDays.includes(day)) {
           const participantData = playerScores.get(registration.userId);
           if (participantData) {
-            participantData.dailyGamesPlayed[day] += 1; // Increment daily games played for the specific day
-            participantData.gamesPlayed += 1;          // Increment total games played
+            participantData.dailyGamesPlayed[day] += 1; 
+            participantData.gamesPlayed += 1;          
           }
         }
       }
@@ -118,7 +118,7 @@ export default function HallOfFamePage() {
     const daily: Record<ConventionDay, RankedPlayer[]> = { Jeudi: [], Vendredi: [], Samedi: [], Dimanche: [] };
     conventionDays.forEach(day => {
       daily[day] = [...allPlayersArray]
-        .filter(p => p.dailyScores[day] > 0 || p.dailyGamesPlayed[day] > 0) // Include if scored or played on this day
+        .filter(p => p.dailyScores[day] > 0 || p.dailyGamesPlayed[day] > 0) 
         .sort((a, b) => b.dailyScores[day] - a.dailyScores[day] || a.name.localeCompare(b.name))
         .map((player, index) => ({ ...player, rank: index + 1 }));
     });
@@ -204,7 +204,10 @@ export default function HallOfFamePage() {
                 {isDaily && day ? player.dailyWins[day] : player.wins}
               </TableCell>
               <TableCell className="text-center font-bold">
-                {isDaily && day ? player.dailyScores[day] : player.totalScore}
+                <div className="flex items-center justify-center">
+                  {isDaily && day ? player.dailyScores[day] : player.totalScore}
+                  <Star className="ml-1 h-4 w-4 text-black fill-black" />
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -285,5 +288,7 @@ export default function HallOfFamePage() {
   );
 }
       
+
+    
 
     
