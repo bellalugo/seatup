@@ -19,13 +19,13 @@ type ConventionDay = typeof conventionDays[number];
 interface PlayerScore {
   id: string;
   name: string;
-  email: string; // Email is kept in the data structure, but not displayed
+  // email: string; // Email is kept in the data structure, but not displayed
   dailyScores: Record<ConventionDay, number>;
-  dailyGamesPlayed: Record<ConventionDay, number>; 
-  dailyWins: Record<ConventionDay, number>; 
+  dailyGamesPlayed: Record<ConventionDay, number>;
+  dailyWins: Record<ConventionDay, number>;
   totalScore: number;
-  gamesPlayed: number; 
-  wins: number; 
+  gamesPlayed: number;
+  wins: number;
 }
 
 interface RankedPlayer extends PlayerScore {
@@ -59,7 +59,7 @@ export default function HallOfFamePage() {
         playerScores.set(p.id, {
           id: p.id,
           name: `${p.prenom} ${p.nom}`,
-          email: p.email,
+          // email: p.email, // Not displayed
           dailyScores: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
           dailyGamesPlayed: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
           dailyWins: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
@@ -237,16 +237,18 @@ export default function HallOfFamePage() {
 
   return (
     <div className="space-y-8">
-      <Card className="shadow-xl bg-gradient-to-br from-primary/10 via-background to-background">
+      <Card className="shadow-xl bg-primary text-white">
         <CardHeader className="text-center">
-           <div className="mx-auto bg-primary rounded-full p-4 w-fit mb-4 shadow-md">
-             <Trophy className="h-10 w-10 text-primary-foreground" />
+           <div className="mx-auto bg-black rounded-full p-4 w-fit mb-4 shadow-md">
+             <Trophy className="h-10 w-10 text-primary" />
            </div>
-          <CardTitle className="text-4xl font-bold tracking-tight">Hall of Fame - ASYNCONV</CardTitle>
-          <CardDescription className="text-lg text-muted-foreground">
+          <CardTitle className="text-4xl font-bold tracking-tight text-white">Hall of Fame - ASYNCONV</CardTitle>
+          <CardDescription className="text-lg text-white/90">
             Classement des Maîtres Stratèges de la convention !
           </CardDescription>
-          <Badge variant="outline" className="mx-auto mt-2">Points: 1 par victoire (+1 bonus si 5+ joueurs)</Badge>
+          <Badge variant="outline" className="mx-auto mt-2 border-white/50 text-white/90">
+            Points: 1 par victoire (+1 bonus si 5+ joueurs)
+          </Badge>
         </CardHeader>
       </Card>
 
@@ -294,3 +296,4 @@ export default function HallOfFamePage() {
     
 
     
+
