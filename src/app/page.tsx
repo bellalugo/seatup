@@ -4,7 +4,7 @@
 import type React from 'react';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
-import Link from 'next/link'; 
+import Link from 'next/link';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +36,7 @@ import {
     getParticipantByEmail,
     getParticipants,
     getAllGameResults,
-    getRegistrationControl, 
+    getRegistrationControl,
 } from '@/lib/data';
 import type { GameTable, User, Registration, Participant, GameResult, TicketType, ManualRegistrationControls } from '@/lib/types';
 import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban } from 'lucide-react';
@@ -61,22 +61,38 @@ interface RankedLivePlayer extends LivePlayerScore {
 }
 
 const getCurrentRegistrationPhaseDisplay = (
-    manualControls: ManualRegistrationControls | null
-  ): string => {
-    if (!manualControls) return '<b>Chargement de l\'état des inscriptions...</b>';
-  
-    if (manualControls.generalManuallyOpen) {
-      return `<b>Ouverture manuelle pour billets Général, Maréchal et Stratège.</b> Toutes les inscriptions (hors Invitation) sont ouvertes.`;
-    }
-    if (manualControls.marshalManuallyOpen) {
-      return `<b>Ouverture manuelle pour billets Maréchal et Stratège.</b> Les inscriptions pour les billets Général sont actuellement fermées.`;
-    }
-    if (manualControls.strategistManuallyOpen) {
-      return `<b>Inscription aux tables ouverte pour les billets Stratège.</b> Les inscriptions pour les billets Maréchal et Général sont actuellement fermées.`;
-    }
-  
-    return "<b>Inscriptions actuellement fermées.</b>";
-  };
+  manualControls: ManualRegistrationControls | null
+): string => {
+  if (!manualControls) return '<strong>Chargement de l\'état des inscriptions...</strong>';
+
+  let line1 = "";
+  let line1Color = "hsl(var(--foreground))"; // Default color
+  let line2 = "";
+  const line2Color = "hsl(var(--muted-foreground))";
+
+  if (manualControls.generalManuallyOpen) {
+    line1 = "Ouvert : Général, Maréchal, Stratège";
+    line1Color = "hsl(var(--badge-general-foreground))";
+    line2 = "Toutes les inscriptions (hors Invitation) sont ouvertes.";
+  } else if (manualControls.marshalManuallyOpen) {
+    line1 = "Ouvert : Maréchal, Stratège";
+    line1Color = "hsl(var(--badge-marshal-foreground))";
+    line2 = "Fermé : Général.";
+  } else if (manualControls.strategistManuallyOpen) {
+    line1 = "Ouvert : Stratège";
+    line1Color = "hsl(var(--badge-strategist-foreground))";
+    line2 = "Fermé : Maréchal, Général.";
+  } else {
+    line1 = "Inscriptions Fermées";
+    line2 = "Toutes les phases sont actuellement fermées.";
+  }
+
+  return `<div style="text-align: left; line-height: 1.4;">
+            <strong style="color: ${line1Color};">${line1}</strong>
+            <br />
+            <small style="color: ${line2Color};">${line2}</small>
+          </div>`;
+};
 
 
 export default function Home() {
@@ -97,9 +113,9 @@ export default function Home() {
   const [currentLiveConventionDay, setCurrentLiveConventionDay] = useState<ConventionDay | null>(null);
   const [topPlayersToday, setTopPlayersToday] = useState<RankedLivePlayer[]>([]);
   const [isLoadingLiveHof, setIsLoadingLiveHof] = useState(true);
-  
+
   const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls | null>(null);
-  const [currentPhaseMessage, setCurrentPhaseMessage] = useState('Chargement des phases...');
+  const [currentPhaseMessage, setCurrentPhaseMessage] = useState('<strong>Chargement de l\'état des inscriptions...</strong>');
 
 
   const loadPageData = useCallback(async () => {
@@ -107,11 +123,11 @@ export default function Home() {
     setIsLoadingLiveHof(true);
     try {
       const [
-        fetchedTables, 
-        fetchedRegistrations, 
-        fetchedAllParticipants, 
+        fetchedTables,
+        fetchedRegistrations,
+        fetchedAllParticipants,
         fetchedGameResults,
-        fetchedRegistrationControls, 
+        fetchedRegistrationControls,
     ] = await Promise.all([
         getGameTables(),
         getRegistrations(),
@@ -152,18 +168,18 @@ export default function Home() {
         setRegistrationControls(controls);
         setCurrentPhaseMessage(getCurrentRegistrationPhaseDisplay(controls));
       });
-    }, 60000); 
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
 
   // Effect for Live Hall of Fame
   useEffect(() => {
-    if (isLoading) return; 
+    if (isLoading) return;
 
     setIsLoadingLiveHof(true);
-    
-    const liveDayName: ConventionDay | null = 'Jeudi'; 
+
+    const liveDayName: ConventionDay | null = 'Jeudi';
     setCurrentLiveConventionDay(liveDayName);
 
     if (liveDayName && allParticipantsData.length > 0 && tables.length > 0 && gameResultsData.size > 0) {
@@ -185,9 +201,9 @@ export default function Home() {
 
         Array.from(gameResultsData.values()).forEach(result => {
             const table = gameTablesMap.get(result.tableId);
-            if (!table || table.day !== liveDayName) return; 
+            if (!table || table.day !== liveDayName) return;
 
-            const pointsPerWin = result.playersInGame >= 5 ? 2 : 1; 
+            const pointsPerWin = result.playersInGame >= 5 ? 2 : 1;
 
             result.winnerIds.forEach(winnerId => {
                 const playerData = playerScoresMap.get(winnerId);
@@ -196,9 +212,9 @@ export default function Home() {
                     playerData.winsToday +=1;
                 }
             });
-            
+
              registrations.forEach(reg => {
-                if (reg.tableId === result.tableId) { 
+                if (reg.tableId === result.tableId) {
                     const tableOfRegistration = gameTablesMap.get(reg.tableId);
                     if (tableOfRegistration && tableOfRegistration.day === liveDayName) {
                         const playerData = playerScoresMap.get(reg.userId);
@@ -213,9 +229,9 @@ export default function Home() {
         });
 
         const rankedToday = Array.from(playerScoresMap.values())
-            .filter(p => p.score > 0 || p.winsToday > 0) 
+            .filter(p => p.score > 0 || p.winsToday > 0)
             .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
-            .slice(0, 5) 
+            .slice(0, 5)
             .map((player, index) => ({
                 id: player.id,
                 name: player.name,
@@ -271,8 +287,8 @@ export default function Home() {
       return;
     }
 
-    if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) { 
-       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. ${currentPhaseMessage.replace(/<\/?b>/g, '')}`;
+    if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) {
+       let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. L'ouverture est gérée manuellement.`;
        toast({
         variant: "destructive",
         title: "Inscription non disponible",
@@ -317,8 +333,8 @@ export default function Home() {
       return;
     }
 
-    if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) { 
-      let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. ${currentPhaseMessage.replace(/<\/?b>/g, '')}`;
+    if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) {
+      let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. L'ouverture est gérée manuellement.`;
        toast({
         variant: "destructive",
         title: "Inscription non disponible",
@@ -349,9 +365,9 @@ export default function Home() {
     setIsSubmittingRegistration(true);
     try {
         await addRegistrationToDb(currentUser.id, tableId);
-        const updatedRegistrations = await getRegistrations(); 
+        const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
-        
+
         toast({
         title: "Inscription réussie !",
         description: `${currentUser.name}, vous êtes maintenant inscrit(e) pour le jeu : ${table.gameName}.`,
@@ -377,7 +393,7 @@ export default function Home() {
         await removeRegistrationFromDb(currentUser.id, tableId);
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
-        
+
         toast({
             title: "Désinscrit(e)",
             description: `Votre inscription pour ${table.gameName} a été supprimée.`,
@@ -422,7 +438,7 @@ export default function Home() {
   };
 
   return (
-    <TooltipProvider> 
+    <TooltipProvider>
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
           <Card className="shadow-lg rounded-lg h-full flex flex-col">
@@ -476,10 +492,10 @@ export default function Home() {
                   </Button>
                   </div>
               )}
-              <Badge 
-                variant="outline" 
-                className="shadow-sm mt-2 text-xs"
-                dangerouslySetInnerHTML={{ __html: currentPhaseMessage || '<b>Chargement de l\'état des inscriptions...</b>' }}
+              <Badge
+                variant="outline"
+                className="shadow-sm mt-2 text-xs h-auto py-2 px-3 items-start text-left block"
+                dangerouslySetInnerHTML={{ __html: currentPhaseMessage || '<strong>Chargement de l\'état des inscriptions...</strong>' }}
               />
               </CardContent>
           </Card>
@@ -601,7 +617,7 @@ export default function Home() {
                                                   {dayTables.map((table) => {
                                                       const availableSeats = getAvailableSeats(table.id, registrations, tables);
                                                       const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
-                                                      const canRegisterNow = currentUser && registrationControls && canRegisterBasedOnTicket(currentUser.ticketType, registrationControls); 
+                                                      const canRegisterNow = currentUser && registrationControls && canRegisterBasedOnTicket(currentUser.ticketType, registrationControls);
                                                       const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
                                                       const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
 
@@ -624,7 +640,7 @@ export default function Home() {
                                                       let onClickAction: (() => void) | undefined = () => openConfirmationDialog(table);
                                                       let tooltipText = "";
                                                       let icon = null;
-                                                      
+
 
                                                       if (isSubmittingRegistration || isLookingUpUser) {
                                                           buttonText = "Chargement...";
@@ -637,10 +653,10 @@ export default function Home() {
                                                           tooltipText = "Cliquez pour vous désinscrire";
                                                           icon = <CheckCircle className="mr-2 h-4 w-4" />;
                                                       } else if (!currentUser && availableSeats <=0) {
-                                                          buttonText = "Complet !"; 
-                                                          buttonVariant = "destructive"; 
+                                                          buttonText = "Complet !";
+                                                          buttonVariant = "destructive";
                                                           tooltipText = "Cette table est complète.";
-                                                          onClickAction = undefined; 
+                                                          onClickAction = undefined;
                                                       } else if (!currentUser) {
                                                           tooltipText = "Connectez-vous pour vous inscrire";
                                                           buttonText = "Connectez-vous";
@@ -651,11 +667,11 @@ export default function Home() {
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                       } else if (!canRegisterNow) {
-                                                          tooltipText = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. ${currentPhaseMessage.replace(/<\/?b>/g, '')}`;
+                                                          tooltipText = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment. L'ouverture est gérée manuellement.`;
                                                           buttonText = "Indisponible";
                                                           buttonVariant = "secondary";
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
-                                                      } else if (conflict && !isRegisteredByUser) { 
+                                                      } else if (conflict && !isRegisteredByUser) {
                                                           tooltipText = "Conflit avec votre planning";
                                                           // For this case, we'll render the Ban icon directly below
                                                       } else if (availableSeats <= 0) {
@@ -744,7 +760,7 @@ export default function Home() {
                                                                         onClick={onClickAction}
                                                                         size="sm"
                                                                         variant={buttonVariant}
-                                                                        disabled={isDisabled || (!currentUser && availableSeats <=0)} 
+                                                                        disabled={isDisabled || (!currentUser && availableSeats <=0)}
                                                                         aria-label={tooltipText || buttonText}
                                                                         title={tooltipText || buttonText}
                                                                         className="shadow-sm rounded-md"
