@@ -185,32 +185,35 @@ export default function HallOfFamePage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {players.map((player) => (
-            <TableRow key={player.id}>
-              <TableCell className="text-center font-medium">
-                {player.rank === 1 && <Trophy className="inline h-5 w-5 mr-1 text-amber-500" />}
-                {player.rank === 2 && <Trophy className="inline h-5 w-5 mr-1 text-slate-400" />}
-                {player.rank === 3 && <Trophy className="inline h-5 w-5 mr-1 text-yellow-700" />}
-                {player.rank}
-              </TableCell>
-              <TableCell>
-                <div className="font-medium">{player.name}</div>
-                <div className="text-xs text-muted-foreground">{player.email}</div>
-              </TableCell>
-              <TableCell className="text-center">
-                {isDaily && day ? player.dailyGamesPlayed[day] : player.gamesPlayed}
-              </TableCell>
-              <TableCell className="text-center">
-                {isDaily && day ? player.dailyWins[day] : player.wins}
-              </TableCell>
-              <TableCell className="text-center font-bold">
-                <div className="flex items-center justify-center">
-                  {isDaily && day ? player.dailyScores[day] : player.totalScore}
-                  <Star className="ml-1 h-4 w-4 text-black fill-black" />
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+          {players.map((player) => {
+            const currentScore = isDaily && day ? player.dailyScores[day] : player.totalScore;
+            return (
+              <TableRow key={player.id}>
+                <TableCell className="text-center font-medium">
+                  {player.rank === 1 && <Trophy className="inline h-5 w-5 mr-1 text-amber-500" />}
+                  {player.rank === 2 && <Trophy className="inline h-5 w-5 mr-1 text-slate-400" />}
+                  {player.rank === 3 && <Trophy className="inline h-5 w-5 mr-1 text-yellow-700" />}
+                  {player.rank}
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium">{player.name}</div>
+                  <div className="text-xs text-muted-foreground">{player.email}</div>
+                </TableCell>
+                <TableCell className="text-center">
+                  {isDaily && day ? player.dailyGamesPlayed[day] : player.gamesPlayed}
+                </TableCell>
+                <TableCell className="text-center">
+                  {isDaily && day ? player.dailyWins[day] : player.wins}
+                </TableCell>
+                <TableCell className="text-center font-bold">
+                  <div className="flex items-center justify-center">
+                    {currentScore === 0 ? '-' : currentScore}
+                    {currentScore > 0 && <Star className="ml-1 h-4 w-4 text-black fill-black" />}
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     );
