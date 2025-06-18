@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import ConventionManager from "@/components/admin/table-manager";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck, DownloadCloud, Loader2, ListChecks, Settings2, PlayCircle, XCircle, Users2 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react"; // Added useMemo
 import { useToast } from "@/hooks/use-toast";
 import { syncBilletwebParticipants } from "@/ai/flows/sync-billetweb-participants-flow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -94,11 +94,11 @@ export default function AdminPage() {
 
 
   const handleSyncBilletweb = async () => {
+    console.log('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<');
+    console.log('<<< CLIENT BROWSER LOG: handleSyncBilletweb CALLED >>>');
+    console.log('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<');
     setIsSyncingBilletweb(true);
     try {
-      // Simulate API call delay
-      // await new Promise(resolve => setTimeout(resolve, 2000));
-      // const result = { message: "Simulated: 50 participants synchronisés.", participantsSynced: 50 };
       toast({
         title: "Synchronisation Billetweb en cours...",
         description: "Récupération des participants depuis Billetweb.",
