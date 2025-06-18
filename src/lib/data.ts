@@ -16,6 +16,8 @@ import {
     getDoc,
     setDoc,
     Timestamp,
+    type DocumentReference,
+    type DocumentSnapshot,
 } from 'firebase/firestore';
 
 // mockUsers is removed as it's no longer used.
@@ -548,6 +550,23 @@ export const getAllGameResults = async (): Promise<GameResult[]> => {
 };
 
 // --- Registration Control Functions (Admin) ---
+
+// Helper for getRegistrationControl to attempt fetching with a retry for "offline" errors
+const tryGetFirestoreDoc = async (docRef: DocumentReference, attempt = 1): Promise<DocumentSnapshot> => {
+  try {
+    const docSnap = await getDoc(docRef);
+    return docSnap;
+  } catch (error: any) {
+    if (attempt < 2 && error.message?.toLowerCase().includes("client is offline")) {
+      console.warn(`[getRegistrationControl] Firestore client reported offline on attempt ${attempt}. Retrying in 2 seconds...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return tryGetFirestoreDoc(docRef, attempt + 1);
+    }
+    console.error(`[getRegistrationControl] Error after attempt ${attempt}:`, error);
+    throw error; // Re-throw other errors or if retries exhausted
+  }
+};
+
 export const getRegistrationControl = async (): Promise<ManualRegistrationControls> => {
   if (!db) {
     console.error("Firestore DB instance is not initialized for getRegistrationControl.");
@@ -555,7 +574,8 @@ export const getRegistrationControl = async (): Promise<ManualRegistrationContro
   }
   try {
     const controlRef = doc(db, SYSTEM_SETTINGS_COLLECTION, REGISTRATION_CONTROL_DOC_ID);
-    const docSnap = await getDoc(controlRef);
+    const docSnap = await tryGetFirestoreDoc(controlRef); // Use the retry helper
+
     if (docSnap.exists()) {
       const data = docSnap.data();
       return {
