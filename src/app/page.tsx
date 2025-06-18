@@ -410,7 +410,7 @@ export default function Home() {
     }
   }
 
-  const getUserSchedule = (): GameTable[] => {
+  const getUserSchedule = useCallback((): GameTable[] => {
     if (!currentUser) return [];
     const userTableIds = registrations.filter(r => r.userId === currentUser.id).map(r => r.tableId);
     return tables.filter(t => userTableIds.includes(t.id))
@@ -421,9 +421,9 @@ export default function Home() {
                     }
                     return a.timeSlot.localeCompare(b.timeSlot);
                  });
-  };
+  }, [currentUser, registrations, tables]);
 
-  const userSchedule = getUserSchedule();
+  const userSchedule = useMemo(() => getUserSchedule(), [getUserSchedule]);
 
   const getTicketBadgeVariant = (ticketType?: TicketType): "strategist" | "marshal" | "general" | "secondary" => {
     if (!ticketType) return 'secondary';
@@ -949,5 +949,6 @@ export default function Home() {
     </TooltipProvider>
   );
 }
+
 
 
