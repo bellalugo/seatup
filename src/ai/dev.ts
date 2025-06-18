@@ -37,11 +37,13 @@ try {
       console.warn(`>>> [Genkit Server] dotenv.config() did not parse any variables from "${envConfigPath}", but also did not report an error. This is unusual.`);
     }
 
+    // Explicit check for NEXT_PUBLIC_FIREBASE_API_KEY
     if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
       console.log('>>> [Genkit Server] NEXT_PUBLIC_FIREBASE_API_KEY is SET in Genkit process. First 5 chars:', process.env.NEXT_PUBLIC_FIREBASE_API_KEY.substring(0, 5));
     } else {
       console.error('!!! [Genkit Server] NEXT_PUBLIC_FIREBASE_API_KEY is NOT SET in Genkit process after dotenv.config() attempt. !!!');
     }
+    // Explicit check for BILLETWEB_USER
      if (process.env.BILLETWEB_USER) {
       console.log('>>> [Genkit Server] BILLETWEB_USER is SET.');
     } else {
