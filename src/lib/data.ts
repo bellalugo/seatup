@@ -378,7 +378,7 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
   console.log('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++');
   console.log('+++ SERVER LOG: saveParticipants FUNCTION CALLED +++');
   console.log('+++ SERVER LOG: Nombre de participants à sauvegarder:', participants.length);
-  console.log('+++ SERVER LOG: Current Firebase Auth user (client SDK) before batch:', auth.currentUser ? auth.currentUser.email : 'NULL');
+  // console.log('+++ SERVER LOG: Current Firebase Auth user (client SDK) before batch:', auth.currentUser ? auth.currentUser.email : 'NULL');
   console.log('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++');
 
   if (!db) {
