@@ -18,13 +18,7 @@ import {
     Timestamp,
 } from 'firebase/firestore';
 
-export const mockUsers: Record<string, User> = {
-  'user-123': { id: 'user-123', name: 'Alice (Stratège)', ticketType: 'Stratège', email: 'alice@example.com' },
-  'user-456': { id: 'user-456', name: 'Bob (Maréchal)', ticketType: 'Maréchal', email: 'bob@example.com' },
-  'user-789': { id: 'user-789', name: 'Charlie (Général)', ticketType: 'Général', email: 'charlie@example.com' },
-  'user-000': { id: 'user-000', name: 'David (Invitation)', ticketType: 'Invitation', email: 'david@example.com' },
-};
-
+// mockUsers is removed as it's no longer used.
 
 const GAMES_COLLECTION = 'games';
 const TABLES_COLLECTION = 'gameTables';
@@ -378,7 +372,6 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
   console.log('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++');
   console.log('+++ SERVER LOG: saveParticipants FUNCTION CALLED +++');
   console.log('+++ SERVER LOG: Nombre de participants à sauvegarder:', participants.length);
-  // console.log('+++ SERVER LOG: Current Firebase Auth user (client SDK) before batch:', auth.currentUser ? auth.currentUser.email : 'NULL');
   console.log('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++');
 
   if (!db) {

@@ -10,29 +10,29 @@ const BILLETWEB_USER   = process.env.BILLETWEB_USER;
 const BILLETWEB_KEY    = process.env.BILLETWEB_KEY;
 const BILLETWEB_EVENT  = process.env.BILLETWEB_EVENT_ID;
 
+// useMock will be true if any of the required Billetweb environment variables are missing.
 const useMock = !BILLETWEB_USER || !BILLETWEB_KEY || !BILLETWEB_EVENT;
 
 if (useMock) {
-  console.warn('[Billetweb Service] Variables d’environnement Billetweb (USER, KEY, ou EVENT_ID) manquantes ou incomplètes. Utilisation des données de démonstration (mock). Pour utiliser l\'API Billetweb réelle, veuillez configurer ces variables dans votre fichier .env et redémarrer le serveur.');
+  console.warn('[Billetweb Service] AVERTISSEMENT: Les variables d’environnement Billetweb (BILLETWEB_USER, BILLETWEB_KEY, ou BILLETWEB_EVENT_ID) sont manquantes ou incomplètes.');
+  console.warn('[Billetweb Service] L\'appel à l\'API Billetweb réelle ne pourra pas être effectué tant que ces variables ne sont pas correctement configurées dans votre fichier .env.local et que le serveur n\'est pas redémarré.');
 }
 
 /* ------------------------------------------------------------------ */
 /*  HELPERS                                                           */
 /* ------------------------------------------------------------------ */
 function mapTicketName(name?: string): TicketType { // name can be undefined
-  if (!name || name.trim() === '') { // Handle empty or whitespace-only strings as well
-    // console.log('[Billetweb Service] mapTicketName: Nom de billet non fourni ou vide, retour "Invitation".');
+  if (!name || name.trim() === '') { 
     return 'Invitation';
   }
   const trimmedName = name.trim();
-  // console.log(`[Billetweb Service] mapTicketName: Cartographie du nom de billet "${trimmedName}"`);
   if (/strat[eè]ge/i.test(trimmedName))   return 'Stratège';
   if (/mar[eé]chal/i.test(trimmedName))   return 'Maréchal';
   if (/g[eé]n[eé]ral/i.test(trimmedName)) return 'Général';
-  if (/invitation/i.test(trimmedName)) return 'Invitation'; // Added mapping for "Invitation"
+  if (/invitation/i.test(trimmedName)) return 'Invitation';
   
   console.warn(`[Billetweb Service] mapTicketName: Nom de billet non reconnu "${trimmedName}", retour "Invitation".`);
-  return 'Invitation';                       // unrecognized ticket defaults to Invitation
+  return 'Invitation';
 }
 
 async function callBilletweb<T = any>(endpoint: string): Promise<T> {
@@ -50,35 +50,11 @@ async function callBilletweb<T = any>(endpoint: string): Promise<T> {
 /* ------------------------------------------------------------------ */
 export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
   if (useMock) {
-    const { mockUsers } = await import('@/lib/data');
-    const mockedParticipants: Participant[] = Object.values(mockUsers).map((user, index) => {
-      let prenom = `PrénomMock${index + 1}`;
-      let nom = `NomMock${index + 1}`;
-      
-      const nameParts = user.name.split('(');
-      const realNamePart = nameParts[0].trim();
-      
-      if (realNamePart) {
-        const realNameWords = realNamePart.split(' ');
-        if (realNameWords.length > 1) {
-          prenom = realNameWords.slice(0, -1).join(' ');
-          nom = realNameWords[realNameWords.length - 1];
-        } else {
-          prenom = realNameWords[0];
-          // nom remains NomMockX+1, which is intended for mock.
-        }
-      }
-
-      return {
-        id: user.id, 
-        nom: nom,
-        prenom: prenom,
-        email: `${user.id.replace(/[^a-zA-Z0-9]/g, "")}mock@example.com`,
-        typeBillet: user.ticketType
-      };
-    });
-    console.log('[Billetweb Mock] Participants simulés retournés:', mockedParticipants);
-    return mockedParticipants;
+    console.error('[Billetweb Service] ERREUR CRITIQUE: Configuration Billetweb incomplète.');
+    console.error('[Billetweb Service] Les variables d’environnement BILLETWEB_USER, BILLETWEB_KEY, ou BILLETWEB_EVENT_ID sont manquantes.');
+    console.error('[Billetweb Service] L\'appel réel à l\'API Billetweb ne peut pas être effectué. Retour d\'une liste vide.');
+    console.error('[Billetweb Service] Veuillez configurer ces variables dans votre fichier .env.local et redémarrer le serveur.');
+    return []; // Return an empty array as mock data is removed and real call cannot be made.
   }  
 
   console.log('[Billetweb Service] Tentative de récupération des participants depuis l\'API Billetweb réelle...');
@@ -86,9 +62,9 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
     id?: string; 
     order_id: string; 
     firstname?: string; 
-    name?: string;  // Billetweb API often uses 'name' for last name.
+    name?: string;
     email?: string;     
-    ticket?: string; // Name of the ticket as defined in Billetweb (e.g., "Pass ASYNCONV - Stratège")
+    ticket?: string; 
     ticket_id?: string; 
     rate_name?: string; 
     answers?: Array<{ 
@@ -109,14 +85,14 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
     return attendees.map((a, index) => {
       const uniqueParticipantId = a.id || `${a.order_id}_attendee_${index}`;
       
-      if (index < 2 && !useMock) { // Log details for the first two non-mock participants
+      if (index < 2) { 
         console.log(`[Billetweb Service] Raw data for attendee ${index + 1} (ID: ${uniqueParticipantId}):`, JSON.stringify(a, null, 2));
         if (a.answers) {
           console.log(`[Billetweb Service] Answers for attendee ${index + 1} (ID: ${uniqueParticipantId}):`, JSON.stringify(a.answers, null, 2));
         }
       }
       
-      let mappedNom = a.name || ''; // Default to Billetweb's 'name' field (likely last name)
+      let mappedNom = a.name || ''; 
       let mappedPrenom = a.firstname || '';
       let mappedEmail = a.email || '';
       
@@ -126,7 +102,7 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
             mappedNom = nomAnswer.value.trim();
         }
 
-        const prenomAnswer = a.answers.find(ans => ans.label?.toLowerCase().includes('prénom')); // Using 'prénom' with é
+        const prenomAnswer = a.answers.find(ans => ans.label?.toLowerCase().includes('prénom'));
          if (prenomAnswer && typeof prenomAnswer.value === 'string' && prenomAnswer.value.trim() !== '') {
             mappedPrenom = prenomAnswer.value.trim();
         }
@@ -139,7 +115,6 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
 
       let ticketNameToMap: string | undefined = undefined;
 
-      // Attempt 1: Look in answers for "Tarif"
       if (a.answers && Array.isArray(a.answers)) {
         const tarifAnswer = a.answers.find(ans => ans.label?.toLowerCase().includes('tarif'));
         if (tarifAnswer && typeof tarifAnswer.value === 'string' && tarifAnswer.value.trim() !== '') {
@@ -147,12 +122,10 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
         }
       }
 
-      // Attempt 2: Use direct 'ticket' field if not found in answers
       if (!ticketNameToMap && a.ticket && typeof a.ticket === 'string' && a.ticket.trim() !== '') {
         ticketNameToMap = a.ticket.trim();
       }
 
-      // Attempt 3: Fallback to 'rate_name'
       if (!ticketNameToMap && a.rate_name && typeof a.rate_name === 'string' && a.rate_name.trim() !== '') {
         ticketNameToMap = a.rate_name.trim();
       }
@@ -167,7 +140,7 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
         typeBillet: mappedTicketType, 
       };
       
-      if (index < 5 || mappedTicketType === 'Invitation' || !mappedNom) { // Log more for problematic cases
+      if (index < 5 || mappedTicketType === 'Invitation' || !mappedNom) { 
         console.log(`[Billetweb Service DEBUG] For ID=${uniqueParticipantId}: API_Name='${a.name}', API_FirstName='${a.firstname}', API_Ticket='${a.ticket}', API_RateName='${a.rate_name}'`);
         console.log(`[Billetweb Service DEBUG] Mapped: nom='${mappedNom}', prenom='${mappedPrenom}', ticketToMap='${ticketNameToMap}', typeBillet='${mappedTicketType}'`);
       }
@@ -176,6 +149,9 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
     });
   } catch (error) {
     console.error("[Billetweb Service] Erreur lors de l'appel à l'API Billetweb réelle ou du mappage:", error);
+    if (error instanceof Error) {
+        console.error("[Billetweb Service] Message d'erreur:", error.message);
+    }
     return []; 
   }
 }
@@ -183,21 +159,26 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
 /* ------------------------------------------------------------------ */
 /*  2. OBTENIR LE TICKET D’UN UTILISATEUR PAR SON EMAIL (userId)      */
 /* ------------------------------------------------------------------ */
-// This interface is defined in Billetweb context, could be different from global TicketInfo if needed
 export interface BilletwebTicketInfo {
   id  : string;
   type: TicketType;
 }
 
-
 export async function getTicketInfo(userId: string): Promise<BilletwebTicketInfo | null> {
   const email = userId.trim().toLowerCase(); 
 
+  // This will now attempt a real API call if configured, or return empty if not.
   const participants = await getParticipantsFromBilletweb(); 
+  
+  // If Billetweb env vars are not set, participants will be an empty array here.
+  if (participants.length === 0 && useMock) { 
+      console.warn(`[Billetweb Service] getTicketInfo: Impossible de vérifier le ticket pour ${email} car la configuration Billetweb est manquante.`);
+      return null;
+  }
+  
   const match = participants.find(p => p.email.toLowerCase() === email);
 
   return match
     ? { id: match.id, type: match.typeBillet }
     : null;
 }
-
