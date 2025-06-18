@@ -94,7 +94,7 @@ export default function AdminPage() {
 
 
   const handleSyncBilletweb = async () => {
-    console.log('<<< CLIENT BROWSER LOG: handleSyncBilletweb CALLED >>>');
+    console.log('CLIENT BROWSER LOG: handleSyncBilletweb CALLED - Attempting to call syncBilletwebParticipants flow...');
     setIsSyncingBilletweb(true);
     try {
       toast({

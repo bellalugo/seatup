@@ -25,7 +25,7 @@ export type SyncBilletwebParticipantsOutput = z.infer<typeof SyncBilletwebPartic
 
 // Export the async wrapper function
 export async function syncBilletwebParticipants(): Promise<SyncBilletwebParticipantsOutput> {
-  console.log('SERVER LOG: Exported syncBilletwebParticipants CALLED');
+  console.log('SERVER LOG: Exported async wrapper function "syncBilletwebParticipants" CALLED.');
   return syncBilletwebParticipantsFlow(); // Call without arguments as inputSchema is z.void()
 }
 
@@ -36,7 +36,7 @@ const syncBilletwebParticipantsFlow = ai.defineFlow(
     outputSchema: SyncBilletwebParticipantsOutputSchema, // Use the unexported schema here
   },
   async () => { // This function takes no arguments, matching z.void()
-    console.log('SERVER LOG: Genkit Flow "syncBilletwebParticipantsFlow" STARTED');
+    console.log('SERVER LOG: Genkit Flow "syncBilletwebParticipantsFlow" STARTED (called from exported wrapper).');
     try {
       console.log('[SYNC_FLOW_DEBUG_SERVER] Flow: Attempting Billetweb fetch...');
       let participants: Participant[] = [];
@@ -88,3 +88,4 @@ const syncBilletwebParticipantsFlow = ai.defineFlow(
     }
   }
 );
+
