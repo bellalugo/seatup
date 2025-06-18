@@ -54,11 +54,9 @@ if (
        "Sans cela, les fonctionnalités Firebase (y compris Firestore) ne fonctionneront pas correctement et des erreurs de connexion se produiront."
      );
 } else {
-    console.log("Configuration Firebase chargée depuis les variables d'environnement:", {
-        apiKeyPreview: firebaseConfig.apiKey ? `${firebaseConfig.apiKey.substring(0, 5)}...` : 'MANQUANT!',
-        authDomain: firebaseConfig.authDomain ? 'Présent' : 'MANQUANT!',
-        projectId: firebaseConfig.projectId ? 'Présent' : 'MANQUANT!',
-    });
+    // Log a brief confirmation that config is present, useful for client-side debugging if needed.
+    // Avoid logging sensitive parts of the key here now that it seems to be working.
+    console.log("Configuration Firebase présente dans les variables d'environnement.");
 }
 
 
