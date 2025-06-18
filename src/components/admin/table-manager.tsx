@@ -85,7 +85,7 @@ const sortParticipantsByName = (participants: Participant[]): Participant[] => {
 };
 
 export default function ConventionManager() {
-  const [activeMainTab, setActiveMainTab] = useState("tables"); // Changed default to tables
+  const [activeMainTab, setActiveMainTab] = useState("tables");
   const [activeDayTab, setActiveDayTab] = useState<ConventionDayAdmin>(conventionDayOrder[0]);
 
   const [tables, setTables] = useState<GameTable[]>([]);
@@ -146,6 +146,24 @@ export default function ConventionManager() {
       fetchedGameResults.forEach(result => resultsMap.set(result.tableId, result));
       setGameResultsData(resultsMap);
 
+      // Initialize inProgressTables based on gameResults
+      // A game is "in progress" if it's explicitly marked OR if it has a result with no winners yet (limbo state)
+      const newInProgressMap = new Map<string, boolean>();
+      fetchedTables.forEach(table => {
+        const result = resultsMap.get(table.id);
+        if (result && (!result.winnerIds || result.winnerIds.length === 0)) {
+          // If a result exists but has no winners, consider it "in progress" for UI state
+          // This typically happens if winners were cleared.
+          newInProgressMap.set(table.id, true);
+        }
+        // Retain explicitly started games if no result yet
+        else if (!result && inProgressTables.get(table.id)) {
+            newInProgressMap.set(table.id, true);
+        }
+      });
+      setInProgressTables(newInProgressMap);
+
+
     } catch (error) {
       console.error("Erreur lors de la récupération des données:", error);
       const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
@@ -153,10 +171,9 @@ export default function ConventionManager() {
     } finally {
       if (setPageLoadingState) setIsLoadingTables(false);
     }
-  }, [toast]);
+  }, [toast, inProgressTables]); // inProgressTables added to deps as it's used in logic
 
   useEffect(() => {
-    // Load data when component mounts if tables tab is default or when it becomes active
     if (activeMainTab === "tables") {
       fetchPageData(true);
     }
@@ -323,17 +340,15 @@ export default function ConventionManager() {
             currentTableIdForDialog = newTable.id;
         }
         
-        await fetchPageData(false); // Refresh all data
+        await fetchPageData(false); 
 
         if (currentTableIdForDialog) {
-            // Re-fetch registrants for the dialog if it's still for the same table (or new one)
-             const updatedTableData = tables.find(t => t.id === currentTableIdForDialog) || editingTable;
+             const updatedTableData = (await getGameTables()).find(t => t.id === currentTableIdForDialog);
              if (updatedTableData) {
-                 setEditingTable(updatedTableData as GameTable); // Ensure it's GameTable
+                 setEditingTable(updatedTableData); 
                  fetchRegistrantsForDialog(currentTableIdForDialog);
              }
         } else {
-             // If it was a new table and we don't have an ID (should not happen with await), close dialog
             setIsTableDialogOpen(false); 
             setEditingTable(null);
             setTableFormData({...defaultTableFormData, day: activeDayTab}); 
@@ -389,9 +404,9 @@ export default function ConventionManager() {
     setInProgressTables(prev => {
       const newMap = new Map(prev);
       const currentStatus = !!newMap.get(tableId);
-      if (currentStatus) { // If stopping the game
-        newMap.delete(tableId); // Remove from inProgress
-      } else { // If starting the game
+      if (currentStatus) { 
+        newMap.delete(tableId); 
+      } else { 
         newMap.set(tableId, true);
       }
       return newMap;
@@ -426,18 +441,28 @@ export default function ConventionManager() {
       const playersInGame = participantsForWinnerDialog.length; 
       try {
         await saveGameResult(tableId, selectedWinnerIdsInDialog, playersInGame);
-        toast({ title: "Vainqueur(s) enregistré(s)", description: `Les vainqueurs pour la table ${currentTableForWinnerSelection.tableNumber} ont été sauvegardés.`});
-        setGameResultsData(prev => {
+        
+        const newGameResultsMap = new Map(gameResultsData);
+        if (selectedWinnerIdsInDialog.length > 0 || playersInGame > 0) { // Keep result if there are winners OR if players participated (even if no winner declared for points)
+            newGameResultsMap.set(tableId, { tableId, winnerIds: selectedWinnerIdsInDialog, playersInGame, timestamp: new Date() });
+        } else { // If no winners AND no players (should be rare if game was played), effectively remove result for status checks
+            newGameResultsMap.delete(tableId);
+        }
+        setGameResultsData(newGameResultsMap);
+
+        setInProgressTables(prev => {
             const newMap = new Map(prev);
-            newMap.set(tableId, { tableId, winnerIds: selectedWinnerIdsInDialog, playersInGame, timestamp: new Date() });
+            if (selectedWinnerIdsInDialog.length === 0) { // If winners cleared, mark as "in progress"
+                newMap.set(tableId, true);
+                toast({ title: "Vainqueurs retirés", description: `La table ${currentTableForWinnerSelection.tableNumber} est de nouveau marquée comme 'en cours'.`});
+            } else { // If winners set/updated, it's no longer "in progress" from UI perspective
+                newMap.delete(tableId);
+                toast({ title: "Vainqueur(s) enregistré(s)", description: `Les vainqueurs pour la table ${currentTableForWinnerSelection.tableNumber} ont été sauvegardés.`});
+            }
             return newMap;
         });
-        setInProgressTables(prev => { // Mark game as no longer "inProgress" if winners are set
-            const newMap = new Map(prev);
-            newMap.delete(tableId);
-            return newMap;
-        });
-        fetchPageData(false); // Refresh data to reflect new game result
+
+        fetchPageData(false); 
       } catch (error) {
         toast({ variant: "destructive", title: "Erreur sauvegarde vainqueurs", description: (error as Error).message });
       }
@@ -448,7 +473,7 @@ export default function ConventionManager() {
   };
 
   const getTableStatus = (table: GameTable, occupiedSeatsCount: number, isGameInProgress: boolean, gameResult?: GameResult): TableStatus => {
-    if (gameResult) return "Terminee";
+    if (gameResult && gameResult.winnerIds && gameResult.winnerIds.length > 0) return "Terminee";
     if (isGameInProgress) return "EnCours";
     if (occupiedSeatsCount > 0) return "EnAttente";
     return "Ouverte";
@@ -579,7 +604,7 @@ export default function ConventionManager() {
                                         </li>
                                     )}
                                 </ul>
-                                {gameResult && gameResult.winnerIds.length > 0 && (
+                                {gameResult && gameResult.winnerIds && gameResult.winnerIds.length > 0 && (
                                     <div className="mt-1 text-xs">
                                         <span className="font-semibold text-amber-600">Vainqueur(s):</span>
                                         <ul className="list-disc list-inside">
@@ -605,7 +630,7 @@ export default function ConventionManager() {
                                 )}
                                 {tableStatus === "EnAttente" && (
                                     <>
-                                        <Tooltip><TooltipTrigger asChild><Button variant="default" size="icon" onClick={() => toggleGameInProgress(table.id)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8 bg-green-600 hover:bg-green-700 text-white"><Play className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Démarrer la partie</p></TooltipContent></Tooltip>
+                                        <Tooltip><TooltipTrigger asChild><Button variant="default" size="icon" onClick={() => toggleGameInProgress(table.id)} disabled={isSubmittingTable || !!isDeletingTable || occupiedSeatsCount === 0} className="shadow-sm rounded-md h-8 w-8 bg-green-600 hover:bg-green-700 text-white"><Play className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>{occupiedSeatsCount === 0 ? "Ajoutez des joueurs pour démarrer" : "Démarrer la partie"}</p></TooltipContent></Tooltip>
                                         <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8"><Pencil className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Éditer la table et participants</p></TooltipContent></Tooltip>
                                         <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8"><Copy className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Dupliquer la table</p></TooltipContent></Tooltip>
                                     </>
@@ -910,7 +935,7 @@ export default function ConventionManager() {
                 <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="outline">Annuler</Button></DialogClose>
                     <Button type="button" onClick={handleConfirmWinners} disabled={participantsForWinnerDialog.length === 0}>
-                        <Trophy className="mr-2 h-4 w-4" /> Confirmer Vainqueur(s)
+                        <Trophy className="mr-2 h-4 w-4" /> Vainqueur(s)
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -943,3 +968,4 @@ export default function ConventionManager() {
   );
 }
     
+
