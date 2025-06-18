@@ -40,6 +40,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from '@/hooks/use-toast';
 import {
   getGameTables,
@@ -469,6 +470,7 @@ export default function ConventionManager() {
     }
 
     return (
+        <TooltipProvider>
         <Table>
             <TableCaption>Liste des tables de jeu pour {day}. ({dayTables.length} table(s))</TableCaption>
             <TableHeader>
@@ -495,9 +497,11 @@ export default function ConventionManager() {
                     const isFull = table.totalSeats > 0 && occupiedSeatsCount >= table.totalSeats;
                     const isGameInProgress = inProgressTables.get(table.id) || false;
                     const gameResult = gameResultsData.get(table.id);
+                    const isGameEffectivelyFinished = !!gameResult;
+
 
                     return (
-                        <TableRow key={table.id} className={isFull && !isGameInProgress ? "bg-primary/20" : isGameInProgress ? "bg-green-100 dark:bg-green-900/30" : ""}>
+                        <TableRow key={table.id} className={isFull && !isGameInProgress && !isGameEffectivelyFinished ? "bg-primary/20" : isGameInProgress ? "bg-green-100 dark:bg-green-900/30" : isGameEffectivelyFinished ? "bg-blue-100 dark:bg-blue-900/30" : ""}>
                             <TableCell className="font-bold text-center w-20">{table.tableNumber || 'N/A'}</TableCell>
                             <TableCell className="w-48 px-1 py-1">
                                 {imageUrl ? (
@@ -549,69 +553,90 @@ export default function ConventionManager() {
                                     </div>
                                 )}
                                 {table.totalSeats > 0 && (
-                                    <p className={`text-xs mt-1 ${isFull ? 'font-bold text-destructive' : 'text-muted-foreground'}`}>
-                                        ({occupiedSeatsCount} / {table.totalSeats} occupées) {isFull ? " - COMPLET" : ""}
+                                    <p className={`text-xs mt-1 ${isFull && !isGameEffectivelyFinished ? 'font-bold text-destructive' : 'text-muted-foreground'}`}>
+                                        ({occupiedSeatsCount} / {table.totalSeats} occupées) {isFull && !isGameEffectivelyFinished ? " - COMPLET" : ""}
                                     </p>
                                 )}
                             </TableCell>
                             <TableCell className="text-right space-x-1">
-                                {isGameInProgress ? (
+                                {isGameInProgress ? ( // Game is actively in progress
                                     <>
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
-                                            onClick={() => handleOpenWinnerDialog(table)}
-                                            className="shadow-sm rounded-md h-8 w-8 border-amber-500 text-amber-600 hover:bg-amber-100"
-                                            title="Désigner Vainqueur(s)"
-                                        >
-                                            <Trophy className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="destructive"
-                                            size="icon"
-                                            onClick={() => toggleGameInProgress(table.id)}
-                                            className="shadow-sm rounded-md h-8 w-8 bg-red-600 hover:bg-red-700 text-white"
-                                            title="Terminer la partie"
-                                        >
-                                            <Square className="h-4 w-4" />
-                                        </Button>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="outline" size="icon" onClick={() => handleOpenWinnerDialog(table)} disabled={occupiedSeatsCount === 0} className="shadow-sm rounded-md h-8 w-8 border-amber-500 text-amber-600 hover:bg-amber-100"><Trophy className="h-4 w-4" /></Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p>Désigner Vainqueur(s)</p></TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="destructive" size="icon" onClick={() => toggleGameInProgress(table.id)} className="shadow-sm rounded-md h-8 w-8 bg-red-600 hover:bg-red-700 text-white"><Square className="h-4 w-4" /></Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p>Terminer la partie</p></TooltipContent>
+                                        </Tooltip>
                                     </>
-                                ) : (
+                                ) : isGameEffectivelyFinished ? ( // Game has a result (finished), not actively in progress
                                     <>
-                                        <Button
-                                            variant="default"
-                                            size="icon"
-                                            onClick={() => toggleGameInProgress(table.id)}
-                                            className="shadow-sm rounded-md h-8 w-8 bg-green-600 hover:bg-green-700 text-white"
-                                            title="Démarrer la partie"
-                                            disabled={occupiedSeatsCount === 0 || !!gameResult} 
-                                        >
-                                            <Timer className="h-4 w-4" />
-                                        </Button>
-                                        <Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Dupliquer la table">
-                                            <Copy className="h-4 w-4" />
-                                        </Button>
-                                        <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8" title="Modifier la table">
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="outline" size="icon" onClick={() => handleOpenWinnerDialog(table)} disabled={occupiedSeatsCount === 0} className="shadow-sm rounded-md h-8 w-8 border-amber-500 text-amber-600 hover:bg-amber-100"><Trophy className="h-4 w-4" /></Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p>Modifier Vainqueur(s)</p></TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8"><Copy className="h-4 w-4" /></Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p>Dupliquer la table</p></TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8"><Pencil className="h-4 w-4" /></Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p>Modifier les détails de la table (participants verrouillés)</p></TooltipContent>
+                                        </Tooltip>
+                                    </>
+                                ) : ( // Game not started, no results yet
+                                    <>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="default" size="icon" onClick={() => toggleGameInProgress(table.id)} disabled={occupiedSeatsCount === 0 || isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8 bg-green-600 hover:bg-green-700 text-white"><Timer className="h-4 w-4" /></Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p>Démarrer la partie</p></TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="outline" size="icon" onClick={() => handleDuplicateTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8"><Copy className="h-4 w-4" /></Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p>Dupliquer la table</p></TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="outline" size="icon" onClick={() => handleEditTable(table)} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md h-8 w-8"><Pencil className="h-4 w-4" /></Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p>Modifier la table et les participants</p></TooltipContent>
+                                        </Tooltip>
                                     </>
                                 )}
-                                <Button
-                                    variant="destructive"
-                                    size="icon"
-                                    disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id || isGameInProgress}
-                                    className="shadow-sm rounded-md h-8 w-8 hover:bg-red-700"
-                                    title={isGameInProgress ? "Terminez la partie avant de supprimer" : `Supprimer table ${table.gameName} (N° ${table.tableNumber})`}
-                                    onClick={() => openDeleteConfirmationDialog(table)}
-                                >
-                                    {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                </Button>
+                                 <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="destructive" size="icon"
+                                            disabled={isSubmittingTable || (isDeletingTable !== null && isDeletingTable !== table.id) || isDeletingTable === table.id || isGameInProgress}
+                                            className="shadow-sm rounded-md h-8 w-8 hover:bg-red-700"
+                                            onClick={() => openDeleteConfirmationDialog(table)}
+                                        >
+                                            {isDeletingTable === table.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>{isGameInProgress ? "Terminez la partie avant de supprimer" : `Supprimer table ${table.gameName} (N° ${table.tableNumber})`}</p></TooltipContent>
+                                </Tooltip>
                             </TableCell>
                         </TableRow>
                     );
                 })}
             </TableBody>
         </Table>
+        </TooltipProvider>
     );
   };
 
@@ -625,6 +650,8 @@ export default function ConventionManager() {
         </div>
       );
     }
+    const isGameFinishedForDialog = editingTable && gameResultsData.has(editingTable.id);
+
     return (
       <>
         <div className="flex justify-end mb-4">
@@ -724,6 +751,14 @@ export default function ConventionManager() {
                 <h3 className="text-md font-medium">Gestion des Participants ({currentTableRegistrants.length} / {tableFormData.totalSeats} inscrits)</h3>
                 <Separator />
 
+                 {isGameFinishedForDialog && (
+                    <p className="text-sm text-amber-600 font-medium pt-2 border-b pb-2 mb-2">
+                        <AlertTriangle className="inline h-4 w-4 mr-1" />
+                        La gestion des participants est verrouillée car un résultat a été enregistré pour cette partie.
+                        Vous pouvez modifier le(s) vainqueur(s) depuis la liste des tables.
+                    </p>
+                )}
+
                 {currentTableRegistrants.length > 0 ? (
                     <div className="space-y-2">
                         <Label>Participants inscrits :</Label>
@@ -731,7 +766,13 @@ export default function ConventionManager() {
                         {currentTableRegistrants.map(p => (
                             <li key={p.id} className="flex items-center justify-between p-1.5 bg-muted/50 rounded-md">
                                 <span><UserCheck className="inline h-4 w-4 mr-1.5 text-green-600"/>{p.prenom} {p.nom} ({p.typeBillet})</span>
-                                <Button variant="ghost" size="sm" onClick={() => handleRemoveParticipantFromTable(p.id)} disabled={isManagingParticipant} title="Désinscrire ce participant">
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => handleRemoveParticipantFromTable(p.id)} 
+                                    disabled={isManagingParticipant || !!isGameFinishedForDialog} 
+                                    title={isGameFinishedForDialog ? "Impossible de retirer un participant d'une partie terminée" : "Désinscrire ce participant"}
+                                >
                                     {isManagingParticipant ? <Loader2 className="h-4 w-4 animate-spin"/> : <UserX className="h-4 w-4 text-destructive"/>}
                                 </Button>
                             </li>
@@ -749,7 +790,7 @@ export default function ConventionManager() {
                             <Select
                                 value={selectedParticipantToAdd}
                                 onValueChange={setSelectedParticipantToAdd}
-                                disabled={isManagingParticipant || selectableParticipantsForDialog.length === 0}
+                                disabled={isManagingParticipant || selectableParticipantsForDialog.length === 0 || !!isGameFinishedForDialog}
                             >
                                 <SelectTrigger id="add-participant-select" className="flex-grow rounded-md shadow-sm">
                                     <SelectValue placeholder={selectableParticipantsForDialog.length === 0 ? "Aucun participant à ajouter" : "Sélectionner un participant"} />
@@ -764,9 +805,10 @@ export default function ConventionManager() {
                             <Button
                                 type="button"
                                 onClick={handleAddParticipantToTable}
-                                disabled={!selectedParticipantToAdd || isManagingParticipant || currentTableRegistrants.length >= tableFormData.totalSeats}
+                                disabled={!selectedParticipantToAdd || isManagingParticipant || currentTableRegistrants.length >= tableFormData.totalSeats || !!isGameFinishedForDialog}
                                 className="rounded-md shadow-sm"
                                 size="sm"
+                                title={isGameFinishedForDialog ? "Impossible d'ajouter un participant à une partie terminée" : "Inscrire le participant"}
                             >
                                 {isManagingParticipant ? <Loader2 className="mr-2 h-3 w-3 animate-spin"/> : <PlusCircle className="mr-2 h-3 w-3"/>}
                                 Inscrire
@@ -774,7 +816,7 @@ export default function ConventionManager() {
                         </div>
                     </div>
                 )}
-                 {currentTableRegistrants.length >= tableFormData.totalSeats && (
+                 {currentTableRegistrants.length >= tableFormData.totalSeats && !isGameFinishedForDialog && (
                     <p className="text-sm text-amber-600 font-medium pt-2">Cette table est complète.</p>
                 )}
             </div>
