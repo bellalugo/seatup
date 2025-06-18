@@ -25,7 +25,9 @@ export type SyncBilletwebParticipantsOutput = z.infer<typeof SyncBilletwebPartic
 
 // Export the async wrapper function
 export async function syncBilletwebParticipants(): Promise<SyncBilletwebParticipantsOutput> {
-  console.log('[SYNC_FLOW_DEBUG] Appel de syncBilletwebParticipantsFlow...');
+  console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  console.log('!!! [SYNC_FLOW_DEBUG] EXPORTED syncBilletwebParticipants CALLED !!!');
+  console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
   return syncBilletwebParticipantsFlow(); // Call without arguments as inputSchema is z.void()
 }
 
@@ -36,17 +38,22 @@ const syncBilletwebParticipantsFlow = ai.defineFlow(
     outputSchema: SyncBilletwebParticipantsOutputSchema, // Use the unexported schema here
   },
   async () => { // This function takes no arguments, matching z.void()
+    console.log('*****************************************************************');
+    console.log('*** [SYNC_FLOW_DEBUG] Genkit Flow "syncBilletwebParticipantsFlow" STARTED ***');
+    console.log('*****************************************************************');
     try {
-      console.log('[SYNC_FLOW_DEBUG] Flow: Démarrage de la synchronisation des participants Billetweb...');
+      console.log('[SYNC_FLOW_DEBUG] Flow: Démarrage de la récupération Billetweb...');
       let participants: Participant[] = [];
       try {
         participants = await getParticipantsFromBilletweb();
         console.log(`[SYNC_FLOW_DEBUG] Flow: ${participants.length} participant(s) récupéré(s) de Billetweb.`);
         if (participants.length > 0) {
           console.log('[SYNC_FLOW_DEBUG] Flow: Premier participant récupéré (aperçu):', JSON.stringify(participants[0]));
+        } else {
+          console.log('[SYNC_FLOW_DEBUG] Flow: Aucun participant récupéré de Billetweb ou liste vide.');
         }
       } catch (billetwebError) {
-        console.error('[SYNC_FLOW_DEBUG] Flow Erreur: Échec de la récupération des participants DEPUIS BILLETWEB:', billetwebError);
+        console.error('[SYNC_FLOW_DEBUG] Flow Erreur: ÉCHEC de la récupération depuis BILLETWEB:', billetwebError);
         let errorMessage = 'Échec de la récupération des participants depuis Billetweb.';
         if (billetwebError instanceof Error) {
           errorMessage += ` Détails: ${billetwebError.message}`;
@@ -59,20 +66,20 @@ const syncBilletwebParticipantsFlow = ai.defineFlow(
       }
       
       if (!participants || participants.length === 0) {
-        console.log('[SYNC_FLOW_DEBUG] Flow: Aucun participant trouvé sur Billetweb ou erreur lors de la récupération (après try-catch Billetweb).');
-        return { message: 'Aucun participant trouvé sur Billetweb ou erreur lors de la récupération.', participantsSynced: 0 };
+        console.log('[SYNC_FLOW_DEBUG] Flow: Aucun participant trouvé sur Billetweb (après try-catch Billetweb). Traitement arrêté avant sauvegarde.');
+        return { message: 'Aucun participant trouvé sur Billetweb ou erreur lors de la récupération. Aucune sauvegarde tentée.', participantsSynced: 0 };
       }
 
-      console.log(`[SYNC_FLOW_DEBUG] Flow: Sauvegarde de ${participants.length} participant(s) dans Firestore...`);
-      await saveParticipants(participants); // C'est ici que le log Firebase Auth sera appelé depuis saveParticipants
-      console.log('[SYNC_FLOW_DEBUG] Flow: Sauvegarde terminée.');
+      console.log(`[SYNC_FLOW_DEBUG] Flow: Tentative de sauvegarde de ${participants.length} participant(s) dans Firestore...`);
+      await saveParticipants(participants);
+      console.log('[SYNC_FLOW_DEBUG] Flow: Sauvegarde terminée avec succès (selon saveParticipants).');
       
       return { 
         message: `${participants.length} participant(s) synchronisé(s) avec succès depuis Billetweb.`, 
         participantsSynced: participants.length 
       };
     } catch (error) {
-      console.error('[SYNC_FLOW_DEBUG] Flow Erreur (globale): Échec de la synchronisation des participants Billetweb:', error);
+      console.error('[SYNC_FLOW_DEBUG] Flow Erreur (globale Catch): Échec de la synchronisation des participants Billetweb:', error);
       let errorMessage = 'Échec de la synchronisation des participants Billetweb (erreur globale dans le flux).';
       if (error instanceof Error) {
         errorMessage += ` Détails: ${error.message}`;
@@ -85,4 +92,3 @@ const syncBilletwebParticipantsFlow = ai.defineFlow(
     }
   }
 );
-

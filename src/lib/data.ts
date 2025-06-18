@@ -375,15 +375,19 @@ export const removeRegistration = async (userId: string, tableId: string): Promi
 
 // --- Participant Functions ---
 export const saveParticipants = async (participants: Participant[]): Promise<void> => {
+  console.log('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++');
+  console.log('+++ [saveParticipants_DEBUG] FUNCTION CALLED +++');
+  console.log('+++ Nombre de participants à sauvegarder:', participants.length);
+  console.log('+++ [saveParticipants_DEBUG] Current Firebase Auth user (client SDK) before batch:', auth.currentUser);
+  console.log('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++');
+
   if (!db) {
-    console.error("Firestore DB instance is not initialized for saveParticipants.");
+    console.error("!!! [saveParticipants_DEBUG] Firestore DB instance is NOT INITIALIZED for saveParticipants. !!!");
     throw new Error("La connexion à Firestore n'est pas initialisée pour sauvegarder les participants.");
   }
   try {
     const batch = writeBatch(db);
     const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
-
-    console.log('[saveParticipants_DEBUG] Current Firebase Auth user (client SDK) before batch:', auth.currentUser); 
 
     for (const participant of participants) {
       if (!participant.id || typeof participant.id !== 'string' || participant.id.trim() === '') {
@@ -402,9 +406,9 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
       batch.set(participantRef, participantDataToSave, { merge: true });
     }
     await batch.commit();
-    console.log(`[saveParticipants_DEBUG] ${participants.length} participant(s) traité(s) pour sauvegarde dans Firestore.`);
+    console.log(`[saveParticipants_DEBUG] ${participants.length} participant(s) traité(s) pour sauvegarde dans Firestore (commit réussi).`);
   } catch (error) {
-    console.error("[saveParticipants_DEBUG] Firestore - Erreur détaillée lors de la sauvegarde des participants:", error);
+    console.error("!!! [saveParticipants_DEBUG] Firestore - ERREUR DÉTAILLÉE lors de la sauvegarde des participants: !!!", error);
     let detailedMessage = "Impossible de sauvegarder les participants dans Firestore.";
     if (error instanceof Error) {
         detailedMessage += ` Message original: ${error.message}`;
