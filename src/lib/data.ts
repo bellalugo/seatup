@@ -387,7 +387,7 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
     const batch = writeBatch(db);
     const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
     console.log(">>> SERVER LOG: writeBatch and collectionRef created for participants.");
-
+    let batchedCount = 0;
     for (const participant of participants) {
       if (!participant.id || typeof participant.id !== 'string' || participant.id.trim() === '') {
         console.warn("[saveParticipants_DEBUG_SERVER] Participant avec ID invalide ignoré:", participant);
@@ -402,12 +402,12 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
       };
 
       const participantRef = doc(participantsCollectionRef, participant.id);
-      // console.log(`[saveParticipants_DEBUG_SERVER] Batching set for participant ID: ${participant.id}`);
       batch.set(participantRef, participantDataToSave, { merge: true });
+      batchedCount++;
     }
-    console.log(">>> SERVER LOG: Batching complete. Attempting batch.commit()...");
+    console.log(`>>> SERVER LOG: Batching ${batchedCount} participants. Attempting batch.commit()...`);
     await batch.commit();
-    console.log(`[saveParticipants_DEBUG_SERVER] ${participants.length} participant(s) traité(s) pour sauvegarde dans Firestore (commit réussi).`);
+    console.log(`[saveParticipants_DEBUG_SERVER] ${batchedCount} participant(s) traité(s) pour sauvegarde dans Firestore (commit réussi).`);
   } catch (error) {
     console.error("!!! SERVER LOG: Firestore - ERREUR DÉTAILLÉE lors de la sauvegarde des participants (batch.commit failed): !!!", error);
     let detailedMessage = "Impossible de sauvegarder les participants dans Firestore.";
@@ -417,8 +417,7 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
             detailedMessage += ` Code Firebase: ${(error as any).code}`;
         }
     }
-    // Re-throw the original error to preserve stack trace and specific error type if possible
-    throw error; 
+    throw error;
   }
 };
 
