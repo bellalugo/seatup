@@ -1,8 +1,8 @@
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged } from 'firebase/auth'; // Import onAuthStateChanged
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, onAuthStateChanged, type Auth } from 'firebase/auth'; // Import onAuthStateChanged
 // Add other Firebase services like Firestore if needed:
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 
 
 // --- IMPORTANT ---
@@ -45,8 +45,6 @@ const firebaseConfig = {
 // Côté client (Navigateur), cela s'affichera dans la console du navigateur.
 if (typeof window === 'undefined') { // S'exécute côté serveur
   console.log('>>> [Firebase clientApp.ts - SERVER Context] Attempting to initialize Firebase with Project ID:', firebaseConfig.projectId);
-  // THE USER CONFIRMED 'asynconv-sit-cbgwf' IS THE CORRECT PROJECT ID.
-  // The log showed 'asynconv-sit' was being used.
   if (firebaseConfig.projectId === 'asynconv-sit' && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'asynconv-sit') {
     console.warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     console.warn("!!! CRITICAL CONFIG WARNING: Firebase clientApp.ts is initializing with Project ID 'asynconv-sit'. !!!");
@@ -87,48 +85,70 @@ if (
     !firebaseConfig.authDomain ||
     !firebaseConfig.projectId
    ) {
-     console.warn(
-       "AVERTISSEMENT CONFIGURATION FIREBASE INCOMPLÈTE : Les variables d'environnement Firebase sont manquantes ou incomplètes. " +
-       "Veuillez vous assurer que NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, " +
-       "et NEXT_PUBLIC_FIREBASE_PROJECT_ID sont définis dans votre fichier `.env.local`. " +
-       "IMPORTANT : Assurez-vous que le nom du fichier est exactement `.env.local` (et non `.env` ou autre). " +
-       "Redémarrez votre serveur de développement Next.js (npm run dev) après avoir créé ou modifié le fichier .env.local. " +
-       "Sans cela, les fonctionnalités Firebase (y compris Firestore) ne fonctionneront pas correctement et des erreurs de connexion se produiront."
+     console.error(
+       "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n" +
+       "!!! CRITICAL FIREBASE CONFIG ERROR (clientApp.ts): Firebase environment variables are MISSING or INCOMPLETE.     !!!\n" +
+       "!!! Ensure NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, and NEXT_PUBLIC_FIREBASE_PROJECT_ID  !!!\n" +
+       "!!! are correctly set in your `.env.local` file.                                                                 !!!\n" +
+       "!!! The filename MUST be exactly `.env.local` (NOT `.env`, etc.).                                                !!!\n" +
+       "!!! RESTART your Next.js development server (e.g., `npm run dev`) AFTER creating or modifying `.env.local`.      !!!\n" +
+       "!!! Without these, Firebase services (Auth, Firestore) WILL FAIL.                                                !!!\n" +
+       "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
      );
 }
 
 
 // Initialize Firebase
-let app;
+let app: FirebaseApp;
 if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
-  // console.log("Firebase App initialisée.");
+  try {
+    app = initializeApp(firebaseConfig);
+    console.log(">>> [Firebase clientApp.ts] Firebase App INITIALIZED successfully.");
+  } catch (e) {
+    console.error("!!! [Firebase clientApp.ts] CRITICAL ERROR during initializeApp:", e);
+    console.error("!!! This often means your `firebaseConfig` (from .env.local) is malformed or missing critical values like apiKey or projectId.");
+    // Fallback or rethrow, depending on how you want to handle total failure
+    throw e; 
+  }
 } else {
   app = getApp(); // if already initialized, use that one
-  // console.log("Firebase App déjà initialisée, récupération de l'instance existante.");
+  console.log(">>> [Firebase clientApp.ts] Firebase App already initialized, Re-using existing instance.");
 }
 
-const auth = getAuth(app);
-let db: ReturnType<typeof getFirestore> | null = null;
-
+let auth: Auth;
 try {
-    db = getFirestore(app); // Initialize Firestore
-    // console.log("Firestore DB instance initialisée.");
+  auth = getAuth(app);
+  console.log(">>> [Firebase clientApp.ts] Firebase Auth instance CREATED successfully.");
+} catch (e) {
+  console.error("!!! [Firebase clientApp.ts] CRITICAL ERROR during getAuth(app):", e);
+  console.error("!!! This can happen if Firebase App initialization failed or if Auth service is misconfigured.");
+  throw e;
+}
+
+
+let db: Firestore | null = null;
+try {
+    db = getFirestore(app);
+    console.log(">>> [Firebase clientApp.ts] Firestore DB instance CREATED successfully.");
 } catch (error) {
-    console.error("ERREUR CRITIQUE lors de l'initialisation de Firestore:", error);
-    console.error("Cela signifie probablement que la configuration Firebase (apiKey, projectId) est incorrecte ou manquante dans .env.local (vérifiez le nom du fichier et son contenu). Veuillez vérifier et redémarrer le serveur.");
-    // db restera null, les fonctions qui l'utilisent devraient vérifier sa nullité.
+    console.error("!!! [Firebase clientApp.ts] CRITICAL ERROR during getFirestore(app):", error);
+    console.error("!!! This usually means Firebase App initialization failed or Firestore is not enabled/configured for the project.");
+    // db will remain null, functions using it should check for nullity or this will throw later.
 }
 
 // Log auth state on client side after app is initialized
 if (typeof window !== 'undefined') {
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      console.log('>>> [Firebase clientApp.ts - CLIENT onAuthStateChanged] User IS authenticated on client:', user.uid, user.email);
-    } else {
-      console.log('>>> [Firebase clientApp.ts - CLIENT onAuthStateChanged] User is NOT authenticated on client.');
-    }
-  });
+  if (auth) { // Only set up listener if auth instance was successfully created
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        console.log('>>> [Firebase clientApp.ts - CLIENT onAuthStateChanged] User IS authenticated on client:', user.uid, user.email);
+      } else {
+        console.log('>>> [Firebase clientApp.ts - CLIENT onAuthStateChanged] User is NOT authenticated on client.');
+      }
+    });
+  } else {
+    console.error("!!! [Firebase clientApp.ts - CLIENT] Cannot set up onAuthStateChanged listener because Firebase Auth instance is NOT available!");
+  }
 }
 
 
