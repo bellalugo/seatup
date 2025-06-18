@@ -56,7 +56,7 @@ import {
   getAllGameResults,
 } from '@/lib/data';
 import type { GameTable, GameTableInput, Registration, Game, Participant, GameResult } from '@/lib/types';
-import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy, CalendarDays, Play, Edit3, StopCircle } from 'lucide-react';
+import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy, CalendarDays, Play, Edit3, StopCircle, Save } from 'lucide-react';
 import GameManager from './game-manager';
 
 const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
@@ -146,17 +146,12 @@ export default function ConventionManager() {
       fetchedGameResults.forEach(result => resultsMap.set(result.tableId, result));
       setGameResultsData(resultsMap);
 
-      // Initialize inProgressTables based on gameResults
-      // A game is "in progress" if it's explicitly marked OR if it has a result with no winners yet (limbo state)
       const newInProgressMap = new Map<string, boolean>();
       fetchedTables.forEach(table => {
         const result = resultsMap.get(table.id);
         if (result && (!result.winnerIds || result.winnerIds.length === 0)) {
-          // If a result exists but has no winners, consider it "in progress" for UI state
-          // This typically happens if winners were cleared.
           newInProgressMap.set(table.id, true);
         }
-        // Retain explicitly started games if no result yet
         else if (!result && inProgressTables.get(table.id)) {
             newInProgressMap.set(table.id, true);
         }
@@ -171,7 +166,7 @@ export default function ConventionManager() {
     } finally {
       if (setPageLoadingState) setIsLoadingTables(false);
     }
-  }, [toast, inProgressTables]); // inProgressTables added to deps as it's used in logic
+  }, [toast, inProgressTables]); 
 
   useEffect(() => {
     if (activeMainTab === "tables") {
@@ -443,19 +438,19 @@ export default function ConventionManager() {
         await saveGameResult(tableId, selectedWinnerIdsInDialog, playersInGame);
         
         const newGameResultsMap = new Map(gameResultsData);
-        if (selectedWinnerIdsInDialog.length > 0 || playersInGame > 0) { // Keep result if there are winners OR if players participated (even if no winner declared for points)
+        if (selectedWinnerIdsInDialog.length > 0 || playersInGame > 0) {
             newGameResultsMap.set(tableId, { tableId, winnerIds: selectedWinnerIdsInDialog, playersInGame, timestamp: new Date() });
-        } else { // If no winners AND no players (should be rare if game was played), effectively remove result for status checks
+        } else { 
             newGameResultsMap.delete(tableId);
         }
         setGameResultsData(newGameResultsMap);
 
         setInProgressTables(prev => {
             const newMap = new Map(prev);
-            if (selectedWinnerIdsInDialog.length === 0) { // If winners cleared, mark as "in progress"
+            if (selectedWinnerIdsInDialog.length === 0) { 
                 newMap.set(tableId, true);
                 toast({ title: "Vainqueurs retirés", description: `La table ${currentTableForWinnerSelection.tableNumber} est de nouveau marquée comme 'en cours'.`});
-            } else { // If winners set/updated, it's no longer "in progress" from UI perspective
+            } else { 
                 newMap.delete(tableId);
                 toast({ title: "Vainqueur(s) enregistré(s)", description: `Les vainqueurs pour la table ${currentTableForWinnerSelection.tableNumber} ont été sauvegardés.`});
             }
@@ -637,7 +632,7 @@ export default function ConventionManager() {
                                 )}
                                 {tableStatus === "EnCours" && (
                                     <>
-                                        <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" onClick={() => handleOpenWinnerDialog(table)} disabled={occupiedSeatsCount === 0} className="shadow-sm rounded-md h-8 w-8 border-amber-500 text-amber-600 hover:bg-amber-100"><Trophy className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Partie terminée / Désigner Vainqueur(s)</p></TooltipContent></Tooltip>
+                                        <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" onClick={() => handleOpenWinnerDialog(table)} disabled={occupiedSeatsCount === 0} className="shadow-sm rounded-md h-8 w-8 border-blue-500 text-blue-600 hover:bg-blue-100"><Save className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Partie terminée / Enregistrer Résultat</p></TooltipContent></Tooltip>
                                         <Tooltip><TooltipTrigger asChild><Button variant="destructive" size="icon" onClick={() => toggleGameInProgress(table.id)} className="shadow-sm rounded-md h-8 w-8 bg-orange-500 hover:bg-orange-600 text-white"><StopCircle className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Arrêter la partie (retour En Attente)</p></TooltipContent></Tooltip>
                                     </>
                                 )}
