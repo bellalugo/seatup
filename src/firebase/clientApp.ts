@@ -44,16 +44,33 @@ const firebaseConfig = {
 // Côté serveur (Genkit), cela s'affichera dans le terminal du serveur Genkit.
 // Côté client (Navigateur), cela s'affichera dans la console du navigateur.
 if (typeof window === 'undefined') { // S'exécute côté serveur
-  console.log('>>> [Firebase clientApp.ts - SERVER Context] Config for initializeApp:', 
+  console.log('>>> [Firebase clientApp.ts - SERVER Context] Attempting to initialize Firebase with Project ID:', firebaseConfig.projectId);
+  // THE USER CONFIRMED 'asynconv-sit-cbgwf' IS THE CORRECT PROJECT ID.
+  // The log showed 'asynconv-sit' was being used.
+  if (firebaseConfig.projectId === 'asynconv-sit' && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'asynconv-sit') {
+    console.warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    console.warn("!!! CRITICAL CONFIG WARNING: Firebase clientApp.ts is initializing with Project ID 'asynconv-sit'. !!!");
+    console.warn("!!! You previously indicated 'asynconv-sit-cbgwf' is the correct project.                        !!!");
+    console.warn("!!! PLEASE URGENTLY VERIFY your .env.local file:                                                 !!!");
+    console.warn("!!!   - Ensure NEXT_PUBLIC_FIREBASE_PROJECT_ID is set to 'asynconv-sit-cbgwf'.                   !!!");
+    console.warn("!!!   - Ensure ALL other NEXT_PUBLIC_FIREBASE_... variables match 'asynconv-sit-cbgwf'.          !!!");
+    console.warn("!!! After correcting .env.local, RESTART your Next.js development server.                        !!!");
+    console.warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  }
+  console.log('>>> [Firebase clientApp.ts - SERVER Context] Full effective config for initializeApp:',
     JSON.stringify({
       apiKeyExists: !!firebaseConfig.apiKey,
       authDomain: firebaseConfig.authDomain,
       projectId: firebaseConfig.projectId,
+      storageBucket: firebaseConfig.storageBucket,
+      messagingSenderId: firebaseConfig.messagingSenderId,
+      appId: firebaseConfig.appId,
+      measurementId: firebaseConfig.measurementId,
       apiKeyFirst5: firebaseConfig.apiKey ? firebaseConfig.apiKey.substring(0,5) : 'MANQUANT'
     }, null, 2)
   );
 } else { // S'exécute côté client
-   console.log('>>> [Firebase clientApp.ts - CLIENT Context] Config for initializeApp (from ' + window.location.hostname + '):', 
+   console.log('>>> [Firebase clientApp.ts - CLIENT Context] Config for initializeApp (from ' + window.location.hostname + '):',
     JSON.stringify({
       apiKeyExists: !!firebaseConfig.apiKey,
       authDomain: firebaseConfig.authDomain,
