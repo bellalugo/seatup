@@ -48,17 +48,16 @@ if (
      console.warn(
        "AVERTISSEMENT CONFIGURATION FIREBASE INCOMPLÈTE : Les variables d'environnement Firebase sont manquantes ou incomplètes. " +
        "Veuillez vous assurer que NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, " +
-       "et NEXT_PUBLIC_FIREBASE_PROJECT_ID sont définis dans votre fichier .env.local. " +
+       "et NEXT_PUBLIC_FIREBASE_PROJECT_ID sont définis dans votre fichier `.env.local`. " +
        "IMPORTANT : Assurez-vous que le nom du fichier est exactement `.env.local` (et non `.env` ou autre). " +
        "Redémarrez votre serveur de développement Next.js (npm run dev) après avoir créé ou modifié le fichier .env.local. " +
        "Sans cela, les fonctionnalités Firebase (y compris Firestore) ne fonctionneront pas correctement et des erreurs de connexion se produiront."
      );
 } else {
     console.log("Configuration Firebase chargée depuis les variables d'environnement:", {
-        apiKey: firebaseConfig.apiKey ? 'Présent' : 'MANQUANT!',
+        apiKeyPreview: firebaseConfig.apiKey ? `${firebaseConfig.apiKey.substring(0, 5)}...` : 'MANQUANT!',
         authDomain: firebaseConfig.authDomain ? 'Présent' : 'MANQUANT!',
         projectId: firebaseConfig.projectId ? 'Présent' : 'MANQUANT!',
-        // Ne pas logger les valeurs réelles des clés API
     });
 }
 
