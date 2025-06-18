@@ -22,7 +22,7 @@ if (loadEnvResult.error) {
   }
   if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.log('>>> [Genkit Server] NEXT_PUBLIC_FIREBASE_API_KEY is SET in Genkit process.');
-    // console.log('>>> First 5 chars of API Key:', process.env.NEXT_PUBLIC_FIREBASE_API_KEY.substring(0, 5));
+    console.log('>>> [Genkit Server] First 5 chars of API Key from process.env:', process.env.NEXT_PUBLIC_FIREBASE_API_KEY.substring(0, 5));
   } else {
     console.error('!!! [Genkit Server] NEXT_PUBLIC_FIREBASE_API_KEY is NOT SET in Genkit process after dotenv.config() !!!');
   }
