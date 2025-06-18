@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Flow to synchronize Billetweb participants with Firestore.
@@ -24,6 +25,7 @@ export type SyncBilletwebParticipantsOutput = z.infer<typeof SyncBilletwebPartic
 
 // Export the async wrapper function
 export async function syncBilletwebParticipants(): Promise<SyncBilletwebParticipantsOutput> {
+  console.log('[SYNC_FLOW_DEBUG] Appel de syncBilletwebParticipantsFlow...');
   return syncBilletwebParticipantsFlow(); // Call without arguments as inputSchema is z.void()
 }
 
@@ -35,25 +37,43 @@ const syncBilletwebParticipantsFlow = ai.defineFlow(
   },
   async () => { // This function takes no arguments, matching z.void()
     try {
-      console.log('Flow: Démarrage de la synchronisation des participants Billetweb...');
-      const participants: Participant[] = await getParticipantsFromBilletweb();
+      console.log('[SYNC_FLOW_DEBUG] Flow: Démarrage de la synchronisation des participants Billetweb...');
+      let participants: Participant[] = [];
+      try {
+        participants = await getParticipantsFromBilletweb();
+        console.log(`[SYNC_FLOW_DEBUG] Flow: ${participants.length} participant(s) récupéré(s) de Billetweb.`);
+        if (participants.length > 0) {
+          console.log('[SYNC_FLOW_DEBUG] Flow: Premier participant récupéré (aperçu):', JSON.stringify(participants[0]));
+        }
+      } catch (billetwebError) {
+        console.error('[SYNC_FLOW_DEBUG] Flow Erreur: Échec de la récupération des participants DEPUIS BILLETWEB:', billetwebError);
+        let errorMessage = 'Échec de la récupération des participants depuis Billetweb.';
+        if (billetwebError instanceof Error) {
+          errorMessage += ` Détails: ${billetwebError.message}`;
+        }
+        return { 
+          message: errorMessage, 
+          participantsSynced: 0,
+          error: errorMessage 
+        };
+      }
       
       if (!participants || participants.length === 0) {
-        console.log('Flow: Aucun participant trouvé sur Billetweb ou erreur lors de la récupération.');
+        console.log('[SYNC_FLOW_DEBUG] Flow: Aucun participant trouvé sur Billetweb ou erreur lors de la récupération (après try-catch Billetweb).');
         return { message: 'Aucun participant trouvé sur Billetweb ou erreur lors de la récupération.', participantsSynced: 0 };
       }
 
-      console.log(`Flow: ${participants.length} participant(s) récupéré(s) de Billetweb. Sauvegarde dans Firestore...`);
-      await saveParticipants(participants);
-      console.log('Flow: Sauvegarde terminée.');
+      console.log(`[SYNC_FLOW_DEBUG] Flow: Sauvegarde de ${participants.length} participant(s) dans Firestore...`);
+      await saveParticipants(participants); // C'est ici que le log Firebase Auth sera appelé depuis saveParticipants
+      console.log('[SYNC_FLOW_DEBUG] Flow: Sauvegarde terminée.');
       
       return { 
         message: `${participants.length} participant(s) synchronisé(s) avec succès depuis Billetweb.`, 
         participantsSynced: participants.length 
       };
     } catch (error) {
-      console.error('Flow Erreur: Échec de la synchronisation des participants Billetweb:', error);
-      let errorMessage = 'Échec de la synchronisation des participants Billetweb.';
+      console.error('[SYNC_FLOW_DEBUG] Flow Erreur (globale): Échec de la synchronisation des participants Billetweb:', error);
+      let errorMessage = 'Échec de la synchronisation des participants Billetweb (erreur globale dans le flux).';
       if (error instanceof Error) {
         errorMessage += ` Détails: ${error.message}`;
       }
@@ -65,3 +85,4 @@ const syncBilletwebParticipantsFlow = ai.defineFlow(
     }
   }
 );
+

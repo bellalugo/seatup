@@ -383,11 +383,11 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
     const batch = writeBatch(db);
     const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
 
-    console.log('[saveParticipants] Current Firebase Auth user (client SDK) before batch:', auth.currentUser); // Diagnostic log
+    console.log('[saveParticipants_DEBUG] Current Firebase Auth user (client SDK) before batch:', auth.currentUser); 
 
     for (const participant of participants) {
       if (!participant.id || typeof participant.id !== 'string' || participant.id.trim() === '') {
-        console.warn("Participant avec ID invalide ignoré:", participant);
+        console.warn("[saveParticipants_DEBUG] Participant avec ID invalide ignoré:", participant);
         continue;
       }
 
@@ -402,9 +402,9 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
       batch.set(participantRef, participantDataToSave, { merge: true });
     }
     await batch.commit();
-    console.log(`${participants.length} participant(s) traité(s) pour sauvegarde dans Firestore.`);
+    console.log(`[saveParticipants_DEBUG] ${participants.length} participant(s) traité(s) pour sauvegarde dans Firestore.`);
   } catch (error) {
-    console.error("Firestore - Erreur détaillée lors de la sauvegarde des participants:", error);
+    console.error("[saveParticipants_DEBUG] Firestore - Erreur détaillée lors de la sauvegarde des participants:", error);
     let detailedMessage = "Impossible de sauvegarder les participants dans Firestore.";
     if (error instanceof Error) {
         detailedMessage += ` Message original: ${error.message}`;
