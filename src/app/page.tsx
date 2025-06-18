@@ -458,8 +458,8 @@ export default function Home() {
               <CardHeader>
               <div className="flex flex-row items-center justify-between">
                   <div>
-                  <CardTitle>Connexion Participant &amp; Infos</CardTitle>
-                  <CardDescription>Entrez votre email pour vous identifier et accéder aux inscriptions.</CardDescription>
+                  <CardTitle>Connexion</CardTitle>
+                  <CardDescription>Saisissez le courriel utilisé sur <strong>billetweb</strong> pour vous identifier et accéder aux système de réservation des tables.</CardDescription>
                   </div>
                   <Button onClick={() => loadPageData()} variant="outline" size="sm" disabled={isLoading || isSubmittingRegistration || isLookingUpUser}>
                   <RefreshCw className={`mr-2 h-4 w-4 ${(isLoading || isSubmittingRegistration || isLookingUpUser) ? 'animate-spin' : ''}`} />
@@ -471,7 +471,7 @@ export default function Home() {
               {!currentUser ? (
                   <div className="flex flex-col sm:flex-row items-end gap-3">
                   <div className="flex-grow w-full sm:w-auto">
-                      <Label htmlFor="email-lookup" className="mb-1 block text-sm font-medium">Votre Email (associé à votre billet)</Label>
+                      <Label htmlFor="email-lookup" className="mb-1 block text-sm font-medium">Saisissez le courriel utilisé sur <strong>billetweb</strong> :</Label>
                       <div className="relative">
                           <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
@@ -487,7 +487,7 @@ export default function Home() {
                   </div>
                   <Button onClick={handleUserLookup} disabled={isLookingUpUser || !emailInput.trim()} className="w-full sm:w-auto shadow-sm rounded-md">
                       {isLookingUpUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                      Vérifier et Connecter
+                      Vérification & connexion
                   </Button>
                   </div>
               ) : (
@@ -545,7 +545,7 @@ export default function Home() {
                         )}
                         
                         {openPhaseBadges.length === 0 && (
-                            <p className="text-sm font-semibold text-destructive">Inscriptions actuellement fermées.</p>
+                            <p className="text-sm font-semibold text-destructive">Inscriptions actuellement closes.</p>
                         )}
                     </>
                 )}
@@ -558,7 +558,7 @@ export default function Home() {
                   <div className="flex items-center justify-between">
                       <div>
                           <CardTitle className="flex items-center">
-                              <Trophy className="mr-2 h-6 w-6 text-amber-500" /> Hall of Fame - En Direct
+                              <Trophy className="mr-2 h-6 w-6 text-amber-500" /> HALL OF FAME en direct !
                           </CardTitle>
                           <CardDescription>
                               {currentLiveConventionDay ? `Classement du ${currentLiveConventionDay}` : "Aucun jour de convention actif."}
@@ -566,7 +566,7 @@ export default function Home() {
                       </div>
                        <Link href="/hall-of-fame" passHref>
                           <Button variant="outline" size="sm">
-                              <BarChart3 className="mr-2 h-4 w-4" /> Classement Détaillé
+                              <BarChart3 className="mr-2 h-4 w-4" /> Classement détaillé
                           </Button>
                       </Link>
                   </div>

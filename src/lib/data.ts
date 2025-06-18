@@ -1,7 +1,7 @@
 
 import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls } from '@/lib/types';
 // REGISTRATION_SCHEDULE is no longer imported or used
-import { db } from '@/firebase/clientApp';
+import { auth, db } from '@/firebase/clientApp'; // Import 'auth'
 import {
     collection,
     getDocs,
@@ -382,6 +382,8 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
   try {
     const batch = writeBatch(db);
     const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
+
+    console.log('[saveParticipants] Current Firebase Auth user (client SDK) before batch:', auth.currentUser); // Diagnostic log
 
     for (const participant of participants) {
       if (!participant.id || typeof participant.id !== 'string' || participant.id.trim() === '') {
