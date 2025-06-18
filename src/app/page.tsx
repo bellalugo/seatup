@@ -190,7 +190,7 @@ export default function Home() {
         const playerScoresMap: Map<string, { id: string, name: string, score: number, gamesPlayedToday: number, winsToday: number }> = new Map();
 
         allParticipantsData.forEach(p => {
-            if (p.ticketType !== 'Invitation') {
+            if (p.typeBillet !== 'Invitation') { // Corrected from p.ticketType to p.typeBillet
                 playerScoresMap.set(p.id, {
                     id: p.id,
                     name: `${p.prenom} ${p.nom}`,
@@ -949,6 +949,7 @@ export default function Home() {
     </TooltipProvider>
   );
 }
+
 
 
 
