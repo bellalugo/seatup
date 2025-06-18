@@ -262,7 +262,7 @@ export default function GameManager() {
                                     alt={`Image ${game.nom}`}
                                     width={128} 
                                     height={72} 
-                                    className="rounded object-contain h-16 shadow-sm"
+                                    className="rounded object-contain h-16 w-auto shadow-sm"
                                     data-ai-hint="game cover"
                                 />
                             ) : (
