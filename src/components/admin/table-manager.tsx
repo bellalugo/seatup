@@ -146,19 +146,6 @@ export default function ConventionManager() {
       fetchedGameResults.forEach(result => resultsMap.set(result.tableId, result));
       setGameResultsData(resultsMap);
 
-      const newInProgressMap = new Map<string, boolean>();
-      fetchedTables.forEach(table => {
-        const result = resultsMap.get(table.id);
-        if (result && (!result.winnerIds || result.winnerIds.length === 0)) {
-          newInProgressMap.set(table.id, true);
-        }
-        else if (!result && inProgressTables.get(table.id)) {
-            newInProgressMap.set(table.id, true);
-        }
-      });
-      setInProgressTables(newInProgressMap);
-
-
     } catch (error) {
       console.error("Erreur lors de la récupération des données:", error);
       const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
@@ -166,7 +153,7 @@ export default function ConventionManager() {
     } finally {
       if (setPageLoadingState) setIsLoadingTables(false);
     }
-  }, [toast, inProgressTables]); 
+  }, [toast]); 
 
   useEffect(() => {
     if (activeMainTab === "tables") {
