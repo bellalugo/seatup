@@ -1,6 +1,6 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, onAuthStateChanged } from 'firebase/auth'; // Import onAuthStateChanged
 // Add other Firebase services like Firestore if needed:
 import { getFirestore } from 'firebase/firestore';
 
@@ -47,17 +47,17 @@ if (typeof window === 'undefined') { // S'exécute côté serveur
   console.log('>>> [Firebase clientApp.ts - SERVER Context] Config for initializeApp:', 
     JSON.stringify({
       apiKeyExists: !!firebaseConfig.apiKey,
-      authDomainExists: !!firebaseConfig.authDomain,
-      projectIdExists: !!firebaseConfig.projectId,
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId,
       apiKeyFirst5: firebaseConfig.apiKey ? firebaseConfig.apiKey.substring(0,5) : 'MANQUANT'
     }, null, 2)
   );
 } else { // S'exécute côté client
-   console.log('>>> [Firebase clientApp.ts - CLIENT Context] Config for initializeApp:', 
+   console.log('>>> [Firebase clientApp.ts - CLIENT Context] Config for initializeApp (from ' + window.location.hostname + '):', 
     JSON.stringify({
       apiKeyExists: !!firebaseConfig.apiKey,
-      authDomainExists: !!firebaseConfig.authDomain,
-      projectIdExists: !!firebaseConfig.projectId,
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId,
       apiKeyFirst5: firebaseConfig.apiKey ? firebaseConfig.apiKey.substring(0,5) : 'MANQUANT'
     }, null, 2)
   );
@@ -103,5 +103,17 @@ try {
     // db restera null, les fonctions qui l'utilisent devraient vérifier sa nullité.
 }
 
+// Log auth state on client side after app is initialized
+if (typeof window !== 'undefined') {
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      console.log('>>> [Firebase clientApp.ts - CLIENT onAuthStateChanged] User IS authenticated on client:', user.uid, user.email);
+    } else {
+      console.log('>>> [Firebase clientApp.ts - CLIENT onAuthStateChanged] User is NOT authenticated on client.');
+    }
+  });
+}
+
 
 export { app, auth, db };
+
