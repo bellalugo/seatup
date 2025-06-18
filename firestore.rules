@@ -1,0 +1,56 @@
+
+// Copiez et collez l'intégralité du contenu ci-dessous dans :
+// Console Firebase -> Votre Projet -> Firestore Database -> Onglet "Règles"
+// Ensuite, cliquez sur "Publier".
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Permettre à tout le monde de lire les jeux
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if request.auth != null; // Seuls les utilisateurs connectés peuvent écrire
+    }
+
+    // Permettre à tout le monde de lire les tables de jeu
+    match /gameTables/{tableId} {
+      allow read: if true;
+      allow write: if request.auth != null; // Seuls les utilisateurs connectés peuvent écrire
+    }
+
+    // Permettre à tout le monde de lire les inscriptions
+    // Gérer la création et la suppression des inscriptions
+    match /registrations/{registrationId} {
+      allow read: if true;
+      // Un utilisateur connecté peut créer une inscription pour lui-même OU l'admin (Olivier) peut créer une inscription pour n'importe qui.
+      allow create: if request.auth != null && (request.resource.data.userId == request.auth.uid || request.auth.token.email == 'olivier@asynconv.fr');
+      // Un utilisateur connecté peut supprimer sa propre inscription OU l'admin (Olivier) peut supprimer n'importe quelle inscription.
+      allow delete: if request.auth != null && (resource.data.userId == request.auth.uid || request.auth.token.email == 'olivier@asynconv.fr');
+      // Pas de règle "update" explicite pour l'instant, si besoin, elle pourrait être similaire à "delete".
+    }
+
+    // Permettre à tout le monde de lire la liste des participants (nécessaire pour afficher les noms, etc.)
+    // L'écriture est ouverte pour la synchronisation Billetweb via Genkit (solution temporaire sans Admin SDK).
+    match /liste_participants/{participantId} {
+      allow read: if true;
+      allow write: if true; // ATTENTION : Actuellement permissif pour la synchro Billetweb. Sécuriser davantage avec Admin SDK à terme.
+    }
+
+    // Permettre à tout le monde de lire les résultats des jeux (pour le Hall of Fame)
+    match /gameResults/{resultId} {
+      allow read: if true;
+      allow write: if request.auth != null; // Seuls les utilisateurs connectés (admin) peuvent enregistrer les résultats
+    }
+
+    // Permettre à tout le monde de lire les paramètres système (contrôle des inscriptions)
+    match /system_settings/registrationControl {
+      allow read: if true;
+      allow write: if request.auth != null; // Seuls les utilisateurs connectés (admin) peuvent modifier
+    }
+
+    // Toutes les autres collections ou chemins non explicitement autorisés seront refusés par défaut.
+  }
+}
+    
