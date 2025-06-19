@@ -1,6 +1,5 @@
 
-import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls } from '@/lib/types';
-// REGISTRATION_SCHEDULE is no longer imported or used
+import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls, ConventionDay, TimeSlotType } from '@/lib/types';
 import { auth, db } from '@/firebase/clientApp'; // Import 'auth'
 import {
     collection,
@@ -19,8 +18,8 @@ import {
     type DocumentReference,
     type DocumentSnapshot,
 } from 'firebase/firestore';
+import { CONVENTION_DAYS, TIME_SLOT_TYPE_OPTIONS, getActualGranularSlotsForTimeSlotType, getTimeSlotTypeDisplayLabel } from '@/lib/types';
 
-// mockUsers is removed as it's no longer used.
 
 const GAMES_COLLECTION = 'games';
 const TABLES_COLLECTION = 'gameTables';
@@ -128,9 +127,11 @@ export const getGameTables = async (): Promise<GameTable[]> => {
             return {
                 id: doc.id,
                 ...tableData,
+                days: tableData.days || [CONVENTION_DAYS[0]], // Ensure days is an array, default if somehow missing
+                timeSlotType: tableData.timeSlotType || 'Matin', // Default if somehow missing
                 gameName: game?.nom || 'Jeu inconnu (ID: ' + tableData.gameId + ')',
                 gameImageUrl: game?.imageUrl,
-                imageUrl: game?.imageUrl,
+                imageUrl: game?.imageUrl, // For backward compatibility
                 authorAnimator: tableData.authorAnimator || '',
             } as GameTable;
         });
@@ -157,10 +158,15 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
         throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter une table.");
     }
     try {
+        // Ensure days array is not empty
+        if (!tableInput.days || tableInput.days.length === 0) {
+            throw new Error("Au moins un jour doit être sélectionné pour la table.");
+        }
+
         const dataToSave: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'> = {
             gameId: tableInput.gameId,
-            day: tableInput.day,
-            timeSlot: tableInput.timeSlot,
+            days: tableInput.days,
+            timeSlotType: tableInput.timeSlotType,
             totalSeats: tableInput.totalSeats,
             tableNumber: tableInput.tableNumber,
             authorAnimator: tableInput.authorAnimator || '',
@@ -181,6 +187,7 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
 
     } catch (error) {
         console.error("Firestore - Erreur lors de l'ajout de la table de jeu:", error);
+        if (error instanceof Error) throw error;
         throw new Error("Impossible d'ajouter la table de jeu à Firestore.");
     }
 };
@@ -191,13 +198,17 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
         throw new Error("La connexion à Firestore n'est pas initialisée pour mettre à jour une table.");
     }
     try {
+        // Ensure days array is not empty
+        if (!tableToUpdate.days || tableToUpdate.days.length === 0) {
+            throw new Error("Au moins un jour doit être sélectionné pour la table.");
+        }
         const tableRef = doc(db, TABLES_COLLECTION, tableToUpdate.id);
         const { id, ...dataToUpdate } = tableToUpdate;
 
         const firestorePayload: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'> = {
             gameId: dataToUpdate.gameId,
-            day: dataToUpdate.day,
-            timeSlot: dataToUpdate.timeSlot,
+            days: dataToUpdate.days,
+            timeSlotType: dataToUpdate.timeSlotType,
             totalSeats: dataToUpdate.totalSeats,
             tableNumber: dataToUpdate.tableNumber,
             authorAnimator: dataToUpdate.authorAnimator || '',
@@ -229,6 +240,8 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
         if (error instanceof Error && 'code' in error) {
             const firebaseError = error as { code: string; message: string };
             baseMessage = `Impossible de mettre à jour. Erreur Firebase: ${firebaseError.message} (Code: ${firebaseError.code}).`;
+        } else if (error instanceof Error) {
+            baseMessage = error.message;
         }
         throw new Error(`${baseMessage}`);
     }
@@ -243,7 +256,6 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
     try {
         const tableRef = doc(db, TABLES_COLLECTION, tableId);
 
-        // Check for associated game results and delete them
         const gameResultRef = doc(db, GAME_RESULTS_COLLECTION, tableId);
         const gameResultSnap = await getDoc(gameResultRef);
         if (gameResultSnap.exists()) {
@@ -400,7 +412,7 @@ export const saveParticipants = async (participants: Participant[]): Promise<voi
         nom: participant.nom || '',
         prenom: participant.prenom || '',
         email: participant.email || '',
-        typeBillet: participant.typeBillet || 'Invitation', // Default to 'Invitation' if missing
+        typeBillet: participant.typeBillet || 'Invitation', 
       };
 
       const participantRef = doc(participantsCollectionRef, participant.id);
@@ -551,7 +563,6 @@ export const getAllGameResults = async (): Promise<GameResult[]> => {
 
 // --- Registration Control Functions (Admin) ---
 
-// Helper for getRegistrationControl to attempt fetching with a retry for "offline" errors
 const tryGetFirestoreDoc = async (docRef: DocumentReference, attempt = 1): Promise<DocumentSnapshot> => {
   try {
     const docSnap = await getDoc(docRef);
@@ -563,7 +574,7 @@ const tryGetFirestoreDoc = async (docRef: DocumentReference, attempt = 1): Promi
       return tryGetFirestoreDoc(docRef, attempt + 1);
     }
     console.error(`[getRegistrationControl] Error after attempt ${attempt}:`, error);
-    throw error; // Re-throw other errors or if retries exhausted
+    throw error; 
   }
 };
 
@@ -574,7 +585,7 @@ export const getRegistrationControl = async (): Promise<ManualRegistrationContro
   }
   try {
     const controlRef = doc(db, SYSTEM_SETTINGS_COLLECTION, REGISTRATION_CONTROL_DOC_ID);
-    const docSnap = await tryGetFirestoreDoc(controlRef); // Use the retry helper
+    const docSnap = await tryGetFirestoreDoc(controlRef);
 
     if (docSnap.exists()) {
       const data = docSnap.data();
@@ -586,7 +597,6 @@ export const getRegistrationControl = async (): Promise<ManualRegistrationContro
         lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated.toDate() : undefined,
       };
     }
-    // Default if not found
     return {
       id: REGISTRATION_CONTROL_DOC_ID,
       strategistManuallyOpen: false,
@@ -634,36 +644,49 @@ export const getAvailableSeats = (tableId: string, registrations: Registration[]
     return table.totalSeats - currentRegistrations;
 };
 
-export const hasTimeConflict = (newTable: GameTable, userRegistrations: Registration[], allTables: GameTable[]): boolean => {
-    const userTableIds = userRegistrations.map(r => r.tableId);
-    const userTables = allTables.filter(t => userTableIds.includes(t.id));
+export const hasTimeConflict = (
+  newTableCandidate: { days: ConventionDay[]; timeSlotType: TimeSlotType },
+  userRegistrations: Registration[],
+  allTables: GameTable[]
+): boolean => {
+  const newTableActualGranularSlots = getActualGranularSlotsForTimeSlotType(newTableCandidate.timeSlotType);
 
-    return userTables.some(registeredTable => {
-        if (registeredTable.id === newTable.id) return false;
-        if (registeredTable.day !== newTable.day) return false;
+  for (const registration of userRegistrations) {
+    const registeredTable = allTables.find(t => t.id === registration.tableId);
+    if (!registeredTable) continue;
 
-        // If one of the slots is "Off", they only conflict if both are "Off"
-        if (newTable.timeSlot === 'Off' || registeredTable.timeSlot === 'Off') {
-            return newTable.timeSlot === registeredTable.timeSlot;
-        }
+    // Skip conflict check if the registered table is the same as the new table candidate (e.g. when editing)
+    // This check is primarily for new registrations, not for re-validating an existing one against itself.
+    // However, the current structure of `openConfirmationDialog` calls this for new registrations only.
+    // If `newTableCandidate` could represent an existing table being modified, an ID check would be needed here.
 
-        const parseTimeSlot = (slot: string): { start: number; end: number } | null => {
-            const match = slot.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
-            if (!match) return null;
-            return { start: parseInt(match[1],10) * 60 + parseInt(match[2],10), end: parseInt(match[3],10) * 60 + parseInt(match[4],10) };
-        };
+    const registeredTableActualGranularSlots = getActualGranularSlotsForTimeSlotType(registeredTable.timeSlotType);
 
-        const registeredSlot = parseTimeSlot(registeredTable.timeSlot);
-        const newSlot = parseTimeSlot(newTable.timeSlot);
+    // Check for day overlap
+    const commonDays = newTableCandidate.days.filter(day => registeredTable.days.includes(day));
+    if (commonDays.length === 0) continue; // No common days, no conflict with this specific registered table
 
-        if (!registeredSlot || !newSlot) {
-            // Should not happen if not "Off" but handle defensively
-            return registeredTable.timeSlot === newTable.timeSlot;
-        }
-        // True if they overlap
-        return !(newSlot.end <= registeredSlot.start || newSlot.start >= registeredSlot.end);
-    });
+    // For each common day, check for slot overlap
+    // Since commonDays.length > 0, we know there's at least one common day.
+    // A conflict on any common day for any overlapping granular slot is sufficient.
+    const granularSlotsOverlap = newTableActualGranularSlots.some(newSlot =>
+      registeredTableActualGranularSlots.includes(newSlot)
+    );
+
+    if (granularSlotsOverlap) {
+      // 'Off_Slot' only conflicts with 'Off_Slot'.
+      // 'Matin_Slot' or 'Aprem_Slot' conflict with themselves or each other if part of 'Journée'.
+      const newIsOff = newTableActualGranularSlots.includes('Off_Slot');
+      const registeredIsOff = registeredTableActualGranularSlots.includes('Off_Slot');
+
+      if (newIsOff && registeredIsOff) return true; // Off conflicts with Off
+      if (!newIsOff && !registeredIsOff) return true; // Regular slots (Matin/Aprem/Journée) conflict
+      // If one is Off and the other is not, they do not conflict.
+    }
+  }
+  return false;
 };
+
 
 export const canRegisterBasedOnTicket = (
   userTicketType: TicketType,
@@ -688,9 +711,6 @@ export const canRegisterBasedOnTicket = (
 // Helper for deleteGameTable toast, not exported
 const toast = (options: any) => {
     if (typeof window !== 'undefined') {
-        // This is a server-side file, so client-side toast won't work here directly.
-        // Logging for server context.
         console.log('Toast-like log (server-side):', options.title, options.description);
     }
 };
-

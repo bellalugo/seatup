@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import type React from 'react';
@@ -39,18 +38,17 @@ import {
     getAllGameResults,
     getRegistrationControl,
 } from '@/lib/data';
-import type { GameTable, User, Registration, Participant, GameResult, TicketType, ManualRegistrationControls } from '@/lib/types';
+import type { GameTable, User, Registration, Participant, GameResult, TicketType, ManualRegistrationControls, ConventionDay, TimeSlotType } from '@/lib/types';
+import { CONVENTION_DAYS as APP_CONVENTION_DAYS, getTimeSlotTypeDisplayLabel } from '@/lib/types'; // Renamed to avoid conflict
 import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, RefreshCw, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban, Star } from 'lucide-react';
 
-const conventionDays = [
-    { name: 'Jeudi', date: '03/07', value: 'jeudi' },
-    { name: 'Vendredi', date: '04/07', value: 'vendredi' },
-    { name: 'Samedi', date: '05/07', value: 'samedi' },
-    { name: 'Dimanche', date: '06/07', value: 'dimanche' }
+const conventionDaysConfig = [
+    { name: 'Jeudi' as ConventionDay, date: '03/07', value: 'jeudi' },
+    { name: 'Vendredi' as ConventionDay, date: '04/07', value: 'vendredi' },
+    { name: 'Samedi' as ConventionDay, date: '05/07', value: 'samedi' },
+    { name: 'Dimanche' as ConventionDay, date: '06/07', value: 'dimanche' }
 ];
 
-const conventionDayNames = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
-type ConventionDay = typeof conventionDayNames[number];
 
 interface LivePlayerScore {
   id: string;
@@ -177,20 +175,19 @@ export default function Home() {
   }, [registrationControls]);
 
 
-  // Effect for Live Hall of Fame
   useEffect(() => {
     if (isLoading) return;
 
     setIsLoadingLiveHof(true);
 
-    const liveDayName: ConventionDay | null = 'Jeudi';
+    const liveDayName: ConventionDay | null = 'Jeudi'; // TODO: Determine current day dynamically
     setCurrentLiveConventionDay(liveDayName);
 
     if (liveDayName && allParticipantsData.length > 0 && tables.length > 0 && gameResultsData.size > 0) {
         const playerScoresMap: Map<string, { id: string, name: string, score: number, gamesPlayedToday: number, winsToday: number }> = new Map();
 
         allParticipantsData.forEach(p => {
-            if (p.typeBillet !== 'Invitation') { // Corrected from p.ticketType to p.typeBillet
+            if (p.typeBillet !== 'Invitation') { 
                 playerScoresMap.set(p.id, {
                     id: p.id,
                     name: `${p.prenom} ${p.nom}`,
@@ -205,7 +202,7 @@ export default function Home() {
 
         Array.from(gameResultsData.values()).forEach(result => {
             const table = gameTablesMap.get(result.tableId);
-            if (!table || table.day !== liveDayName) return;
+            if (!table || !table.days.includes(liveDayName)) return; // Check if table is active on liveDayName
 
             const pointsPerWin = result.playersInGame >= 5 ? 2 : 1;
 
@@ -220,10 +217,10 @@ export default function Home() {
              registrations.forEach(reg => {
                 if (reg.tableId === result.tableId) {
                     const tableOfRegistration = gameTablesMap.get(reg.tableId);
-                    if (tableOfRegistration && tableOfRegistration.day === liveDayName) {
+                    if (tableOfRegistration && tableOfRegistration.days.includes(liveDayName)) {
                         const playerData = playerScoresMap.get(reg.userId);
                         if (playerData) {
-                            if (gameResultsData.has(reg.tableId) && gameTablesMap.get(reg.tableId)?.day === liveDayName) {
+                            if (gameResultsData.has(reg.tableId) && gameTablesMap.get(reg.tableId)?.days.includes(liveDayName)) {
                                 playerData.gamesPlayedToday +=1;
                             }
                         }
@@ -315,7 +312,7 @@ export default function Home() {
     }
 
     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser.id);
-    if (hasTimeConflict(table, userCurrentRegistrations, tables)) {
+    if (hasTimeConflict({ days: table.days, timeSlotType: table.timeSlotType }, userCurrentRegistrations, tables)) {
        toast({ variant: "destructive", title: "Conflit de créneau horaire", description: "Vous êtes déjà inscrit(e) à un jeu pendant ce créneau horaire." });
        return;
     }
@@ -361,7 +358,7 @@ export default function Home() {
     }
 
     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser.id);
-    if (hasTimeConflict(table, userCurrentRegistrations, tables)) {
+    if (hasTimeConflict({ days: table.days, timeSlotType: table.timeSlotType }, userCurrentRegistrations, tables)) {
        toast({ variant: "destructive", title: "Conflit de créneau horaire", description: "Vous êtes déjà inscrit(e) à un jeu pendant ce créneau horaire." });
        return;
     }
@@ -413,14 +410,21 @@ export default function Home() {
   const getUserSchedule = useCallback((): GameTable[] => {
     if (!currentUser) return [];
     const userTableIds = registrations.filter(r => r.userId === currentUser.id).map(r => r.tableId);
-    return tables.filter(t => userTableIds.includes(t.id))
-                 .sort((a, b) => {
-                    const dayOrder = conventionDays.map(d => d.name);
-                    if (a.day !== b.day) {
-                        return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
-                    }
-                    return a.timeSlot.localeCompare(b.timeSlot);
-                 });
+    return tables
+        .filter(t => userTableIds.includes(t.id))
+        .sort((a, b) => {
+            // Sort by the first day of the table, then by timeSlotType
+            const dayOrder = APP_CONVENTION_DAYS;
+            const firstDayA = a.days.length > 0 ? a.days[0] : '';
+            const firstDayB = b.days.length > 0 ? b.days[0] : '';
+
+            if (dayOrder.indexOf(firstDayA as ConventionDay) !== dayOrder.indexOf(firstDayB as ConventionDay)) {
+                return dayOrder.indexOf(firstDayA as ConventionDay) - dayOrder.indexOf(firstDayB as ConventionDay);
+            }
+            // Add sorting by timeSlotType if days are the same or not determined
+            // This part might need adjustment based on how you want to order timeSlotTypes
+            return getTimeSlotTypeDisplayLabel(a.timeSlotType).localeCompare(getTimeSlotTypeDisplayLabel(b.timeSlotType));
+        });
   }, [currentUser, registrations, tables]);
 
   const userSchedule = useMemo(() => getUserSchedule(), [getUserSchedule]);
@@ -531,7 +535,7 @@ export default function Home() {
                         </div>
                         )}
 
-                        {closedPhaseBadges.length > 0 && openPhaseBadges.length > 0 && ( // Only show closed if some are open
+                        {closedPhaseBadges.length > 0 && openPhaseBadges.length > 0 && ( 
                           <div className="mt-3"> 
                             <p className="text-xs font-medium text-muted-foreground mb-1">Accès aux tables fermé pour :</p>
                             <div className="flex flex-wrap gap-2">
@@ -614,56 +618,57 @@ export default function Home() {
              </div>
          ) : (
             <>
-              <Tabs defaultValue={conventionDays[0].value} className="w-full">
+              <Tabs defaultValue={conventionDaysConfig[0].value} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 shadow-sm rounded-md">
-                  {conventionDays.map(day => (
+                  {conventionDaysConfig.map(day => (
                       <TabsTrigger key={day.value} value={day.value} disabled={isSubmittingRegistration || isLookingUpUser}>{day.name} {day.date}</TabsTrigger>
                   ))}
                   </TabsList>
 
-                  {conventionDays.map(day => {
+                  {conventionDaysConfig.map(dayConfig => {
                       const dayTables = tables
-                          .filter(table => table.day === day.name)
-                          .sort((a, b) => {
+                          .filter(table => table.days.includes(dayConfig.name)) // Filter by current tab's day
+                          .sort((a, b) => { // Sort by tableNumber, then by timeSlotType
                               const tableNumA_raw = a.tableNumber || '';
                               const tableNumB_raw = b.tableNumber || '';
-
-                              const numA_parsed = parseFloat(tableNumA_raw);
-                              const numB_parsed = parseFloat(tableNumB_raw);
-
-                              const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw === numA_parsed.toString();
-                              const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw === numB_parsed.toString();
+                              const numA_parsed = parseFloat(tableNumA_raw.replace(',', '.'));
+                              const numB_parsed = parseFloat(tableNumB_raw.replace(',', '.'));
+                              const isPurelyNumericA = !isNaN(numA_parsed) && isFinite(numA_parsed) && tableNumA_raw.match(/^[\d,.]+$/);
+                              const isPurelyNumericB = !isNaN(numB_parsed) && isFinite(numB_parsed) && tableNumB_raw.match(/^[\d,.]+$/);
 
                               if (isPurelyNumericA && isPurelyNumericB) {
                                   if (numA_parsed < numB_parsed) return -1;
                                   if (numA_parsed > numB_parsed) return 1;
-                              } else {
+                              } else if (isPurelyNumericA) return -1;
+                              else if (isPurelyNumericB) return 1;
+                              else {
                                   const strA = tableNumA_raw.toLowerCase();
                                   const strB = tableNumB_raw.toLowerCase();
                                   if (strA < strB) return -1;
                                   if (strA > strB) return 1;
                               }
-                              return a.timeSlot.localeCompare(b.timeSlot);
+                              return getTimeSlotTypeDisplayLabel(a.timeSlotType).localeCompare(getTimeSlotTypeDisplayLabel(b.timeSlotType));
                           });
                       return (
-                          <TabsContent key={day.value} value={day.value}>
+                          <TabsContent key={dayConfig.value} value={dayConfig.value}>
                               <Card className="shadow-md rounded-lg">
                                   <CardHeader>
-                                      <CardTitle>Tables de jeu du {day.name} {day.date}</CardTitle>
-                                      <CardDescription>Jeux disponibles pour {day.name}.</CardDescription>
+                                      <CardTitle>Tables de jeu du {dayConfig.name} {dayConfig.date}</CardTitle>
+                                      <CardDescription>Jeux disponibles pour {dayConfig.name}.</CardDescription>
                                   </CardHeader>
                                   <CardContent>
                                       {isLoading && tables.length > 0 && <div className="text-center py-4"><Loader2 className="inline h-6 w-6 animate-spin text-primary mr-2" />Chargement des tables...</div>}
-                                      {!isLoading && dayTables.length === 0 && <p className="text-muted-foreground text-center py-4">Aucune table disponible pour {day.name} {day.date}.</p>}
+                                      {!isLoading && dayTables.length === 0 && <p className="text-muted-foreground text-center py-4">Aucune table disponible pour {dayConfig.name} {dayConfig.date}.</p>}
                                       {!isLoading && dayTables.length > 0 && (
                                           <Table>
-                                              <TableCaption>Liste des jeux disponibles le {day.name} {day.date}.</TableCaption>
+                                              <TableCaption>Liste des jeux disponibles le {dayConfig.name} {dayConfig.date}.</TableCaption>
                                               <TableHeader>
                                                   <TableRow>
                                                       <TableHead className="w-24 text-center">Table n°</TableHead>
                                                       <TableHead className="w-64" />
                                                       <TableHead>Jeu</TableHead>
                                                       <TableHead>Auteur/Animateur</TableHead>
+                                                      <TableHead>Jours</TableHead>
                                                       <TableHead>Créneau horaire</TableHead>
                                                       <TableHead className="text-left">Places disponibles</TableHead>
                                                       <TableHead className="text-center">Action</TableHead>
@@ -675,7 +680,7 @@ export default function Home() {
                                                       const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
                                                       const canRegisterNow = currentUser && registrationControls && canRegisterBasedOnTicket(currentUser.ticketType, registrationControls);
                                                       const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id);
-                                                      const conflict = currentUser && hasTimeConflict(table, userCurrentRegistrations, tables);
+                                                      const conflict = currentUser && hasTimeConflict({ days: table.days, timeSlotType: table.timeSlotType }, userCurrentRegistrations, tables);
 
                                                       const registrationsForThisTable = registrations.filter(r => r.tableId === table.id);
                                                       const registeredParticipantDetails = registrationsForThisTable.map(reg => {
@@ -729,7 +734,6 @@ export default function Home() {
                                                           icon = <AlertCircle className="mr-2 h-4 w-4" />;
                                                       } else if (conflict && !isRegisteredByUser) {
                                                           tooltipText = "Conflit avec votre planning";
-                                                          // For this case, we'll render the Ban icon directly below
                                                       } else if (availableSeats <= 0) {
                                                           tooltipText = "Table est complète";
                                                           buttonText = "Complet";
@@ -769,7 +773,8 @@ export default function Home() {
                                                                       <span className="text-muted-foreground italic">N/A</span>
                                                                   )}
                                                               </TableCell>
-                                                              <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
+                                                              <TableCell className="text-xs">{table.days.join(', ')}</TableCell>
+                                                              <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}</TableCell>
                                                               <TableCell className="text-left align-top">
                                                                   <ul className="list-none p-0 m-0 text-xs space-y-1">
                                                                       {registeredParticipantDetails.map(participant => (
@@ -852,7 +857,7 @@ export default function Home() {
                               <TableRow>
                               <TableHead className="w-24 text-center">Table n°</TableHead>
                               <TableHead className="w-64" />
-                              <TableHead>Jour</TableHead>
+                              <TableHead>Jours</TableHead>
                               <TableHead>Créneau horaire</TableHead>
                               <TableHead>Jeu</TableHead>
                               <TableHead className="text-center">Action</TableHead>
@@ -860,7 +865,6 @@ export default function Home() {
                           </TableHeader>
                           <TableBody>
                           {userSchedule.map(table => {
-                              const dayInfo = conventionDays.find(d => d.name === table.day);
                               const imageUrl = table.gameImageUrl || table.imageUrl;
                               return (
                                   <TableRow key={`schedule-${table.id}`}>
@@ -879,8 +883,8 @@ export default function Home() {
                                           <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                                       )}
                                   </TableCell>
-                                  <TableCell><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.day} {dayInfo?.date}</TableCell>
-                                  <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.timeSlot}</TableCell>
+                                  <TableCell className="text-xs"><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.days.join(', ')}</TableCell>
+                                  <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}</TableCell>
                                   <TableCell className="font-bold">
                                       {table.gameName}
                                   </TableCell>
@@ -927,7 +931,7 @@ export default function Home() {
                       <AlertDialogTitle>Confirmation d'inscription</AlertDialogTitle>
                       <AlertDialogDescription>
                           Souhaitez-vous vraiment vous inscrire à la table du jeu : <strong className="text-foreground">{tableToConfirm?.gameName}</strong>
-                          {' '} ({tableToConfirm?.day} - {tableToConfirm?.timeSlot}) ?
+                          {' '} ({tableToConfirm?.days.join(', ')} - {tableToConfirm ? getTimeSlotTypeDisplayLabel(tableToConfirm.timeSlotType) : ''}) ?
                       </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -949,7 +953,3 @@ export default function Home() {
     </TooltipProvider>
   );
 }
-
-
-
-

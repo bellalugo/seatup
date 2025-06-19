@@ -31,29 +31,61 @@ export interface GameInput {
   nbre_max: number;
 }
 
-export interface GameTable {
-  id: string;
-  gameId: string; // Foreign key to the "games" collection
-  day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
-  timeSlot: string; // e.g., "09:00 - 13:00", "Off"
-  totalSeats: number;
-  tableNumber: string; // Added field for table number
-  authorAnimator?: string; // Optional field for Author/Animator
-  gameName?: string; // Populated at runtime
-  gameImageUrl?: string; // Populated at runtime
-  imageUrl?: string;
+export const CONVENTION_DAYS = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
+export type ConventionDay = typeof CONVENTION_DAYS[number];
+
+export const TIME_SLOT_TYPES = ['Matin', 'Après-midi', 'Journée', 'Off'] as const;
+export type TimeSlotType = typeof TIME_SLOT_TYPES[number];
+
+// Defines the display label and the actual underlying slots for conflict checking
+export interface TimeSlotOption {
+  value: TimeSlotType;
+  label: string; // User-facing label, e.g., "Matin (09:00-13:00)"
+  // actualSlots represents the granular slots this TimeSlotType occupies.
+  // Used for precise conflict detection.
+  // 'Matin_Slot' could map to '09:00-13:00', 'Aprem_Slot' to '14:00-19:00'.
+  // 'Journee_Slot' maps to both. 'Off_Slot' is distinct.
+  actualSlots: ('Matin_Slot' | 'Aprem_Slot' | 'Off_Slot')[];
 }
 
-/**
- * Type definition for the data collected from the add/edit table form.
- */
+export const TIME_SLOT_TYPE_OPTIONS: TimeSlotOption[] = [
+  { value: 'Matin', label: 'Matin (09:00-13:00)', actualSlots: ['Matin_Slot'] },
+  { value: 'Après-midi', label: 'Après-midi (14:00-19:00)', actualSlots: ['Aprem_Slot'] },
+  { value: 'Journée', label: 'Journée (09:00-19:00)', actualSlots: ['Matin_Slot', 'Aprem_Slot'] },
+  { value: 'Off', label: 'Off (Soirée)', actualSlots: ['Off_Slot'] },
+];
+
+// Helper to get the display label for a TimeSlotType
+export const getTimeSlotTypeDisplayLabel = (type: TimeSlotType): string => {
+  return TIME_SLOT_TYPE_OPTIONS.find(opt => opt.value === type)?.label || type;
+};
+
+// Helper to get actual granular slots for conflict checking
+export const getActualGranularSlotsForTimeSlotType = (type: TimeSlotType): string[] => {
+  return TIME_SLOT_TYPE_OPTIONS.find(opt => opt.value === type)?.actualSlots || [type]; // Fallback to type itself if not found
+}
+
+export interface GameTable {
+  id: string;
+  gameId: string;
+  days: ConventionDay[]; // Changed from day: ConventionDay
+  timeSlotType: TimeSlotType; // New: Matin, Après-midi, Journée, Off
+  totalSeats: number;
+  tableNumber: string;
+  authorAnimator?: string;
+  // Dynamic properties, not stored in Firestore directly, but populated by getGameTables
+  gameName?: string;
+  gameImageUrl?: string;
+  imageUrl?: string; // Kept for compatibility if old data has it directly
+}
+
 export interface GameTableInput {
-    gameId: string;
-    day: 'Jeudi' | 'Vendredi' | 'Samedi' | 'Dimanche';
-    timeSlot: string;
-    totalSeats: number;
-    tableNumber: string;
-    authorAnimator?: string;
+  gameId: string;
+  days: ConventionDay[]; // Changed
+  timeSlotType: TimeSlotType; // New
+  totalSeats: number;
+  tableNumber: string;
+  authorAnimator?: string;
 }
 
 
@@ -88,4 +120,3 @@ export interface ManualRegistrationControls {
   generalManuallyOpen: boolean;
   lastUpdated?: Date;
 }
-

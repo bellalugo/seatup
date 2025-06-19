@@ -55,18 +55,15 @@ import {
   saveGameResult,
   getAllGameResults,
 } from '@/lib/data';
-import type { GameTable, GameTableInput, Registration, Game, Participant, GameResult } from '@/lib/types';
+import type { GameTable, GameTableInput, Registration, Game, Participant, GameResult, ConventionDay, TimeSlotType } from '@/lib/types';
+import { CONVENTION_DAYS, TIME_SLOT_TYPE_OPTIONS, getTimeSlotTypeDisplayLabel } from '@/lib/types';
 import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy, CalendarDays, Play, Edit3, StopCircle, Save } from 'lucide-react';
 import GameManager from './game-manager';
 
-const conventionDayOrder = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
-type ConventionDayAdmin = typeof conventionDayOrder[number];
-const timeSlotOrder = ["09:00 - 13:00", "14:00 - 19:00", "Off"];
-
 const defaultTableFormData: GameTableInput = {
   gameId: '',
-  day: 'Jeudi',
-  timeSlot: '09:00 - 13:00',
+  days: [CONVENTION_DAYS[0]], // Default to the first convention day
+  timeSlotType: TIME_SLOT_TYPE_OPTIONS[0].value, // Default to the first time slot type (e.g., 'Matin')
   totalSeats: 4,
   tableNumber: '',
   authorAnimator: undefined,
@@ -86,7 +83,7 @@ const sortParticipantsByName = (participants: Participant[]): Participant[] => {
 
 export default function ConventionManager() {
   const [activeMainTab, setActiveMainTab] = useState("tables");
-  const [activeDayTab, setActiveDayTab] = useState<ConventionDayAdmin>(conventionDayOrder[0]);
+  const [activeDayTab, setActiveDayTab] = useState<ConventionDay>(CONVENTION_DAYS[0]);
 
   const [tables, setTables] = useState<GameTable[]>([]);
   const [allGames, setAllGames] = useState<Game[]>([]);
@@ -188,13 +185,26 @@ export default function ConventionManager() {
     }
   }, [editingTable, isTableDialogOpen, fetchRegistrantsForDialog]);
 
+  const handleDayCheckboxChange = (day: ConventionDay, checked: boolean | string) => {
+    setTableFormData(prev => {
+        const currentDays = prev.days || [];
+        let newDays: ConventionDay[];
+        if (checked) {
+            newDays = [...currentDays, day].filter((value, index, self) => self.indexOf(value) === index)
+                                         .sort((a, b) => CONVENTION_DAYS.indexOf(a) - CONVENTION_DAYS.indexOf(b));
+        } else {
+            newDays = currentDays.filter(d => d !== day);
+        }
+        return { ...prev, days: newDays };
+    });
+  };
 
-  const handleTableSelectChange = (name: keyof Pick<GameTableInput, 'day' | 'timeSlot' | 'gameId' | 'authorAnimator'>) => (value: string) => {
+  const handleTableSelectChange = (name: keyof Pick<GameTableInput, 'timeSlotType' | 'gameId' | 'authorAnimator'>) => (value: string) => {
     setTableFormData(prev => {
         let processedValue: string | undefined = value === '' ? undefined : value;
         if (name === 'authorAnimator' && value === '_NONE_') processedValue = undefined;
 
-        const newState = { ...prev, [name]: processedValue };
+        const newState = { ...prev, [name]: processedValue as TimeSlotType }; // Cast for timeSlotType
         if (name === 'gameId' && newState.gameId) {
             const selectedGame = allGames.find(game => game.id === newState.gameId);
             if (selectedGame) newState.totalSeats = selectedGame.nbre_max;
@@ -215,8 +225,8 @@ export default function ConventionManager() {
     setEditingTable(table);
     setTableFormData({
         gameId: table.gameId,
-        day: table.day,
-        timeSlot: table.timeSlot,
+        days: [...table.days], // Ensure it's a new array
+        timeSlotType: table.timeSlotType,
         totalSeats: table.totalSeats,
         tableNumber: table.tableNumber || '',
         authorAnimator: table.authorAnimator || undefined,
@@ -226,21 +236,21 @@ export default function ConventionManager() {
   };
 
   const handleDuplicateTable = (table: GameTable) => {
-    setEditingTable(null);
+    setEditingTable(null); // Not editing, but creating based on another
     setTableFormData({
       gameId: table.gameId,
-      day: table.day, 
-      timeSlot: table.timeSlot, 
+      days: [...table.days], 
+      timeSlotType: table.timeSlotType, 
       totalSeats: table.totalSeats,
-      tableNumber: '', 
+      tableNumber: '', // Clear table number for duplication
       authorAnimator: table.authorAnimator || undefined,
     });
-    setCurrentTableRegistrants([]);
+    setCurrentTableRegistrants([]); // New table, no registrants yet
     setSelectableParticipantsForDialog(sortParticipantsByName(allParticipantsData));
     setIsTableDialogOpen(true);
     toast({
       title: "Table dupliquée",
-      description: `Les informations de la table "${table.gameName}" (N° ${table.tableNumber}) ont été copiées. Modifiez le numéro de table et/ou le créneau horaire, puis enregistrez.`,
+      description: `Les informations de la table "${table.gameName}" (N° ${table.tableNumber}) ont été copiées. Modifiez le numéro de table et/ou les jours/créneau, puis enregistrez.`,
       duration: 7000,
     });
   };
@@ -279,7 +289,9 @@ export default function ConventionManager() {
 
   const handleOpenTableDialogForAdd = () => {
     setEditingTable(null);
-    setTableFormData({...defaultTableFormData, day: activeDayTab, tableNumber: ''}); 
+    // Ensure days default to an array with the activeDayTab if it's a valid ConventionDay
+    const initialDays: ConventionDay[] = CONVENTION_DAYS.includes(activeDayTab) ? [activeDayTab] : [CONVENTION_DAYS[0]];
+    setTableFormData({...defaultTableFormData, days: initialDays, tableNumber: ''}); 
     setCurrentTableRegistrants([]);
     setSelectableParticipantsForDialog(sortParticipantsByName(allParticipantsData)); 
     setIsTableDialogOpen(true);
@@ -289,8 +301,8 @@ export default function ConventionManager() {
     e.preventDefault();
     setIsSubmittingTable(true);
 
-    if (!tableFormData.gameId || !tableFormData.day || !tableFormData.timeSlot || tableFormData.totalSeats <= 0 || !tableFormData.tableNumber) {
-        toast({ variant: "destructive", title: "Entrée invalide (Table)", description: "Veuillez remplir tous les champs obligatoires, y compris le numéro de table et le nombre de places, et sélectionner un jeu." });
+    if (!tableFormData.gameId || !tableFormData.days || tableFormData.days.length === 0 || !tableFormData.timeSlotType || tableFormData.totalSeats <= 0 || !tableFormData.tableNumber) {
+        toast({ variant: "destructive", title: "Entrée invalide (Table)", description: "Veuillez remplir tous les champs obligatoires, y compris le numéro de table, le nombre de places, sélectionner un jeu et au moins un jour." });
         setIsSubmittingTable(false);
         return;
     }
@@ -331,9 +343,11 @@ export default function ConventionManager() {
                  fetchRegistrantsForDialog(currentTableIdForDialog);
              }
         } else {
+            // This case might not be reached if newTable is always set to editingTable
             setIsTableDialogOpen(false); 
             setEditingTable(null);
-            setTableFormData({...defaultTableFormData, day: activeDayTab}); 
+            const initialDays: ConventionDay[] = CONVENTION_DAYS.includes(activeDayTab) ? [activeDayTab] : [CONVENTION_DAYS[0]];
+            setTableFormData({...defaultTableFormData, days: initialDays}); 
         }
 
     } catch(error) {
@@ -461,9 +475,11 @@ export default function ConventionManager() {
     return "Ouverte";
   };
 
-  const renderSingleDayTable = (day: ConventionDayAdmin) => {
+  const timeSlotTypeSortOrder = TIME_SLOT_TYPE_OPTIONS.map(opt => opt.value);
+
+  const renderSingleDayTable = (day: ConventionDay) => {
     const dayTables = tables
-        .filter(table => table.day === day)
+        .filter(table => table.days.includes(day))
         .sort((a, b) => {
             const tableNumA_raw = a.tableNumber || '';
             const tableNumB_raw = b.tableNumber || '';
@@ -487,8 +503,8 @@ export default function ConventionManager() {
                 if (strA > strB) return 1;
             }
             
-            const timeSlotAIndex = timeSlotOrder.indexOf(a.timeSlot);
-            const timeSlotBIndex = timeSlotOrder.indexOf(b.timeSlot);
+            const timeSlotAIndex = timeSlotTypeSortOrder.indexOf(a.timeSlotType);
+            const timeSlotBIndex = timeSlotTypeSortOrder.indexOf(b.timeSlotType);
             if (timeSlotAIndex < timeSlotBIndex) return -1;
             if (timeSlotAIndex > timeSlotBIndex) return 1;
             return 0;
@@ -517,7 +533,8 @@ export default function ConventionManager() {
                     <TableHead className="w-48 px-1 py-1">Visuel</TableHead>
                     <TableHead>Jeu</TableHead>
                     <TableHead>Auteur/Animateur</TableHead>
-                    <TableHead>Créneau horaire</TableHead>
+                    <TableHead>Jours</TableHead>
+                    <TableHead>Créneau</TableHead>
                     <TableHead className="text-left">Sièges</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -564,7 +581,8 @@ export default function ConventionManager() {
                             </TableCell>
                             <TableCell><strong className="font-bold">{table.gameName || 'Jeu inconnu'}</strong></TableCell>
                             <TableCell>{table.authorAnimator ? <span className="font-medium flex items-center"><UserSquare2 className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.authorAnimator}</span> : <span className="text-muted-foreground italic">N/A</span>}</TableCell>
-                            <TableCell>{table.timeSlot === 'Off' ? table.timeSlot : table.timeSlot.replace(' - ', ' à ')}</TableCell>
+                            <TableCell className="text-xs">{table.days.join(', ')}</TableCell>
+                            <TableCell>{getTimeSlotTypeDisplayLabel(table.timeSlotType)}</TableCell>
                             <TableCell className="text-left align-top min-w-[200px]">
                                 <ul className="list-none p-0 m-0 text-xs space-y-0.5">
                                     {registeredParticipantDetails.map(participant => (
@@ -683,15 +701,15 @@ export default function ConventionManager() {
             </Button>
         </div>
 
-        <Tabs value={activeDayTab} onValueChange={(value) => setActiveDayTab(value as ConventionDayAdmin)} className="w-full">
+        <Tabs value={activeDayTab} onValueChange={(value) => setActiveDayTab(value as ConventionDay)} className="w-full">
             <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
-                {conventionDayOrder.map(day => (
+                {CONVENTION_DAYS.map(day => (
                     <TabsTrigger key={day} value={day} className="flex items-center gap-1.5">
                         <CalendarDays className="h-4 w-4" /> {day}
                     </TabsTrigger>
                 ))}
             </TabsList>
-            {conventionDayOrder.map(day => (
+            {CONVENTION_DAYS.map(day => (
                 <TabsContent key={`content-${day}`} value={day} className="mt-4">
                     {renderSingleDayTable(day)}
                 </TabsContent>
@@ -702,7 +720,8 @@ export default function ConventionManager() {
           setIsTableDialogOpen(open);
           if (!open) {
             setEditingTable(null);
-            setTableFormData({ ...defaultTableFormData, day: activeDayTab }); 
+            const initialDays: ConventionDay[] = CONVENTION_DAYS.includes(activeDayTab) ? [activeDayTab] : [CONVENTION_DAYS[0]];
+            setTableFormData({...defaultTableFormData, days: initialDays}); 
             setCurrentTableRegistrants([]);
             setSelectedParticipantToAdd('');
           }
@@ -750,18 +769,27 @@ export default function ConventionManager() {
                         </SelectContent>
                     </Select>
                  </div>
-                 <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="day" className="text-right">Jour</Label>
-                     <Select name="day" value={tableFormData.day} onValueChange={handleTableSelectChange('day')} required disabled={isSubmittingTable}>
-                        <SelectTrigger className="col-span-3 rounded-md shadow-sm"><SelectValue placeholder="Jour" /></SelectTrigger>
-                        <SelectContent>{conventionDayOrder.map(d => (<SelectItem key={d} value={d}>{d}</SelectItem>))}</SelectContent>
-                    </Select>
+                 <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right pt-2">Jours</Label>
+                    <div className="col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+                        {CONVENTION_DAYS.map(day => (
+                            <div key={day} className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={`day-${day}`}
+                                    checked={tableFormData.days.includes(day)}
+                                    onCheckedChange={(checked) => handleDayCheckboxChange(day, checked)}
+                                    disabled={isSubmittingTable}
+                                />
+                                <Label htmlFor={`day-${day}`} className="font-normal">{day}</Label>
+                            </div>
+                        ))}
+                    </div>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="timeSlot" className="text-right">Créneau</Label>
-                     <Select name="timeSlot" value={tableFormData.timeSlot} onValueChange={handleTableSelectChange('timeSlot')} required disabled={isSubmittingTable}>
-                         <SelectTrigger className="col-span-3 rounded-md shadow-sm"><SelectValue placeholder="Créneau" /></SelectTrigger>
-                         <SelectContent>{timeSlotOrder.map(ts => (<SelectItem key={ts} value={ts}>{ts === 'Off' ? ts : ts.replace(' - ', ' à ')}</SelectItem>))}</SelectContent>
+                    <Label htmlFor="timeSlotType" className="text-right">Créneau</Label>
+                     <Select name="timeSlotType" value={tableFormData.timeSlotType} onValueChange={handleTableSelectChange('timeSlotType')} required disabled={isSubmittingTable}>
+                         <SelectTrigger className="col-span-3 rounded-md shadow-sm"><SelectValue placeholder="Type de créneau" /></SelectTrigger>
+                         <SelectContent>{TIME_SLOT_TYPE_OPTIONS.map(opt => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
                      </Select>
                  </div>
                  <div className="grid grid-cols-4 items-center gap-4">
@@ -769,7 +797,7 @@ export default function ConventionManager() {
                     <Input id="totalSeats" name="totalSeats" type="number" value={tableFormData.totalSeats} onChange={handleTableNonSelectInputChange} className="col-span-3 rounded-md shadow-sm" min="1" required disabled={isSubmittingTable} />
                  </div>
                  <DialogFooter className="pt-2">
-                    <Button type="submit" disabled={isSubmittingTable || allGames.length === 0} className="shadow-sm rounded-md">
+                    <Button type="submit" disabled={isSubmittingTable || allGames.length === 0 || tableFormData.days.length === 0} className="shadow-sm rounded-md">
                         {isSubmittingTable && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {editingTable ? 'Enregistrer Détails Table' : 'Ajouter et Continuer'}
                     </Button>
@@ -868,7 +896,7 @@ export default function ConventionManager() {
                 <AlertDialogHeader>
                     <AlertDialogTitle>Êtes-vous absolument sûr(e) ?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Cette action est irréversible. La table "{tableToDelete?.gameName}" (N° {tableToDelete?.tableNumber}) du {tableToDelete?.day} à {tableToDelete?.timeSlot} et ses résultats de jeu associés seront définitivement supprimés.
+                        Cette action est irréversible. La table "{tableToDelete?.gameName}" (N° {tableToDelete?.tableNumber}) du {tableToDelete?.days.join(', ')} à {tableToDelete ? getTimeSlotTypeDisplayLabel(tableToDelete.timeSlotType) : ''} et ses résultats de jeu associés seront définitivement supprimés.
                         <br/><strong>La suppression ne sera effectuée que si aucune inscription n'est associée à cette table.</strong>
                     </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -950,4 +978,3 @@ export default function ConventionManager() {
   );
 }
     
-
