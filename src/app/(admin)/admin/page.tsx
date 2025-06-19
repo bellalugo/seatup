@@ -4,17 +4,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import ConventionManager from "@/components/admin/table-manager";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, DownloadCloud, Loader2, ListChecks, Settings2, PlayCircle, XCircle, Users2 } from "lucide-react";
-import { useState, useEffect, useCallback, useMemo } from "react"; // Added useMemo
+import { ShieldCheck, DownloadCloud, Loader2, ListChecks, Settings2, PlayCircle, XCircle, Users2, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { syncBilletwebParticipants } from "@/ai/flows/sync-billetweb-participants-flow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ParticipantList from "@/components/admin/participant-list";
 import { getRegistrationControl, updateRegistrationControl } from "@/lib/data";
 import type { ManualRegistrationControls, TicketType } from "@/lib/types"; 
-// REGISTRATION_SCHEDULE is no longer imported
-import { Separator } from "@/components/ui/separator";
-import { REGISTRATION_SCHEDULE } from "@/lib/types"; // Import for getPhaseStatusMessage
+import { REGISTRATION_SCHEDULE } from "@/lib/types"; 
 
 
 export default function AdminPage() {
@@ -24,26 +22,38 @@ export default function AdminPage() {
 
   const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls | null>(null);
   const [isUpdatingControls, setIsUpdatingControls] = useState(false);
+  const [isRefreshingControls, setIsRefreshingControls] = useState(false); // New state for refresh button
 
   const fetchControls = useCallback(async () => {
+    // Determine if this call is from the refresh button or initial load/update
+    const isManualRefresh = isRefreshingControls; 
+    if (!isManualRefresh) setIsUpdatingControls(true); // Show loader on phase change buttons
+    else setIsRefreshingControls(true); // Show loader on refresh button
+
     try {
       const controls = await getRegistrationControl();
       setRegistrationControls(controls);
+      if (isManualRefresh) {
+        toast({ title: "Contrôles actualisés", description: "L'état des phases d'inscription a été rechargé." });
+      }
     } catch (error) {
       toast({ 
         variant: "destructive", 
         title: "Erreur de chargement des contrôles", 
         description: error instanceof Error ? error.message : "Impossible de charger les contrôles d'inscription."
       });
+    } finally {
+      if (!isManualRefresh) setIsUpdatingControls(false);
+      else setIsRefreshingControls(false);
     }
-  }, [toast]);
+  }, [toast, isRefreshingControls]); // Add isRefreshingControls to dependency array
 
   useEffect(() => {
     fetchControls();
-  }, [fetchControls]);
+  }, [fetchControls]); // Initial fetch
 
   const handleUpdateControls = async (phaseToOpen?: TicketType | 'reset') => {
-    setIsUpdatingControls(true);
+    setIsUpdatingControls(true); // This state is for the phase change buttons specifically
     let newControls: Partial<ManualRegistrationControls> = {
         strategistManuallyOpen: registrationControls?.strategistManuallyOpen || false,
         marshalManuallyOpen: registrationControls?.marshalManuallyOpen || false,
@@ -55,38 +65,36 @@ export default function AdminPage() {
     if (phaseToOpen === 'reset') {
         newControls = { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false };
     } else if (phaseToOpen === 'Stratège') {
-        // This button is only enabled if marshal and general are false.
-        // So, toggling strategist only affects strategist.
         newControls.strategistManuallyOpen = !currentControls.strategistManuallyOpen;
-        if (!newControls.strategistManuallyOpen) { // If turning OFF strategist
+        if (!newControls.strategistManuallyOpen) { 
             newControls.marshalManuallyOpen = false;
             newControls.generalManuallyOpen = false;
         }
     } else if (phaseToOpen === 'Maréchal') {
-        // This button is only enabled if general is false.
         newControls.marshalManuallyOpen = !currentControls.marshalManuallyOpen;
-        if (newControls.marshalManuallyOpen) { // If turning ON marshal
+        if (newControls.marshalManuallyOpen) { 
             newControls.strategistManuallyOpen = true; 
-        } else { // If turning OFF marshal
+        } else { 
             newControls.generalManuallyOpen = false; 
-            // strategistManuallyOpen remains as it was unless explicitly turned off by strategist button or reset
         }
     } else if (phaseToOpen === 'Général') {
         newControls.generalManuallyOpen = !currentControls.generalManuallyOpen;
-        if (newControls.generalManuallyOpen) { // If turning ON general
+        if (newControls.generalManuallyOpen) { 
             newControls.strategistManuallyOpen = true; 
             newControls.marshalManuallyOpen = true;
         }
-        // If turning OFF general, strategist and marshal remain as they were unless explicitly turned off
     }
-
 
     try {
         await updateRegistrationControl(newControls);
-        setRegistrationControls(prev => ({...(prev || { id: 'registrationControl' }), ...newControls })); 
+        // After updating, fetch the controls again to ensure UI reflects the source of truth
+        // This also resets registrationControls state correctly.
+        await fetchControls(); 
         toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'fermée (tous types)' : phaseToOpen } modifiée manuellement.` });
     } catch (error) {
         toast({ variant: "destructive", title: "Erreur de mise à jour", description: (error as Error).message });
+         // If update fails, still refresh controls to show the actual current state from DB
+        await fetchControls();
     } finally {
         setIsUpdatingControls(false);
     }
@@ -163,17 +171,32 @@ export default function AdminPage() {
     <div className="space-y-6">
       <Card className="shadow-lg">
         <CardHeader className="pb-2">
-          <div className="flex flex-row items-center gap-4">
-            <ShieldCheck className="h-8 w-8 text-primary" />
-            <div>
-              <CardTitle>Administration</CardTitle>
-              <CardDescription>Gérer les tables de jeu, les jeux et les paramètres de la convention.</CardDescription>
+          <div className="flex flex-row items-center justify-between">
+            <div className="flex flex-row items-center gap-4">
+                <ShieldCheck className="h-8 w-8 text-primary" />
+                <div>
+                <CardTitle>Administration</CardTitle>
+                <CardDescription>Gérer les tables de jeu, les jeux et les paramètres de la convention.</CardDescription>
+                </div>
             </div>
+            {/* Removed global refresh button from here as it's too broad */}
           </div>
         </CardHeader>
         <CardContent className="pt-4">
             <div className="space-y-3">
-                <h4 className="text-sm font-medium flex items-center gap-2"><Settings2 className="h-4 w-4"/>Contrôle des Phases d'Inscription</h4>
+                <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium flex items-center gap-2"><Settings2 className="h-4 w-4"/>Contrôle des Phases d'Inscription</h4>
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => { setIsRefreshingControls(true); fetchControls(); }} // Set isRefreshingControls before calling
+                        disabled={isUpdatingControls || isRefreshingControls}
+                        className="shadow-sm rounded-md"
+                    >
+                        {isRefreshingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
+                        Actualiser Contrôles
+                    </Button>
+                </div>
                  <p className="text-xs text-muted-foreground">
                     État actuel : <span className="font-semibold">{getPhaseStatusMessage()}</span>
                  </p>
@@ -181,7 +204,7 @@ export default function AdminPage() {
                     <Button 
                         variant={registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Stratège')} 
-                        disabled={isUpdatingControls || !!registrationControls?.marshalManuallyOpen || !!registrationControls?.generalManuallyOpen}
+                        disabled={isUpdatingControls || isRefreshingControls || !!registrationControls?.marshalManuallyOpen || !!registrationControls?.generalManuallyOpen}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
@@ -190,7 +213,7 @@ export default function AdminPage() {
                     <Button 
                         variant={registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Maréchal')} 
-                        disabled={isUpdatingControls || !!registrationControls?.generalManuallyOpen}
+                        disabled={isUpdatingControls || isRefreshingControls || !!registrationControls?.generalManuallyOpen}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
@@ -199,7 +222,7 @@ export default function AdminPage() {
                     <Button 
                         variant={registrationControls?.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Général')} 
-                        disabled={isUpdatingControls}
+                        disabled={isUpdatingControls || isRefreshingControls}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
@@ -208,7 +231,7 @@ export default function AdminPage() {
                     <Button 
                         variant="destructive" 
                         onClick={() => handleUpdateControls('reset')} 
-                        disabled={isUpdatingControls || (!registrationControls?.strategistManuallyOpen && !registrationControls?.marshalManuallyOpen && !registrationControls?.generalManuallyOpen)}
+                        disabled={isUpdatingControls || isRefreshingControls || (!registrationControls?.strategistManuallyOpen && !registrationControls?.marshalManuallyOpen && !registrationControls?.generalManuallyOpen)}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4"/>}
@@ -266,4 +289,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
