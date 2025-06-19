@@ -10,11 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getAllGameResults, getGameTables, getParticipants, getRegistrations } from '@/lib/data';
-import type { GameResult, GameTable, Participant, Registration } from '@/lib/types';
+import type { GameResult, GameTable, Participant, Registration, ConventionDay } from '@/lib/types';
+import { CONVENTION_DAYS } from '@/lib/types'; // Import CONVENTION_DAYS
 import { Button } from '@/components/ui/button';
 
-const conventionDays = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
-type ConventionDay = typeof conventionDays[number];
+// conventionDays already defined in types, use the imported one
+// const conventionDays = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
+// type ConventionDay = typeof conventionDays[number]; // Use imported ConventionDay
 
 interface PlayerScore {
   id: string;
@@ -55,7 +57,7 @@ export default function HallOfFamePage() {
 
     // Initialize scores for all participants
     participants.forEach(p => {
-      if (p.typeBillet !== 'Invitation') { // Corrected from p.ticketType to p.typeBillet
+      if (p.typeBillet !== 'Invitation') {
         const formattedName = `${p.prenom || ''} ${p.nom ? p.nom.charAt(0) + '.' : ''}`.trim();
         playerScores.set(p.id, {
           id: p.id,
@@ -74,17 +76,19 @@ export default function HallOfFamePage() {
     // Calculate daily wins, total wins, daily scores, and total scores
     gameResults.forEach(result => {
       const table = gameTablesMap.get(result.tableId);
-      if (!table || !conventionDays.includes(table.day as ConventionDay)) return;
+      if (!table || !table.days || table.days.length === 0) return; // Table not found or has no days defined
+      
+      const dayForScore = table.days[0]; // Attribute score to the first day of the table's schedule
+      if (!CONVENTION_DAYS.includes(dayForScore)) return; // Ensure this chosen day is a valid convention day
 
-      const day = table.day as ConventionDay;
       const pointsPerWin = result.playersInGame >= 5 ? 2 : 1;
 
       result.winnerIds.forEach(winnerId => {
         const participantData = playerScores.get(winnerId);
         if (participantData) {
-          participantData.dailyScores[day] += pointsPerWin;
+          participantData.dailyScores[dayForScore] += pointsPerWin;
           participantData.totalScore += pointsPerWin;
-          participantData.dailyWins[day] += 1; 
+          participantData.dailyWins[dayForScore] += 1; 
           participantData.wins += 1;           
         }
       });
@@ -96,12 +100,14 @@ export default function HallOfFamePage() {
       const table = gameTablesMap.get(registration.tableId);
       // Ensure the table exists and a result is recorded for it
       if (table && gameResultTableIds.has(registration.tableId)) {
-        const day = table.day as ConventionDay;
+        if (!table.days || table.days.length === 0) return; // Skip if table has no days
+
+        const dayForGamePlayed = table.days[0]; // Attribute game played to the first day of the table's schedule
         // Ensure the table's day is a valid convention day
-        if (conventionDays.includes(day)) {
+        if (CONVENTION_DAYS.includes(dayForGamePlayed)) {
           const participantData = playerScores.get(registration.userId);
           if (participantData) {
-            participantData.dailyGamesPlayed[day] += 1; 
+            participantData.dailyGamesPlayed[dayForGamePlayed] += 1; 
             participantData.gamesPlayed += 1;          
           }
         }
@@ -117,7 +123,7 @@ export default function HallOfFamePage() {
 
     // Calculate daily rankings
     const daily: Record<ConventionDay, RankedPlayer[]> = { Jeudi: [], Vendredi: [], Samedi: [], Dimanche: [] };
-    conventionDays.forEach(day => {
+    CONVENTION_DAYS.forEach(day => {
       daily[day] = [...allPlayersArray]
         .filter(p => p.dailyScores[day] > 0 || p.dailyGamesPlayed[day] > 0) 
         .sort((a, b) => b.dailyScores[day] - a.dailyScores[day] || a.name.localeCompare(b.name))
@@ -275,13 +281,13 @@ export default function HallOfFamePage() {
           <CardDescription>Performance des participants pour chaque jour de la convention.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue={conventionDays[0]} className="w-full">
+          <Tabs defaultValue={CONVENTION_DAYS[0]} className="w-full">
             <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
-              {conventionDays.map(day => (
+              {CONVENTION_DAYS.map(day => (
                 <TabsTrigger key={day} value={day}>{day}</TabsTrigger>
               ))}
             </TabsList>
-            {conventionDays.map(day => (
+            {CONVENTION_DAYS.map(day => (
               <TabsContent key={`content-${day}`} value={day} className="mt-4">
                 {renderRankingTable(dailyRankings[day], `Classement du ${day}`, true, day)}
               </TabsContent>
@@ -297,6 +303,7 @@ export default function HallOfFamePage() {
     
 
     
+
 
 
 
