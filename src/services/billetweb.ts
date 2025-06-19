@@ -38,9 +38,25 @@ function mapTicketName(name?: string): TicketType { // name can be undefined
 async function callBilletweb<T = any>(endpoint: string): Promise<T> {
   const url = `https://www.billetweb.fr/api/${endpoint}` +
               `?user=${BILLETWEB_USER}&key=${BILLETWEB_KEY}&version=1`;
-  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  let res;
+  try {
+    res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  } catch (networkError) {
+    // This will catch TypeErrors from fetch (e.g., network down, ECONNRESET before response headers)
+    const keyPreview = BILLETWEB_KEY ? `${BILLETWEB_KEY.substring(0, 3)}...` : '***KEY_MISSING***';
+    const safeUrl = `https://www.billetweb.fr/api/${endpoint}?user=${BILLETWEB_USER}&key=${keyPreview}&version=1`;
+    console.error(`[Billetweb Service] Network error during fetch to ${safeUrl}:`, networkError);
+    if (networkError instanceof Error) {
+        throw new Error(`Billetweb API Fetch Error to ${endpoint}: ${networkError.message}`);
+    }
+    throw new Error(`Billetweb API Fetch Error to ${endpoint}: An unknown network error occurred.`);
+  }
+
   if (!res.ok) {
-    throw new Error(`Billetweb API Error: ${res.status} ${res.statusText} for URL: ${url.replace(BILLETWEB_KEY || '', '***KEY***')}`);
+    // This handles HTTP errors (4xx, 5xx)
+    const keyPreview = BILLETWEB_KEY ? `${BILLETWEB_KEY.substring(0, 3)}...` : '***KEY_MISSING***';
+    const safeUrl = `https://www.billetweb.fr/api/${endpoint}?user=${BILLETWEB_USER}&key=${keyPreview}&version=1`;
+    throw new Error(`Billetweb API HTTP Error: ${res.status} ${res.statusText} for URL: ${safeUrl}`);
   }
   return res.json() as Promise<T>;
 }
@@ -148,7 +164,7 @@ export async function getParticipantsFromBilletweb(): Promise<Participant[]> {
       return participantData;
     });
   } catch (error) {
-    console.error("[Billetweb Service] Erreur lors de l'appel à l'API Billetweb réelle ou du mappage:", error);
+    console.error("[Billetweb Service] Erreur lors de l'appel à l'API Billetweb réelle ou du mappage (attrapée dans getParticipantsFromBilletweb):", error);
     if (error instanceof Error) {
         console.error("[Billetweb Service] Message d'erreur:", error.message);
     }
@@ -182,3 +198,4 @@ export async function getTicketInfo(userId: string): Promise<BilletwebTicketInfo
     ? { id: match.id, type: match.typeBillet }
     : null;
 }
+
