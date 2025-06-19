@@ -120,13 +120,23 @@ export default function GameManager() {
         toast({ title: "Jeu supprimé", description: `Le jeu "${gameToDelete.nom}" a été supprimé avec succès.` });
     } catch (err) {
          const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
-         toast({ 
-            variant: "destructive", 
-            title: "Erreur lors de la suppression", 
-            description: errorMessage,
-            action: errorMessage.includes("utilisé par") ? <AlertTriangle className="text-destructive-foreground h-5 w-5" /> : undefined,
-            duration: 7000,
-        });
+         if (errorMessage.startsWith("Impossible de supprimer le jeu. Il est utilisé par")) {
+            toast({ 
+                variant: "destructive",
+                title: "Suppression impossible", // Titre plus spécifique
+                description: errorMessage, // Contient la raison spécifique
+                action: <AlertTriangle className="text-destructive-foreground h-5 w-5" />,
+                duration: 7000,
+            });
+         } else {
+            // Erreur générique
+            toast({ 
+                variant: "destructive", 
+                title: "Erreur lors de la suppression", 
+                description: errorMessage,
+                duration: 7000,
+            });
+         }
     } finally {
         setIsDeleting(null); 
     }
@@ -327,3 +337,4 @@ export default function GameManager() {
     </div>
   );
 }
+
