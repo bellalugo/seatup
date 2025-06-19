@@ -56,9 +56,10 @@ export default function HallOfFamePage() {
     // Initialize scores for all participants
     participants.forEach(p => {
       if (p.typeBillet !== 'Invitation') { // Corrected from p.ticketType to p.typeBillet
+        const formattedName = `${p.prenom || ''} ${p.nom ? p.nom.charAt(0) + '.' : ''}`.trim();
         playerScores.set(p.id, {
           id: p.id,
-          name: `${p.prenom} ${p.nom}`,
+          name: formattedName,
           // email: p.email, // Not displayed
           dailyScores: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
           dailyGamesPlayed: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
@@ -296,6 +297,7 @@ export default function HallOfFamePage() {
     
 
     
+
 
 
 

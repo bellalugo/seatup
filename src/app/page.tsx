@@ -188,9 +188,10 @@ export default function Home() {
 
         allParticipantsData.forEach(p => {
             if (p.typeBillet !== 'Invitation') { 
+                const formattedName = `${p.prenom || ''} ${p.nom ? p.nom.charAt(0) + '.' : ''}`.trim();
                 playerScoresMap.set(p.id, {
                     id: p.id,
-                    name: `${p.prenom} ${p.nom}`,
+                    name: formattedName,
                     score: 0,
                     gamesPlayedToday: 0,
                     winsToday: 0,
@@ -257,13 +258,14 @@ export default function Home() {
     try {
       const participant = await getParticipantByEmail(emailInput.trim());
       if (participant) {
+        const formattedName = `${participant.prenom || ''} ${participant.nom ? participant.nom.charAt(0) + '.' : ''}`.trim();
         setCurrentUser({
           id: participant.id,
-          name: `${participant.prenom} ${participant.nom}`,
+          name: formattedName,
           ticketType: participant.typeBillet,
           email: participant.email
         });
-        toast({ title: "Participant trouvé", description: `Bienvenue ${participant.prenom} ${participant.nom} !` });
+        toast({ title: "Participant trouvé", description: `Bienvenue ${formattedName} !` });
       } else {
         toast({ variant: "destructive", title: "Participant non trouvé", description: "Aucun participant trouvé avec cet email. Vérifiez l'adresse ou contactez l'organisation." });
       }
@@ -780,7 +782,7 @@ export default function Home() {
                                                                       {registeredParticipantDetails.map(participant => (
                                                                           <li key={participant.id} className="flex items-center">
                                                                               <UserCheck className="h-4 w-4 mr-1.5 text-green-600 flex-shrink-0" />
-                                                                              <span>{participant.prenom} {participant.nom}</span>
+                                                                              <span>{`${participant.prenom || ''} ${participant.nom ? participant.nom.charAt(0) + '.' : ''}`.trim()}</span>
                                                                           </li>
                                                                       ))}
                                                                       {Array.from({ length: freeSeatsCount }).map((_, i) => (
