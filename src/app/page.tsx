@@ -737,7 +737,7 @@ export default function Home() {
                                                       // Determine button state and text
                                                       let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration || isLookingUpUser;
                                                       if (!isRegisteredByUser) { // If not registered by user, add more disable conditions
-                                                          isDisabled = isDisabled || availableSeats <= 0 || (conflict && !isRegisteredByUser);
+                                                          isDisabled = isDisabled || availableSeats <= 0 || (!!conflict && !isRegisteredByUser);
                                                       }
                                                        if (currentUser?.ticketType === 'Invitation') isDisabled = true; // Invitations cannot register
 

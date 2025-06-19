@@ -249,7 +249,7 @@ export default function HallOfFamePage() {
            <div className="mx-auto bg-black rounded-full p-4 w-fit mb-4 shadow-md">
              <Trophy className="h-10 w-10 text-primary" />
            </div>
-          <CardTitle className="text-4xl font-bold tracking-tight text-primary-foreground">ASYNCONV25 : HALL OF FAME</CardTitle>
+          <CardTitle className="text-4xl font-bold tracking-tight text-primary-foreground">ASYNCONV25 : HALL OF FAME (for the fun !)</CardTitle>
           <CardDescription className="text-lg text-primary-foreground/90">
             Classement des Grands Maîtres de la convention !
           </CardDescription>
@@ -298,14 +298,3 @@ export default function HallOfFamePage() {
     </div>
   );
 }
-      
-
-    
-
-    
-
-
-
-
-
-
