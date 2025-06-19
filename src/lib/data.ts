@@ -595,6 +595,11 @@ export const getRegistrationControl = async (): Promise<ManualRegistrationContro
     };
   } catch (error) {
     console.error("Firestore - Erreur lors de la récupération des contrôles d'inscription:", error);
+    if (db && db.app && db.app.options) {
+      console.error(`[getRegistrationControl] Diagnostic: Attempted to use Firestore project ID: ${db.app.options.projectId} when this error occurred.`);
+    } else {
+      console.error("[getRegistrationControl] Diagnostic: 'db' instance or its app options were not available for project ID logging when this error occurred.");
+    }
     if (error instanceof Error) {
         throw new Error(`Impossible de récupérer les contrôles d'inscription. Détails: ${error.message}`);
     }
