@@ -26,6 +26,8 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
+    console.log(`Attempting login with email: ${email} and password: ${password ? '********' : '(empty)'}`);
+
     // --- IMPORTANT ---
     // 1. Check your .env.local file and Firebase Project settings.
     //    Ensure NEXT_PUBLIC_FIREBASE_API_KEY and other config variables are correctly set.
