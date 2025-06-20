@@ -92,7 +92,7 @@ export default function Home() {
 
   const loadPageData = useCallback(async () => {
     setIsLoading(true);
-    setIsLoadingLiveHof(true);
+    // setIsLoadingLiveHof(true); // Moved inside the useEffect that depends on its data
     try {
       const [
         fetchedTables,
@@ -176,7 +176,7 @@ export default function Home() {
 
 
   useEffect(() => {
-    if (isLoading) return; // Wait for initial data load
+    if (isLoading || !allParticipantsData.length || !tables.length ) return; 
 
     setIsLoadingLiveHof(true);
 
@@ -184,7 +184,6 @@ export default function Home() {
     setCurrentLiveConventionDay(liveDayName);
 
     if (liveDayName && allParticipantsData.length > 0 && tables.length > 0 && gameResultsData.size > 0) {
-        // Initialize scores for all non-Invitation participants
         const playerScoresMap: Map<string, { id: string, name: string, score: number, gamesPlayedToday: number, winsToday: number }> = new Map();
 
         allParticipantsData.forEach(p => {
@@ -194,18 +193,16 @@ export default function Home() {
                     id: p.id,
                     name: formattedName,
                     score: 0,
-                    gamesPlayedToday: 0, // Will be incremented based on registrations for today's games
-                    winsToday: 0,        // Will be incremented based on wins in today's games
+                    gamesPlayedToday: 0, 
+                    winsToday: 0,        
                 });
             }
         });
 
         const gameTablesMap = new Map(tables.map(t => [t.id, t]));
 
-        // Calculate scores and wins from game results for today
         Array.from(gameResultsData.values()).forEach(result => {
             const table = gameTablesMap.get(result.tableId);
-            // Only consider results for tables active on the liveDayName
             if (!table || !table.days.includes(liveDayName)) return;
 
             const pointsPerWin = result.playersInGame >= 5 ? 2 : 1;
@@ -219,10 +216,8 @@ export default function Home() {
             });
         });
         
-        // Calculate games played today from registrations for today's tables that have results
         registrations.forEach(reg => {
             const tableOfRegistration = gameTablesMap.get(reg.tableId);
-            // Ensure the table exists, is for today, and has a game result recorded
             if (tableOfRegistration && tableOfRegistration.days.includes(liveDayName) && gameResultsData.has(reg.tableId)) {
                 const playerData = playerScoresMap.get(reg.userId);
                 if (playerData) {
@@ -233,9 +228,9 @@ export default function Home() {
 
 
         const rankedToday = Array.from(playerScoresMap.values())
-            .filter(p => p.score > 0 || p.gamesPlayedToday > 0) // Show players with score OR games played today
-            .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)) // Primary sort by score, secondary by name
-            .slice(0, 5) // Top 5
+            .filter(p => p.score > 0 || p.gamesPlayedToday > 0) 
+            .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)) 
+            .slice(0, 5) 
             .map((player, index) => ({
                 id: player.id,
                 name: player.name,
@@ -247,7 +242,7 @@ export default function Home() {
         setTopPlayersToday([]);
     }
     setIsLoadingLiveHof(false);
-  }, [isLoading, allParticipantsData, tables, gameResultsData, registrations]); // Rerun when any of these change
+  }, [isLoading, allParticipantsData, tables, gameResultsData, registrations]); 
 
 
   const handleUserLookup = async () => {
@@ -256,7 +251,7 @@ export default function Home() {
       return;
     }
     setIsLookingUpUser(true);
-    setCurrentUser(null); // Reset current user before lookup
+    setCurrentUser(null); 
     try {
       const participant = await getParticipantByEmail(emailInput.trim());
       if (participant) {
@@ -281,7 +276,7 @@ export default function Home() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    setEmailInput(''); // Optionally clear the email input on logout
+    setEmailInput(''); 
     toast({ title: "Déconnecté", description: "Vous avez été déconnecté." });
   };
 
@@ -292,11 +287,8 @@ export default function Home() {
       return;
     }
 
-    // Check if registration is open for the user's ticket type based on manual controls
     if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) {
-       // Construct a more detailed message about why registration isn't open
        let description = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment.`;
-       // Further refine based on which phases ARE open, if any
        const openPhases = ticketPhaseStatuses.filter(s => s.isOpen).map(s => s.ticketType);
        if (openPhases.length > 0) {
         description += ` Actuellement, les inscriptions sont ouvertes pour : ${openPhases.join(', ')}.`;
@@ -307,7 +299,7 @@ export default function Home() {
         variant: "destructive",
         title: "Inscription non disponible",
         description: description,
-        duration: 7000, // Longer duration for more complex message
+        duration: 7000, 
       });
       return;
     }
@@ -324,7 +316,6 @@ export default function Home() {
       return;
     }
 
-    // Check for time conflicts before opening confirmation
     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser.id);
     if (hasTimeConflict({ days: table.days, timeSlotType: table.timeSlotType }, userCurrentRegistrations, tables)) {
        toast({ variant: "destructive", title: "Conflit de créneau horaire", description: "Vous êtes déjà inscrit(e) à un jeu pendant ce créneau horaire." });
@@ -337,7 +328,7 @@ export default function Home() {
 
 
   const handleRegister = async (tableId: string) => {
-    if (!currentUser || !registrationControls) { // Ensure currentUser and controls are loaded
+    if (!currentUser || !registrationControls) { 
       toast({ variant: "destructive", title: "Utilisateur non connecté ou contrôles non chargés", description: "Veuillez vous connecter ou attendez le chargement des données." });
       return;
     }
@@ -348,7 +339,6 @@ export default function Home() {
       return;
     }
 
-    // Double-check registration phase (could have changed since dialog opened)
     if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) {
       toast({
         variant: "destructive",
@@ -356,12 +346,11 @@ export default function Home() {
         description: `L'inscription pour votre type de billet (${currentUser.ticketType}) a été fermée.`,
         duration: 7000,
       });
-      setIsConfirmDialogOpen(false); // Close dialog if phase changed
+      setIsConfirmDialogOpen(false); 
       setTableToConfirm(null);
       return;
     }
 
-    // Check available seats again (could have changed)
     const availableSeats = getAvailableSeats(table.id, registrations, tables);
     if (availableSeats <= 0) {
       toast({ variant: "destructive", title: "Table complète", description: "Aucune place disponible à cette table." });
@@ -370,7 +359,6 @@ export default function Home() {
       return;
     }
 
-    // Check if already registered (unlikely if dialog opened, but good practice)
     const isAlreadyRegistered = registrations.some(r => r.userId === currentUser.id && r.tableId === tableId);
     if (isAlreadyRegistered) {
       toast({ variant: "destructive", title: "Déjà inscrit(e)", description: "Vous êtes déjà inscrit(e) à cette table." });
@@ -379,7 +367,6 @@ export default function Home() {
       return;
     }
 
-    // Final conflict check
     const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser.id);
      if (hasTimeConflict({ days: table.days, timeSlotType: table.timeSlotType }, userCurrentRegistrations, tables)) {
        toast({ variant: "destructive", title: "Conflit de créneau horaire", description: "Vous êtes déjà inscrit(e) à un jeu pendant ce créneau horaire." });
@@ -390,9 +377,7 @@ export default function Home() {
 
     setIsSubmittingRegistration(true);
     try {
-        // Add registration to DB
         await addRegistrationToDb(currentUser.id, tableId);
-        // Fetch updated registrations to reflect the change immediately
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
 
@@ -405,21 +390,20 @@ export default function Home() {
          toast({ variant: "destructive", title: "Échec de l'inscription", description: (error as Error).message });
     } finally {
         setIsSubmittingRegistration(false);
-        setIsConfirmDialogOpen(false); // Close dialog in all cases after attempt
+        setIsConfirmDialogOpen(false); 
         setTableToConfirm(null);
     }
   };
 
   const handleUnregister = async (tableId: string) => {
-     if (!currentUser) return; // Should not happen if button is visible
+     if (!currentUser) return; 
 
      const table = tables.find(t => t.id === tableId);
-     if (!table) return; // Should not happen
+     if (!table) return; 
 
      setIsSubmittingRegistration(true);
      try {
         await removeRegistrationFromDb(currentUser.id, tableId);
-        // Fetch updated registrations to reflect the change
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
 
@@ -435,22 +419,19 @@ export default function Home() {
     }
   }
 
-  // Memoized user schedule
   const getUserSchedule = useCallback((): GameTable[] => {
     if (!currentUser) return [];
     const userTableIds = registrations.filter(r => r.userId === currentUser.id).map(r => r.tableId);
     return tables
         .filter(t => userTableIds.includes(t.id))
         .sort((a, b) => {
-            // Sort by the first day of the table, then by timeSlotType
-            const dayOrder = APP_CONVENTION_DAYS; // Use the imported constant
+            const dayOrder = APP_CONVENTION_DAYS; 
             const firstDayA = a.days.length > 0 ? a.days[0] : '';
             const firstDayB = b.days.length > 0 ? b.days[0] : '';
 
             if (dayOrder.indexOf(firstDayA as ConventionDay) !== dayOrder.indexOf(firstDayB as ConventionDay)) {
                 return dayOrder.indexOf(firstDayA as ConventionDay) - dayOrder.indexOf(firstDayB as ConventionDay);
             }
-            // Add sorting by timeSlotType if days are the same or not determined
             const timeSlotTypeSortOrder = TIME_SLOT_TYPE_OPTIONS.map(opt => opt.value);
             const timeSlotAIndex = timeSlotTypeSortOrder.indexOf(a.timeSlotType);
             const timeSlotBIndex = timeSlotTypeSortOrder.indexOf(b.timeSlotType);
@@ -471,23 +452,21 @@ export default function Home() {
         return 'marshal';
       case 'Général':
         return 'general';
-      case 'Invitation': // Invitations also use secondary, or a specific "invitation" variant if defined
+      case 'Invitation': 
         return 'secondary';
       default:
         return 'secondary';
     }
   };
   
-  // For displaying registration status messages
   const openPhaseBadges = ticketPhaseStatuses.filter(s => s.isOpen);
   const closedPhaseBadges = ticketPhaseStatuses.filter(s => !s.isOpen);
   
-  // Determine if a warning specific to the logged-in user's ticket type should be shown
   const showUserSpecificWarning = currentUser && 
                                 registrationControls && 
                                 currentUser.ticketType !== 'Invitation' && 
                                 !canRegisterBasedOnTicket(currentUser.ticketType, registrationControls) &&
-                                openPhaseBadges.length > 0; // Only show if some other phases ARE open
+                                openPhaseBadges.length > 0; 
 
   const timeSlotTypeSortOrder = TIME_SLOT_TYPE_OPTIONS.map(opt => opt.value);
 
@@ -507,9 +486,8 @@ export default function Home() {
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        {/* User Connection / Status Card */}
         <div className="grid grid-cols-1 md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
-          <Card className="shadow-lg rounded-lg h-full flex flex-col"> {/* Ensure full height for layout consistency */}
+          <Card className="shadow-lg rounded-lg h-full flex flex-col"> 
               <CardHeader>
               <div className="flex flex-row items-center justify-between">
                   <div>
@@ -518,7 +496,7 @@ export default function Home() {
                   </div>
               </div>
               </CardHeader>
-              <CardContent className="space-y-4 flex-grow"> {/* flex-grow to push content if card is taller */}
+              <CardContent className="space-y-4 flex-grow"> 
               {!currentUser ? (
                   <div className="flex flex-col sm:flex-row items-end gap-3">
                   <div className="flex-grow w-full sm:w-auto">
@@ -549,7 +527,6 @@ export default function Home() {
                             Billet : {currentUser.ticketType}
                         </Badge>
                         <p className="text-xs text-muted-foreground mt-1">Email: {currentUser.email}</p>
-                        {/* Specific warning for user if their ticket type cannot register but others can */}
                         {showUserSpecificWarning && (
                             <p className="text-xs text-destructive mt-1 font-medium">
                                 <AlertCircle className="inline h-3.5 w-3.5 mr-1" />
@@ -564,12 +541,11 @@ export default function Home() {
                   </div>
               )}
               
-              {/* Registration Phase Status Display */}
               <div className="space-y-2 mt-3 pt-3 border-t">
-                {isLoading && !registrationControls && ( // Show loading only if controls are not yet fetched
+                {isLoading && !registrationControls && ( 
                      <p className="text-sm text-muted-foreground">Chargement de l'état des inscriptions...</p>
                 )}
-                {registrationControls && ( // Only display once controls are loaded
+                {registrationControls && ( 
                     <>
                         {openPhaseBadges.length > 0 && (
                         <div>
@@ -584,7 +560,7 @@ export default function Home() {
                         </div>
                         )}
 
-                        {closedPhaseBadges.length > 0 && openPhaseBadges.length > 0 && ( // Show closed only if some are open
+                        {closedPhaseBadges.length > 0 && openPhaseBadges.length > 0 && ( 
                           <div className="mt-3"> 
                             <p className="text-xs font-medium text-muted-foreground mb-1">Accès aux tables fermé pour :</p>
                             <div className="flex flex-wrap gap-2">
@@ -597,7 +573,7 @@ export default function Home() {
                           </div>
                         )}
                         
-                        {openPhaseBadges.length === 0 && ( // If NO phases are open
+                        {openPhaseBadges.length === 0 && ( 
                             <p className="text-sm font-semibold text-destructive">Inscriptions actuellement closes.</p>
                         )}
                     </>
@@ -606,8 +582,7 @@ export default function Home() {
               </CardContent>
           </Card>
 
-          {/* Live Hall of Fame Card */}
-          <Card className="shadow-lg rounded-lg h-full flex flex-col"> {/* Ensure full height */}
+          <Card className="shadow-lg rounded-lg h-full flex flex-col"> 
               <CardHeader>
                   <div className="flex items-center justify-between">
                       <div>
@@ -625,7 +600,7 @@ export default function Home() {
                       </Link>
                   </div>
               </CardHeader>
-              <CardContent className="flex-grow"> {/* flex-grow to use available space */}
+              <CardContent className="flex-grow"> 
                   {isLoadingLiveHof ? (
                       <div className="flex items-center justify-center h-full">
                           <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -660,10 +635,8 @@ export default function Home() {
           </Card>
         </div>
 
-
-        {/* Tables Display Section */}
-         {isLoading && !tables.length ? ( // Show main loader only if no tables are loaded yet
-             <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]"> {/* Adjust height as needed */}
+         {isLoading && !tables.length ? ( 
+             <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]"> 
                <Loader2 className="h-12 w-12 animate-spin text-primary" />
                <p className="ml-4 text-muted-foreground">Chargement des tables de jeu...</p>
              </div>
@@ -677,9 +650,8 @@ export default function Home() {
                   </TabsList>
 
                   {conventionDaysConfig.map(dayConfig => {
-                      // Filter tables for the current day in the tab
                       const dayTables = tables
-                          .filter(table => table.days.includes(dayConfig.name)) // Filter by current tab's day
+                          .filter(table => table.days.includes(dayConfig.name)) 
                           .sort((a, b) => { 
                               const tableNumA_raw = a.tableNumber || '';
                               const tableNumB_raw = b.tableNumber || '';
@@ -718,18 +690,15 @@ export default function Home() {
                                       <CardDescription>Jeux disponibles pour {dayConfig.name}.</CardDescription>
                                   </CardHeader>
                                   <CardContent>
-                                      {/* Show loader inside tab if tables are still loading but some might be there */}
                                       {isLoading && tables.length > 0 && <div className="text-center py-4"><Loader2 className="inline h-6 w-6 animate-spin text-primary mr-2" />Chargement des tables...</div>}
-                                      {/* No tables for this specific day */}
                                       {!isLoading && dayTables.length === 0 && <p className="text-muted-foreground text-center py-4">Aucune table disponible pour {dayConfig.name} {dayConfig.date}.</p>}
-                                      {/* Tables loaded and available for this day */}
                                       {!isLoading && dayTables.length > 0 && (
                                           <Table>
                                               <TableCaption>Liste des jeux disponibles le {dayConfig.name} {dayConfig.date}.</TableCaption>
                                               <TableHeader>
                                                   <TableRow>
                                                       <TableHead className="w-24 text-center">Table n°</TableHead>
-                                                      <TableHead className="w-64" /> {/* Image column */}
+                                                      <TableHead className="w-64" /> 
                                                       <TableHead>Jeu</TableHead>
                                                       <TableHead>Auteur/Animateur</TableHead>
                                                       <TableHead>Jours</TableHead>
@@ -743,76 +712,18 @@ export default function Home() {
                                                       const availableSeats = getAvailableSeats(table.id, registrations, tables);
                                                       const isRegisteredByUser = currentUser && registrations.some(r => r.userId === currentUser.id && r.tableId === table.id);
                                                       const canRegisterNow = currentUser && registrationControls && canRegisterBasedOnTicket(currentUser.ticketType, registrationControls);
-                                                      const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id); // Get current user's registrations
+                                                      const userCurrentRegistrations = registrations.filter(r => r.userId === currentUser?.id); 
                                                       const conflict = currentUser && hasTimeConflict({ days: table.days, timeSlotType: table.timeSlotType }, userCurrentRegistrations, tables);
 
-                                                      // Get participant details for this table
                                                       const registrationsForThisTable = registrations.filter(r => r.tableId === table.id);
                                                       const registeredParticipantDetails = registrationsForThisTable.map(reg => {
                                                           return allParticipantsData.find(p => p.id === reg.userId);
-                                                      }).filter(p => p !== undefined) as Participant[]; // Filter out undefined and assert type
+                                                      }).filter(p => p !== undefined) as Participant[]; 
 
                                                       const occupiedSeatsCount = registeredParticipantDetails.length;
                                                       const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
-
-                                                      // Determine button state and text
-                                                      let isDisabled = !currentUser || !canRegisterNow || isSubmittingRegistration || isLookingUpUser;
-                                                      if (!isRegisteredByUser) { // If not registered by user, add more disable conditions
-                                                          isDisabled = isDisabled || availableSeats <= 0 || (!!conflict && !isRegisteredByUser);
-                                                      }
-                                                       if (currentUser?.ticketType === 'Invitation') isDisabled = true; // Invitations cannot register
-
-                                                      let buttonText = "S'inscrire";
-                                                      let buttonVariant: "default" | "secondary" | "destructive" = "default";
-                                                      let onClickAction: (() => void) | undefined = () => openConfirmationDialog(table);
-                                                      let tooltipText = "";
-                                                      let icon = null;
-
-
-                                                      if (isSubmittingRegistration || isLookingUpUser) {
-                                                          buttonText = "Chargement...";
-                                                          buttonVariant = "secondary";
-                                                          icon = <Loader2 className="mr-2 h-4 w-4 animate-spin" />;
-                                                      } else if (isRegisteredByUser) {
-                                                          buttonText = "Inscrit(e)";
-                                                          buttonVariant = "secondary"; // Visually distinct from "S'inscrire"
-                                                          onClickAction = () => handleUnregister(table.id);
-                                                          tooltipText = "Cliquez pour vous désinscrire";
-                                                          icon = <CheckCircle className="mr-2 h-4 w-4" />;
-                                                      } else if (!currentUser && availableSeats <=0) { // Not logged in AND table full
-                                                          buttonText = "Complet !";
-                                                          buttonVariant = "destructive";
-                                                          tooltipText = "Cette table est complète.";
-                                                          onClickAction = undefined; // No action
-                                                      } else if (!currentUser) { // Not logged in, but table might have seats
-                                                          tooltipText = "Connectez-vous pour vous inscrire";
-                                                          buttonText = "Connectez-vous";
-                                                          buttonVariant = "secondary";
-                                                      } else if (currentUser.ticketType === 'Invitation') {
-                                                          tooltipText = "Les détenteurs de billets 'Invitation' ne peuvent pas s'inscrire.";
-                                                          buttonText = "Indisponible";
-                                                          buttonVariant = "secondary";
-                                                          icon = <AlertCircle className="mr-2 h-4 w-4" />;
-                                                      } else if (!canRegisterNow) {
-                                                          tooltipText = `L'inscription pour votre type de billet (${currentUser.ticketType}) n'est pas ouverte pour le moment.`;
-                                                          buttonText = "Indisponible";
-                                                          buttonVariant = "secondary";
-                                                          icon = <AlertCircle className="mr-2 h-4 w-4" />;
-                                                      } else if (conflict && !isRegisteredByUser) { // Conflict only matters if trying to register, not if already registered
-                                                          tooltipText = "Conflit avec votre planning";
-                                                          // isDisabled is already true due to conflict
-                                                          // Button text will be 'S'inscrire' but disabled, Tooltip explains why
-                                                      } else if (availableSeats <= 0) {
-                                                          tooltipText = "Table est complète";
-                                                          buttonText = "Complet";
-                                                          buttonVariant = "destructive";
-                                                          icon = <AlertCircle className="mr-2 h-4 w-4" />;
-                                                          // isDisabled is already true
-                                                      } else {
-                                                          tooltipText = "Cliquez pour vous inscrire à cette table";
-                                                          // Default buttonText and icon are fine
-                                                      }
                                                       const imageUrl = table.gameImageUrl || table.imageUrl;
+                                                      
                                                       return (
                                                           <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
                                                               <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
@@ -821,9 +732,9 @@ export default function Home() {
                                                                       <Image
                                                                           src={imageUrl}
                                                                           alt={`Image du jeu ${table.gameName}`}
-                                                                          width={256} // Original width for aspect ratio calculation
-                                                                          height={144} // Original height
-                                                                          className="rounded object-contain h-20 w-auto shadow-sm" // Fixed height, auto width, contain
+                                                                          width={256} 
+                                                                          height={144} 
+                                                                          className="rounded object-contain h-20 w-auto shadow-sm" 
                                                                           data-ai-hint="game cover"
                                                                       />
                                                                   ) : (
@@ -868,44 +779,84 @@ export default function Home() {
                                                                           </li>
                                                                       )}
                                                                   </ul>
-                                                                  {table.totalSeats > 0 && ( // Show count only if totalSeats is defined > 0
+                                                                  {table.totalSeats > 0 && ( 
                                                                       <p className="text-xs text-muted-foreground mt-1">
                                                                           ({occupiedSeatsCount} / {table.totalSeats} occupées)
                                                                       </p>
                                                                   )}
                                                               </TableCell>
                                                               <TableCell className="text-center">
-                                                                {/* Case 1: Table full and user not logged in (Button with "Complet !") */}
-                                                                {(!currentUser && availableSeats <= 0) ? (
-                                                                    <Badge variant="destructive" title="Cette table est complète">Complet !</Badge>
-                                                                // Case 2: Conflict for logged-in user who is NOT registered for this table
-                                                                ) : (!!conflict && currentUser && !isRegisteredByUser) ? ( // Ensure conflict is boolean here
-                                                                    <Tooltip>
-                                                                      <TooltipTrigger asChild>
-                                                                        {/* Display a Ban icon, which is not clickable but shows tooltip */}
-                                                                        <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-destructive/10 cursor-default" aria-label={tooltipText}>
-                                                                          <Ban className="h-5 w-5 text-destructive" />
-                                                                        </span>
-                                                                      </TooltipTrigger>
-                                                                      <TooltipContent>
-                                                                        <p>{tooltipText}</p>
-                                                                      </TooltipContent>
-                                                                    </Tooltip>
-                                                                // Case 3: Default button (S'inscrire, Inscrit(e), Complet, Indisponible, etc.)
-                                                                ) : (
-                                                                    <Button
-                                                                        onClick={onClickAction}
-                                                                        size="sm"
-                                                                        variant={buttonVariant}
-                                                                        disabled={isDisabled || (!currentUser && availableSeats <=0)} // Disable if not logged in AND table full
-                                                                        aria-label={tooltipText || buttonText}
-                                                                        title={tooltipText || buttonText}
-                                                                        className="shadow-sm rounded-md"
-                                                                    >
-                                                                        {icon}
-                                                                        {buttonText}
+                                                                {(() => {
+                                                                  if (isSubmittingRegistration || isLookingUpUser) {
+                                                                    return (
+                                                                      <Button size="sm" variant="secondary" disabled className="shadow-sm rounded-md">
+                                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement...
+                                                                      </Button>
+                                                                    );
+                                                                  }
+                                                                  if (isRegisteredByUser) {
+                                                                    return (
+                                                                      <Button onClick={() => handleUnregister(table.id)} size="sm" variant="secondary" title="Cliquez pour vous désinscrire" className="shadow-sm rounded-md">
+                                                                        <CheckCircle className="mr-2 h-4 w-4" /> Inscrit(e)
+                                                                      </Button>
+                                                                    );
+                                                                  }
+                                                                  if (!currentUser) {
+                                                                    if (availableSeats <= 0) {
+                                                                      return <Badge variant="destructive" title="Cette table est complète">Complet !</Badge>;
+                                                                    }
+                                                                    return (
+                                                                      <Button onClick={() => openConfirmationDialog(table)} size="sm" variant="secondary" title="Connectez-vous pour vous inscrire" className="shadow-sm rounded-md">
+                                                                        Connectez-vous
+                                                                      </Button>
+                                                                    );
+                                                                  }
+                                                                  // From here, currentUser is guaranteed to exist
+                                                                  if (currentUser.ticketType === 'Invitation') {
+                                                                    return (
+                                                                      <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                          <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-muted/10 cursor-default" aria-label="Indisponible (Invitation)">
+                                                                            <Ban className="h-5 w-5 text-muted-foreground" />
+                                                                          </span>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent><p>Les détenteurs de billets 'Invitation' ne peuvent pas s'inscrire.</p></TooltipContent>
+                                                                      </Tooltip>
+                                                                    );
+                                                                  }
+                                                                  if (!canRegisterNow) {
+                                                                    return (
+                                                                      <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                          <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-muted/10 cursor-default" aria-label="Indisponible (Phase fermée)">
+                                                                            <Ban className="h-5 w-5 text-muted-foreground" />
+                                                                          </span>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent><p>{`L'inscription pour votre billet (${currentUser.ticketType}) n'est pas ouverte.`}</p></TooltipContent>
+                                                                      </Tooltip>
+                                                                    );
+                                                                  }
+                                                                  if (conflict) { 
+                                                                    return (
+                                                                      <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                          <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-destructive/10 cursor-default" aria-label="Conflit horaire">
+                                                                            <Ban className="h-5 w-5 text-destructive" />
+                                                                          </span>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent><p>Conflit avec votre planning.</p></TooltipContent>
+                                                                      </Tooltip>
+                                                                    );
+                                                                  }
+                                                                  if (availableSeats <= 0) {
+                                                                    return <Badge variant="destructive" title="Cette table est complète">Complet</Badge>;
+                                                                  }
+                                                                  return (
+                                                                    <Button onClick={() => openConfirmationDialog(table)} size="sm" variant="default" title="Cliquez pour vous inscrire" className="shadow-sm rounded-md">
+                                                                      S'inscrire
                                                                     </Button>
-                                                                )}
+                                                                  );
+                                                                })()}
                                                               </TableCell>
                                                           </TableRow>
                                                       );
@@ -920,8 +871,7 @@ export default function Home() {
                   })}
               </Tabs>
 
-              {/* User's Schedule Section */}
-              {currentUser && currentUser.ticketType !== 'Invitation' && ( // Show schedule if user is logged in and not an Invitation
+              {currentUser && currentUser.ticketType !== 'Invitation' && ( 
                   <Card className="mt-6 shadow-lg rounded-lg">
                   <CardHeader>
                       <CardTitle>Planning de {currentUser.name}</CardTitle>
@@ -933,7 +883,7 @@ export default function Home() {
                           <TableHeader>
                               <TableRow>
                               <TableHead className="w-24 text-center">Table n°</TableHead>
-                              <TableHead className="w-64" /> {/* Image */}
+                              <TableHead className="w-64" /> 
                               <TableHead>Jours</TableHead>
                               <TableHead>Créneau horaire</TableHead>
                               <TableHead>Jeu</TableHead>
@@ -973,7 +923,7 @@ export default function Home() {
                                           size="sm"
                                           variant="outline"
                                           title="Se désinscrire de cette table"
-                                          disabled={isSubmittingRegistration || isLookingUpUser} // Disable if any global loading is active
+                                          disabled={isSubmittingRegistration || isLookingUpUser} 
                                           className="shadow-sm rounded-md"
                                           >
                                           {(isSubmittingRegistration || isLookingUpUser) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -991,7 +941,7 @@ export default function Home() {
                   </CardContent>
                   </Card>
               )}
-               {currentUser && currentUser.ticketType === 'Invitation' && ( // Specific message for "Invitation" ticket holders
+               {currentUser && currentUser.ticketType === 'Invitation' && ( 
                    <Card className="mt-6 shadow-lg rounded-lg">
                       <CardHeader>
                           <CardTitle>Planning de {currentUser.name}</CardTitle>
@@ -1004,7 +954,6 @@ export default function Home() {
             </>
          )}
 
-          {/* Confirmation Dialog */}
           <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
               <AlertDialogContent>
                   <AlertDialogHeader>
