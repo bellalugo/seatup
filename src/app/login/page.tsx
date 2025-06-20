@@ -13,8 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Loader2, Eye, EyeOff } from 'lucide-react'; // Import icons
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('olivier@asynconv.fr'); // Default admin email
-  const [password, setPassword] = useState('p4SIT/ASYNCONV25%'); // Default admin password
+  const [email, setEmail] = useState(''); // Default admin email REMOVED
+  const [password, setPassword] = useState(''); // Default admin password REMOVED
   const [showPassword, setShowPassword] = useState(false); // State for password visibility
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +109,7 @@ export default function LoginPage() {
               <Input
                 id="email" // ID remains 'email' for signInWithEmailAndPassword which expects an email field
                 type="email" // Changed from email to text, Firebase handles non-email format if allowed in project
-                placeholder="olivier@asynconv.fr"
+                placeholder="exemple@domaine.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
