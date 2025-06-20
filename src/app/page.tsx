@@ -491,6 +491,19 @@ export default function Home() {
 
   const timeSlotTypeSortOrder = TIME_SLOT_TYPE_OPTIONS.map(opt => opt.value);
 
+  const getTimeSlotColorClass = (timeSlotType: TimeSlotType): string => {
+    switch (timeSlotType) {
+      case 'Matin':
+        return 'text-blue-600';
+      case 'Après-midi':
+        return 'text-orange-700';
+      case 'Journée':
+      case 'Off':
+      default:
+        return 'text-destructive';
+    }
+  };
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
@@ -503,7 +516,6 @@ export default function Home() {
                   <CardTitle>Connexion</CardTitle>
                   <CardDescription>Saisissez le courriel utilisé sur <strong>billetweb</strong> pour vous identifier et accéder aux système de réservation des tables.</CardDescription>
                   </div>
-                  {/* Actualiser button removed from here */}
               </div>
               </CardHeader>
               <CardContent className="space-y-4 flex-grow"> {/* flex-grow to push content if card is taller */}
@@ -832,7 +844,9 @@ export default function Home() {
                                                                   )}
                                                               </TableCell>
                                                               <TableCell className="text-xs">{table.days.join(', ')}</TableCell>
-                                                              <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}</TableCell>
+                                                              <TableCell className={`font-bold ${getTimeSlotColorClass(table.timeSlotType)}`}>
+                                                                <Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
+                                                              </TableCell>
                                                               <TableCell className="text-left align-top">
                                                                   <ul className="list-none p-0 m-0 text-xs space-y-1">
                                                                       {registeredParticipantDetails.map(participant => (
@@ -947,7 +961,9 @@ export default function Home() {
                                       )}
                                   </TableCell>
                                   <TableCell className="text-xs"><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.days.join(', ')}</TableCell>
-                                  <TableCell className="font-bold text-destructive"><Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}</TableCell>
+                                  <TableCell className={`font-bold ${getTimeSlotColorClass(table.timeSlotType)}`}>
+                                    <Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
+                                  </TableCell>
                                   <TableCell className="font-bold">
                                       {table.gameName}
                                   </TableCell>
