@@ -39,7 +39,7 @@ import {
     getRegistrationControl,
 } from '@/lib/data';
 import type { GameTable, User, Registration, Participant, GameResult, TicketType, ManualRegistrationControls, ConventionDay, TimeSlotType } from '@/lib/types';
-import { CONVENTION_DAYS as APP_CONVENTION_DAYS, getTimeSlotTypeDisplayLabel } from '@/lib/types'; // Renamed to avoid conflict
+import { CONVENTION_DAYS as APP_CONVENTION_DAYS, getTimeSlotTypeDisplayLabel, TIME_SLOT_TYPE_OPTIONS } from '@/lib/types'; // Renamed to avoid conflict & IMPORTED TIME_SLOT_TYPE_OPTIONS
 import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban, Star } from 'lucide-react';
 
 const conventionDaysConfig = [
@@ -451,8 +451,12 @@ export default function Home() {
                 return dayOrder.indexOf(firstDayA as ConventionDay) - dayOrder.indexOf(firstDayB as ConventionDay);
             }
             // Add sorting by timeSlotType if days are the same or not determined
-            // This part might need adjustment based on how you want to order timeSlotTypes
-            return getTimeSlotTypeDisplayLabel(a.timeSlotType).localeCompare(getTimeSlotTypeDisplayLabel(b.timeSlotType));
+            const timeSlotTypeSortOrder = TIME_SLOT_TYPE_OPTIONS.map(opt => opt.value);
+            const timeSlotAIndex = timeSlotTypeSortOrder.indexOf(a.timeSlotType);
+            const timeSlotBIndex = timeSlotTypeSortOrder.indexOf(b.timeSlotType);
+            if (timeSlotAIndex < timeSlotBIndex) return -1;
+            if (timeSlotAIndex > timeSlotBIndex) return 1;
+            return 0;
         });
   }, [currentUser, registrations, tables]);
 
@@ -484,6 +488,8 @@ export default function Home() {
                                 currentUser.ticketType !== 'Invitation' && 
                                 !canRegisterBasedOnTicket(currentUser.ticketType, registrationControls) &&
                                 openPhaseBadges.length > 0; // Only show if some other phases ARE open
+
+  const timeSlotTypeSortOrder = TIME_SLOT_TYPE_OPTIONS.map(opt => opt.value);
 
   return (
     <TooltipProvider>
@@ -662,11 +668,10 @@ export default function Home() {
                       // Filter tables for the current day in the tab
                       const dayTables = tables
                           .filter(table => table.days.includes(dayConfig.name)) // Filter by current tab's day
-                          .sort((a, b) => { // Sort by tableNumber (alphanumerically), then by timeSlotType
+                          .sort((a, b) => { 
                               const tableNumA_raw = a.tableNumber || '';
                               const tableNumB_raw = b.tableNumber || '';
                               
-                              // Attempt to parse as numbers for purely numeric table numbers
                               const numA_parsed = parseFloat(tableNumA_raw.replace(',', '.'));
                               const numB_parsed = parseFloat(tableNumB_raw.replace(',', '.'));
                               
@@ -676,18 +681,22 @@ export default function Home() {
                               if (isPurelyNumericA && isPurelyNumericB) {
                                   if (numA_parsed < numB_parsed) return -1;
                                   if (numA_parsed > numB_parsed) return 1;
-                              } else if (isPurelyNumericA) { // Numeric ones first
+                              } else if (isPurelyNumericA) { 
                                   return -1;
                               } else if (isPurelyNumericB) {
                                   return 1;
-                              } else { // Alphanumeric comparison
+                              } else { 
                                   const strA = tableNumA_raw.toLowerCase();
                                   const strB = tableNumB_raw.toLowerCase();
                                   if (strA < strB) return -1;
                                   if (strA > strB) return 1;
                               }
-                              // If table numbers are identical (or non-numeric and same), sort by time slot
-                              return getTimeSlotTypeDisplayLabel(a.timeSlotType).localeCompare(getTimeSlotTypeDisplayLabel(b.timeSlotType));
+                              
+                              const timeSlotAIndex = timeSlotTypeSortOrder.indexOf(a.timeSlotType);
+                              const timeSlotBIndex = timeSlotTypeSortOrder.indexOf(b.timeSlotType);
+                              if (timeSlotAIndex < timeSlotBIndex) return -1;
+                              if (timeSlotAIndex > timeSlotBIndex) return 1;
+                              return 0;
                           });
                       return (
                           <TabsContent key={dayConfig.value} value={dayConfig.value}>
@@ -856,7 +865,7 @@ export default function Home() {
                                                                 {(!currentUser && availableSeats <= 0) ? (
                                                                     <Badge variant="destructive" title="Cette table est complète">Complet !</Badge>
                                                                 // Case 2: Conflict for logged-in user who is NOT registered for this table
-                                                                ) : (conflict && currentUser && !isRegisteredByUser) ? (
+                                                                ) : (!!conflict && currentUser && !isRegisteredByUser) ? ( // Ensure conflict is boolean here
                                                                     <Tooltip>
                                                                       <TooltipTrigger asChild>
                                                                         {/* Display a Ban icon, which is not clickable but shows tooltip */}
@@ -1008,3 +1017,4 @@ export default function Home() {
     </TooltipProvider>
   );
 }
+
