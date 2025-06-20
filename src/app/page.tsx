@@ -477,6 +477,7 @@ export default function Home() {
       case 'Après-midi':
         return 'text-orange-700';
       case 'Journée':
+        return 'text-gray-700';
       case 'Off':
       default:
         return 'text-destructive';
@@ -836,7 +837,7 @@ export default function Home() {
                                                                       </Tooltip>
                                                                     );
                                                                   }
-                                                                  if (conflict) { 
+                                                                  if (!!conflict && !isRegisteredByUser) { 
                                                                     return (
                                                                       <Tooltip>
                                                                         <TooltipTrigger asChild>
