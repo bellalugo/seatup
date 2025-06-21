@@ -481,17 +481,17 @@ export default function Home() {
 
   const timeSlotTypeSortOrder = TIME_SLOT_TYPE_OPTIONS.map(opt => opt.value);
 
-  const getTimeSlotColorClass = (timeSlotType: TimeSlotType): string => {
+  const getTimeSlotCellClasses = (timeSlotType: TimeSlotType): string => {
     switch (timeSlotType) {
       case 'Matin':
-        return 'text-blue-600';
+        return 'bg-blue-50/70 text-blue-800';
       case 'Après-midi':
-        return 'text-orange-700';
+        return 'bg-amber-50/70 text-orange-800';
       case 'Journée':
-        return 'text-gray-700';
+        return 'bg-gray-100 text-gray-800';
       case 'Off':
       default:
-        return 'text-destructive';
+        return 'bg-red-50 text-red-800';
     }
   };
 
@@ -767,8 +767,8 @@ export default function Home() {
                                                                   )}
                                                               </TableCell>
                                                               <TableCell className="text-xs">{table.days.join(', ')}</TableCell>
-                                                              <TableCell className={`font-bold ${getTimeSlotColorClass(table.timeSlotType)}`}>
-                                                                <Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
+                                                              <TableCell className={`text-center font-semibold ${getTimeSlotCellClasses(table.timeSlotType)}`}>
+                                                                <Clock className="inline h-4 w-4 mr-1" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
                                                               </TableCell>
                                                               <TableCell className="text-left align-top">
                                                                   <ul className="list-none p-0 m-0 text-xs space-y-1">
@@ -939,8 +939,8 @@ export default function Home() {
                                       )}
                                   </TableCell>
                                   <TableCell className="text-xs"><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.days.join(', ')}</TableCell>
-                                  <TableCell className={`font-bold ${getTimeSlotColorClass(table.timeSlotType)}`}>
-                                    <Clock className="inline h-4 w-4 mr-1 text-muted-foreground" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
+                                  <TableCell className={`text-center font-semibold ${getTimeSlotCellClasses(table.timeSlotType)}`}>
+                                    <Clock className="inline h-4 w-4 mr-1" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
                                   </TableCell>
                                   <TableCell className="font-bold">
                                       {table.gameName}
