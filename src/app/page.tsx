@@ -40,7 +40,7 @@ import {
 } from '@/lib/data';
 import type { GameTable, User, Registration, Participant, GameResult, TicketType, ManualRegistrationControls, ConventionDay, TimeSlotType } from '@/lib/types';
 import { CONVENTION_DAYS as APP_CONVENTION_DAYS, getTimeSlotTypeDisplayLabel, TIME_SLOT_TYPE_OPTIONS } from '@/lib/types'; // Renamed to avoid conflict & IMPORTED TIME_SLOT_TYPE_OPTIONS
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban, Star } from 'lucide-react';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban, Star, Dices } from 'lucide-react';
 
 const conventionDaysConfig = [
     { name: 'Jeudi' as ConventionDay, date: '03/07', value: 'jeudi' },
@@ -488,7 +488,7 @@ export default function Home() {
       case 'Après-midi':
         return 'bg-amber-50/70 text-orange-800';
       case 'Journée':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-700';
       case 'Off':
       default:
         return 'bg-red-50 text-red-800';
@@ -825,13 +825,7 @@ export default function Home() {
                                                                             <Tooltip>
                                                                                 <TooltipTrigger asChild>
                                                                                     <div className="flex justify-center items-center h-full">
-                                                                                        <Image
-                                                                                            src="https://i.gifer.com/XwS3.gif"
-                                                                                            alt="Partie en cours"
-                                                                                            width={32}
-                                                                                            height={32}
-                                                                                            unoptimized
-                                                                                        />
+                                                                                        <Dices className="h-6 w-6 text-destructive" />
                                                                                     </div>
                                                                                 </TooltipTrigger>
                                                                                 <TooltipContent>
