@@ -763,7 +763,7 @@ export default function Home() {
                                                                           {table.authorAnimator}
                                                                       </span>
                                                                   ) : (
-                                                                      <span className="text-muted-foreground italic">N/A</span>
+                                                                      <span className="text-muted-foreground italic">Partie libre</span>
                                                                   )}
                                                               </TableCell>
                                                               <TableCell className="text-xs">{table.days.join(', ')}</TableCell>
