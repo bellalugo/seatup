@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 9002",
-    "genkit:dev": "cross-env GENKIT_DOTFILE_DIR=/tmp/.genkit DOTENV_CONFIG_PATH=.env.local genkit start -- tsx -r dotenv/config src/ai/dev.ts",
-    "genkit:watch": "cross-env GENKIT_DOTFILE_DIR=/tmp/.genkit DOTENV_CONFIG_PATH=.env.local genkit start -- tsx -r dotenv/config --watch src/ai/dev.ts",
+    "genkit:dev": "GENKIT_DOTFILE_DIR=/tmp/.genkit DOTENV_CONFIG_PATH=.env.local genkit start -- tsx -r dotenv/config src/ai/dev.ts",
+    "genkit:watch": "GENKIT_DOTFILE_DIR=/tmp/.genkit DOTENV_CONFIG_PATH=.env.local genkit start -- tsx -r dotenv/config --watch src/ai/dev.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
