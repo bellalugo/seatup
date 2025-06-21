@@ -821,7 +821,24 @@ export default function Home() {
 
                                                                     // 3. Table status blocks new registrations
                                                                     if (table.status === 'EnCours') {
-                                                                        return <Badge variant="destructive" title="Cette partie a déjà commencé.">Partie en cours</Badge>;
+                                                                        return (
+                                                                            <Tooltip>
+                                                                                <TooltipTrigger asChild>
+                                                                                    <div className="flex justify-center items-center h-full">
+                                                                                        <Image
+                                                                                            src="https://i.gifer.com/XwS3.gif"
+                                                                                            alt="Partie en cours"
+                                                                                            width={32}
+                                                                                            height={32}
+                                                                                            unoptimized
+                                                                                        />
+                                                                                    </div>
+                                                                                </TooltipTrigger>
+                                                                                <TooltipContent>
+                                                                                    <p>Cette partie a déjà commencé.</p>
+                                                                                </TooltipContent>
+                                                                            </Tooltip>
+                                                                        );
                                                                     }
                                                                     if (availableSeats <= 0) {
                                                                         return <Badge variant="destructive" title="Cette table est complète">Complet</Badge>;
