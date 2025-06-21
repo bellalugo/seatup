@@ -592,7 +592,13 @@ export default function ConventionManager() {
                                 )}
                             </TableCell>
                             <TableCell><strong className="font-bold">{table.gameName || 'Jeu inconnu'}</strong></TableCell>
-                            <TableCell>{table.authorAnimator ? <span className="font-medium flex items-center"><UserSquare2 className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.authorAnimator}</span> : <span className="text-muted-foreground italic">N/A</span>}</TableCell>
+                            <TableCell>
+                                {table.authorAnimator ? (
+                                    <span className="font-medium flex items-center"><UserSquare2 className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.authorAnimator}</span>
+                                ) : (
+                                    <span className="text-muted-foreground italic">Partie libre</span>
+                                )}
+                            </TableCell>
                             <TableCell className="text-xs">{table.days.join(', ')}</TableCell>
                             <TableCell>{getTimeSlotTypeDisplayLabel(table.timeSlotType)}</TableCell>
                             <TableCell className="text-left align-top min-w-[200px]">
@@ -989,4 +995,6 @@ export default function ConventionManager() {
     </Card>
   );
 }
+    
+
     
