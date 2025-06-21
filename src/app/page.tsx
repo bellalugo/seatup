@@ -338,6 +338,17 @@ export default function Home() {
       toast({ variant: "destructive", title: "Table non trouvée" });
       return;
     }
+    
+    if (table.status === 'EnCours') {
+        toast({
+          variant: 'destructive',
+          title: 'Partie en cours',
+          description: "L'inscription a échoué car la partie a déjà commencé.",
+        });
+        setIsConfirmDialogOpen(false);
+        setTableToConfirm(null);
+        return;
+    }
 
     if (!canRegisterBasedOnTicket(currentUser.ticketType, registrationControls)) {
       toast({
@@ -788,75 +799,91 @@ export default function Home() {
                                                               </TableCell>
                                                               <TableCell className="text-center">
                                                                 {(() => {
-                                                                  if (isSubmittingRegistration || isLookingUpUser) {
-                                                                    return (
-                                                                      <Button size="sm" variant="secondary" disabled className="shadow-sm rounded-md">
-                                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement...
-                                                                      </Button>
-                                                                    );
-                                                                  }
-                                                                  if (isRegisteredByUser) {
-                                                                    return (
-                                                                      <Button onClick={() => handleUnregister(table.id)} size="sm" variant="secondary" title="Cliquez pour vous désinscrire" className="shadow-sm rounded-md">
-                                                                        <CheckCircle className="mr-2 h-4 w-4" /> Inscrit(e)
-                                                                      </Button>
-                                                                    );
-                                                                  }
-                                                                  if (!currentUser) {
-                                                                    if (availableSeats <= 0) {
-                                                                      return <Badge variant="destructive" title="Cette table est complète">Complet !</Badge>;
+                                                                    // 1. Loading State
+                                                                    if (isSubmittingRegistration || isLookingUpUser) {
+                                                                        return (
+                                                                            <Button size="sm" variant="secondary" disabled className="shadow-sm rounded-md">
+                                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement...
+                                                                            </Button>
+                                                                        );
                                                                     }
+
+                                                                    // 2. User is already registered for this table
+                                                                    if (isRegisteredByUser) {
+                                                                        return (
+                                                                            <Button onClick={() => handleUnregister(table.id)} size="sm" variant="secondary" title="Cliquez pour vous désinscrire" className="shadow-sm rounded-md">
+                                                                                <CheckCircle className="mr-2 h-4 w-4" /> Inscrit(e)
+                                                                            </Button>
+                                                                        );
+                                                                    }
+                                                                    
+                                                                    // After this point, user is NOT registered for this table.
+
+                                                                    // 3. Table status blocks new registrations
+                                                                    if (table.status === 'EnCours') {
+                                                                        return <Badge variant="destructive" title="Cette partie a déjà commencé.">Partie en cours</Badge>;
+                                                                    }
+                                                                    if (availableSeats <= 0) {
+                                                                        return <Badge variant="destructive" title="Cette table est complète">Complet</Badge>;
+                                                                    }
+
+                                                                    // After this point, table is available (not in progress, has seats).
+
+                                                                    // 4. User is not logged in
+                                                                    if (!currentUser) {
+                                                                        return (
+                                                                            <Button onClick={() => openConfirmationDialog(table)} size="sm" variant="secondary" title="Connectez-vous pour vous inscrire" className="shadow-sm rounded-md">
+                                                                                Connectez-vous
+                                                                            </Button>
+                                                                        );
+                                                                    }
+
+                                                                    // After this point, user is LOGGED IN and table is available.
+
+                                                                    // 5. User-specific registration blocks
+                                                                    if (currentUser.ticketType === 'Invitation') {
+                                                                        return (
+                                                                            <Tooltip>
+                                                                                <TooltipTrigger asChild>
+                                                                                    <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-muted/10 cursor-default" aria-label="Indisponible (Invitation)">
+                                                                                        <Ban className="h-5 w-5 text-muted-foreground" />
+                                                                                    </span>
+                                                                                </TooltipTrigger>
+                                                                                <TooltipContent><p>Les détenteurs de billets 'Invitation' ne peuvent pas s'inscrire.</p></TooltipContent>
+                                                                            </Tooltip>
+                                                                        );
+                                                                    }
+                                                                    if (!canRegisterNow) {
+                                                                        return (
+                                                                            <Tooltip>
+                                                                                <TooltipTrigger asChild>
+                                                                                    <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-muted/10 cursor-default" aria-label="Indisponible (Phase fermée)">
+                                                                                        <Ban className="h-5 w-5 text-muted-foreground" />
+                                                                                    </span>
+                                                                                </TooltipTrigger>
+                                                                                <TooltipContent><p>{`L'inscription pour votre billet (${currentUser.ticketType}) n'est pas ouverte.`}</p></TooltipContent>
+                                                                            </Tooltip>
+                                                                        );
+                                                                    }
+                                                                    if (!!conflict) {
+                                                                        return (
+                                                                            <Tooltip>
+                                                                                <TooltipTrigger asChild>
+                                                                                    <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-destructive/10 cursor-default" aria-label="Conflit horaire">
+                                                                                        <Ban className="h-5 w-5 text-destructive" />
+                                                                                    </span>
+                                                                                </TooltipTrigger>
+                                                                                <TooltipContent><p>Conflit avec votre planning.</p></TooltipContent>
+                                                                            </Tooltip>
+                                                                        );
+                                                                    }
+                                                                    
+                                                                    // 6. All clear, show registration button
                                                                     return (
-                                                                      <Button onClick={() => openConfirmationDialog(table)} size="sm" variant="secondary" title="Connectez-vous pour vous inscrire" className="shadow-sm rounded-md">
-                                                                        Connectez-vous
-                                                                      </Button>
+                                                                        <Button onClick={() => openConfirmationDialog(table)} size="sm" variant="default" title="Cliquez pour vous inscrire" className="shadow-sm rounded-md">
+                                                                            S'inscrire
+                                                                        </Button>
                                                                     );
-                                                                  }
-                                                                  // From here, currentUser is guaranteed to exist
-                                                                  if (currentUser.ticketType === 'Invitation') {
-                                                                    return (
-                                                                      <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                          <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-muted/10 cursor-default" aria-label="Indisponible (Invitation)">
-                                                                            <Ban className="h-5 w-5 text-muted-foreground" />
-                                                                          </span>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent><p>Les détenteurs de billets 'Invitation' ne peuvent pas s'inscrire.</p></TooltipContent>
-                                                                      </Tooltip>
-                                                                    );
-                                                                  }
-                                                                  if (!canRegisterNow) {
-                                                                    return (
-                                                                      <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                          <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-muted/10 cursor-default" aria-label="Indisponible (Phase fermée)">
-                                                                            <Ban className="h-5 w-5 text-muted-foreground" />
-                                                                          </span>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent><p>{`L'inscription pour votre billet (${currentUser.ticketType}) n'est pas ouverte.`}</p></TooltipContent>
-                                                                      </Tooltip>
-                                                                    );
-                                                                  }
-                                                                  if (!!conflict && !isRegisteredByUser) { 
-                                                                    return (
-                                                                      <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                          <span className="inline-flex items-center justify-center p-2 rounded-md hover:bg-destructive/10 cursor-default" aria-label="Conflit horaire">
-                                                                            <Ban className="h-5 w-5 text-destructive" />
-                                                                          </span>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent><p>Conflit avec votre planning.</p></TooltipContent>
-                                                                      </Tooltip>
-                                                                    );
-                                                                  }
-                                                                  if (availableSeats <= 0) {
-                                                                    return <Badge variant="destructive" title="Cette table est complète">Complet</Badge>;
-                                                                  }
-                                                                  return (
-                                                                    <Button onClick={() => openConfirmationDialog(table)} size="sm" variant="default" title="Cliquez pour vous inscrire" className="shadow-sm rounded-md">
-                                                                      S'inscrire
-                                                                    </Button>
-                                                                  );
                                                                 })()}
                                                               </TableCell>
                                                           </TableRow>
@@ -924,7 +951,7 @@ export default function Home() {
                                           size="sm"
                                           variant="outline"
                                           title="Se désinscrire de cette table"
-                                          disabled={isSubmittingRegistration || isLookingUpUser} 
+                                          disabled={isSubmittingRegistration || isLookingUpUser || table.status === 'EnCours'} 
                                           className="shadow-sm rounded-md"
                                           >
                                           {(isSubmittingRegistration || isLookingUpUser) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -983,4 +1010,3 @@ export default function Home() {
     </TooltipProvider>
   );
 }
-
