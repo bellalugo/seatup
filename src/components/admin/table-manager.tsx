@@ -776,7 +776,7 @@ export default function ConventionManager() {
                         <SelectTrigger className="col-span-3 rounded-md shadow-sm"><SelectValue placeholder="Sélectionner un invité" /></SelectTrigger>
                         <SelectContent>
                             {invitationParticipants.length === 0 && <SelectItem value="_NO_INVITES_" disabled>Aucun invité</SelectItem>}
-                            <SelectItem value="_NONE_">Aucun / Effacer</SelectItem>
+                            <SelectItem value="_NONE_">Partie libre</SelectItem>
                             {invitationParticipants.map(p => (<SelectItem key={p.id} value={`${p.prenom} ${p.nom}`}>{p.prenom} {p.nom}</SelectItem>))}
                         </SelectContent>
                     </Select>
