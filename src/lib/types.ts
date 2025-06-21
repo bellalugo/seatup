@@ -1,4 +1,3 @@
-
 import type React from 'react'; // Ensure React is imported for ElementType
 
 export type TicketType = 'Stratège' | 'Maréchal' | 'Général' | 'Invitation';
@@ -65,6 +64,8 @@ export const getActualGranularSlotsForTimeSlotType = (type: TimeSlotType): strin
   return TIME_SLOT_TYPE_OPTIONS.find(opt => opt.value === type)?.actualSlots || [type]; // Fallback to type itself if not found
 }
 
+export type TableStatus = "Ouverte" | "EnAttente" | "EnCours" | "Terminee";
+
 export interface GameTable {
   id: string;
   gameId: string;
@@ -73,6 +74,7 @@ export interface GameTable {
   totalSeats: number;
   tableNumber: string;
   authorAnimator?: string;
+  status?: TableStatus;
   // Dynamic properties, not stored in Firestore directly, but populated by getGameTables
   gameName?: string;
   gameImageUrl?: string;
@@ -86,6 +88,7 @@ export interface GameTableInput {
   totalSeats: number;
   tableNumber: string;
   authorAnimator?: string;
+  status?: TableStatus;
 }
 
 

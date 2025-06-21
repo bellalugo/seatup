@@ -1,5 +1,5 @@
 
-import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls, ConventionDay, TimeSlotType } from '@/lib/types';
+import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls, ConventionDay, TimeSlotType, TableStatus } from '@/lib/types';
 import { auth, db } from '@/firebase/clientApp'; // Import 'auth'
 import {
     collection,
@@ -129,6 +129,7 @@ export const getGameTables = async (): Promise<GameTable[]> => {
                 ...tableData,
                 days: tableData.days || [CONVENTION_DAYS[0]], // Ensure days is an array, default if somehow missing
                 timeSlotType: tableData.timeSlotType || 'Matin', // Default if somehow missing
+                status: tableData.status || 'Ouverte',
                 gameName: game?.nom || 'Jeu inconnu (ID: ' + tableData.gameId + ')',
                 gameImageUrl: game?.imageUrl,
                 imageUrl: game?.imageUrl, // For backward compatibility
@@ -170,6 +171,7 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
             totalSeats: tableInput.totalSeats,
             tableNumber: tableInput.tableNumber,
             authorAnimator: tableInput.authorAnimator || '',
+            status: 'Ouverte',
         };
 
         const docRef = await addDoc(collection(db, TABLES_COLLECTION), dataToSave);
@@ -212,6 +214,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             totalSeats: dataToUpdate.totalSeats,
             tableNumber: dataToUpdate.tableNumber,
             authorAnimator: dataToUpdate.authorAnimator || '',
+            status: dataToUpdate.status || 'Ouverte',
         };
 
         const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
@@ -277,6 +280,21 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
         }
         console.error("Firestore - Erreur lors de la suppression de la table de jeu et/ou de ses résultats:", error);
         throw new Error("Impossible de supprimer la table de jeu de Firestore. Vérifiez les logs pour plus de détails.");
+    }
+};
+
+/** Updates the status of a specific game table */
+export const updateGameTableStatus = async (tableId: string, status: TableStatus): Promise<void> => {
+    if (!db) {
+        console.error("Firestore DB instance is not initialized for updateGameTableStatus.");
+        throw new Error("La connexion à Firestore n'est pas initialisée pour mettre à jour le statut de la table.");
+    }
+    try {
+        const tableRef = doc(db, TABLES_COLLECTION, tableId);
+        await updateDoc(tableRef, { status: status });
+    } catch (error) {
+        console.error(`Firestore - Erreur lors de la mise à jour du statut pour la table ${tableId}:`, error);
+        throw new Error("Impossible de mettre à jour le statut de la table.");
     }
 };
 

@@ -20,6 +20,10 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true); // Start loading until auth state is determined
 
+  const signOut = async () => {
+    await firebaseSignOut(auth);
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -30,25 +34,9 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
     return () => unsubscribe();
   }, []);
 
-  const signOut = async () => {
-    try {
-      await firebaseSignOut(auth);
-      // User state will be updated by onAuthStateChanged listener
-    } catch (error) {
-      console.error("Error signing out:", error);
-      // Handle sign-out error (e.g., show a toast message)
-    }
-  };
-
-  // Show a loading indicator while checking auth state
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
-  }
-
+  // By removing the full-page loader here, the app's skeleton (header, etc.)
+  // can render immediately. Components that need auth state will use the
+  // 'loading' value from the context to show their own loaders.
   return (
     <AuthContext.Provider value={{ user, loading, signOut }}>
       {children}
