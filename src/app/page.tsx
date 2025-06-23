@@ -481,20 +481,6 @@ export default function Home() {
 
   const timeSlotTypeSortOrder = TIME_SLOT_TYPE_OPTIONS.map(opt => opt.value);
 
-  const getTimeSlotCellClasses = (timeSlotType: TimeSlotType): string => {
-    switch (timeSlotType) {
-      case 'Matin':
-        return 'bg-blue-50/70 text-blue-800';
-      case 'Après-midi':
-        return 'bg-amber-50/70 text-orange-800';
-      case 'Journée':
-        return 'bg-gray-100 text-gray-700';
-      case 'Off':
-      default:
-        return 'bg-red-50 text-red-800';
-    }
-  };
-
   return (
     <TooltipProvider>
       <div className="space-y-6">
@@ -712,8 +698,8 @@ export default function Home() {
                                                       <TableHead className="w-24 text-center">Table n°</TableHead>
                                                       <TableHead className="w-64" /> 
                                                       <TableHead>Jeu</TableHead>
+                                                      <TableHead>Description</TableHead>
                                                       <TableHead>Auteur/Animateur</TableHead>
-                                                      <TableHead>Jours</TableHead>
                                                       <TableHead>Créneau horaire</TableHead>
                                                       <TableHead className="text-left">Places disponibles</TableHead>
                                                       <TableHead className="text-center">Action</TableHead>
@@ -736,8 +722,27 @@ export default function Home() {
                                                       const freeSeatsCount = table.totalSeats - occupiedSeatsCount;
                                                       const imageUrl = table.gameImageUrl || table.imageUrl;
                                                       
+                                                      let rowClassName = isRegisteredByUser ? 'bg-secondary/30' : '';
+                                                      if (!isRegisteredByUser) {
+                                                        switch (table.timeSlotType) {
+                                                          case 'Matin':
+                                                            rowClassName = 'bg-blue-50';
+                                                            break;
+                                                          case 'Après-midi':
+                                                            rowClassName = 'bg-amber-100';
+                                                            break;
+                                                          case 'Journée':
+                                                            rowClassName = 'bg-gray-50';
+                                                            break;
+                                                          case 'Off':
+                                                          default:
+                                                            rowClassName = 'bg-red-50';
+                                                            break;
+                                                        }
+                                                      }
+
                                                       return (
-                                                          <TableRow key={table.id} className={isRegisteredByUser ? "bg-secondary/30" : ""}>
+                                                          <TableRow key={table.id} className={rowClassName}>
                                                               <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
                                                               <TableCell className="w-64 px-4 py-1">
                                                                   {imageUrl ? (
@@ -756,6 +761,9 @@ export default function Home() {
                                                               <TableCell className="font-bold">
                                                                   {table.gameName}
                                                               </TableCell>
+                                                              <TableCell className="text-xs text-muted-foreground italic max-w-xs">
+                                                                  {table.gameDescription}
+                                                              </TableCell>
                                                               <TableCell>
                                                                   {table.authorAnimator ? (
                                                                       <span className="font-bold flex items-center">
@@ -766,8 +774,7 @@ export default function Home() {
                                                                       <span className="text-muted-foreground italic">Partie libre</span>
                                                                   )}
                                                               </TableCell>
-                                                              <TableCell className="text-xs">{table.days.join(', ')}</TableCell>
-                                                              <TableCell className={`text-center font-semibold ${getTimeSlotCellClasses(table.timeSlotType)}`}>
+                                                              <TableCell className="text-center font-semibold">
                                                                 <Clock className="inline h-4 w-4 mr-1" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
                                                               </TableCell>
                                                               <TableCell className="text-left align-top">
@@ -922,18 +929,34 @@ export default function Home() {
                           <TableHeader>
                               <TableRow>
                               <TableHead className="w-24 text-center">Table n°</TableHead>
-                              <TableHead className="w-64" /> 
-                              <TableHead>Jours</TableHead>
+                              <TableHead className="w-64" />
                               <TableHead>Créneau horaire</TableHead>
                               <TableHead>Jeu</TableHead>
+                              <TableHead>Description</TableHead>
                               <TableHead className="text-center">Action</TableHead>
                               </TableRow>
                           </TableHeader>
                           <TableBody>
                           {userSchedule.map(table => {
                               const imageUrl = table.gameImageUrl || table.imageUrl;
+                              let rowClassName = '';
+                                switch (table.timeSlotType) {
+                                  case 'Matin':
+                                    rowClassName = 'bg-blue-50';
+                                    break;
+                                  case 'Après-midi':
+                                    rowClassName = 'bg-amber-100';
+                                    break;
+                                  case 'Journée':
+                                    rowClassName = 'bg-gray-50';
+                                    break;
+                                  case 'Off':
+                                  default:
+                                    rowClassName = 'bg-red-50';
+                                    break;
+                                }
                               return (
-                                  <TableRow key={`schedule-${table.id}`}>
+                                  <TableRow key={`schedule-${table.id}`} className={rowClassName}>
                                   <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
                                   <TableCell className="w-64 px-4 py-1">
                                       {imageUrl ? (
@@ -949,12 +972,14 @@ export default function Home() {
                                           <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                                       )}
                                   </TableCell>
-                                  <TableCell className="text-xs"><CalendarDays className="inline h-4 w-4 mr-1 text-muted-foreground" />{table.days.join(', ')}</TableCell>
-                                  <TableCell className={`text-center font-semibold ${getTimeSlotCellClasses(table.timeSlotType)}`}>
+                                  <TableCell className="text-center font-semibold">
                                     <Clock className="inline h-4 w-4 mr-1" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
                                   </TableCell>
                                   <TableCell className="font-bold">
                                       {table.gameName}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground italic max-w-xs">
+                                      {table.gameDescription}
                                   </TableCell>
                                   <TableCell className="text-center">
                                           <Button

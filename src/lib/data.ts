@@ -1,4 +1,3 @@
-
 import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls, ConventionDay, TimeSlotType, TableStatus } from '@/lib/types';
 import { auth, db } from '@/firebase/clientApp'; // Import 'auth'
 import {
@@ -122,7 +121,7 @@ export const getGameTables = async (): Promise<GameTable[]> => {
         const gamesMap = new Map(gamesList.map(game => [game.id, game]));
 
         return rawTablesSnapshot.docs.map(doc => {
-            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'>;
+            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl' | 'gameDescription'>;
             const game = gamesMap.get(tableData.gameId);
             return {
                 id: doc.id,
@@ -131,6 +130,7 @@ export const getGameTables = async (): Promise<GameTable[]> => {
                 timeSlotType: tableData.timeSlotType || 'Matin', // Default if somehow missing
                 status: tableData.status || 'Ouverte',
                 gameName: game?.nom || 'Jeu inconnu (ID: ' + tableData.gameId + ')',
+                gameDescription: game?.description || '',
                 gameImageUrl: game?.imageUrl,
                 imageUrl: game?.imageUrl, // For backward compatibility
                 authorAnimator: tableData.authorAnimator || '',
@@ -164,7 +164,7 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
             throw new Error("Au moins un jour doit être sélectionné pour la table.");
         }
 
-        const dataToSave: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'> = {
+        const dataToSave: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl' | 'gameDescription'> = {
             gameId: tableInput.gameId,
             days: tableInput.days,
             timeSlotType: tableInput.timeSlotType,
@@ -183,6 +183,7 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
             id: docRef.id,
             ...dataToSave,
             gameName: gameData?.nom || 'Jeu inconnu',
+            gameDescription: gameData?.description || '',
             gameImageUrl: gameData?.imageUrl,
             imageUrl: gameData?.imageUrl,
         };
@@ -207,7 +208,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
         const tableRef = doc(db, TABLES_COLLECTION, tableToUpdate.id);
         const { id, ...dataToUpdate } = tableToUpdate;
 
-        const firestorePayload: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl'> = {
+        const firestorePayload: Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl' | 'gameDescription'> = {
             gameId: dataToUpdate.gameId,
             days: dataToUpdate.days,
             timeSlotType: dataToUpdate.timeSlotType,
@@ -234,6 +235,7 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             id: tableToUpdate.id,
             ...firestorePayload,
             gameName: gameData?.nom || 'Jeu inconnu',
+            gameDescription: gameData?.description || '',
             gameImageUrl: gameData?.imageUrl,
             imageUrl: gameData?.imageUrl,
         };

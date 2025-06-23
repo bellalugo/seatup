@@ -78,6 +78,7 @@ export interface GameTable {
   // Dynamic properties, not stored in Firestore directly, but populated by getGameTables
   gameName?: string;
   gameImageUrl?: string;
+  gameDescription?: string;
   imageUrl?: string; // Kept for compatibility if old data has it directly
 }
 
