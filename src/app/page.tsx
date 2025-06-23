@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type React from 'react';
@@ -744,7 +745,7 @@ export default function Home() {
                                                       return (
                                                           <TableRow key={table.id} className={rowClassName}>
                                                               <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
-                                                              <TableCell className="w-64 px-4 py-1">
+                                                              <TableCell className="w-64 px-1 py-1">
                                                                   {imageUrl ? (
                                                                       <Image
                                                                           src={imageUrl}
@@ -758,7 +759,7 @@ export default function Home() {
                                                                       <div className="h-20 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                                                                   )}
                                                               </TableCell>
-                                                              <TableCell className="font-bold">
+                                                              <TableCell className="font-bold px-2">
                                                                   {table.gameName}
                                                               </TableCell>
                                                               <TableCell className="text-xs text-muted-foreground italic max-w-xs">
@@ -958,7 +959,7 @@ export default function Home() {
                               return (
                                   <TableRow key={`schedule-${table.id}`} className={rowClassName}>
                                   <TableCell className="font-bold text-center w-24"><Hash className="inline h-3 w-3 mr-1 text-muted-foreground" />{table.tableNumber || 'N/A'}</TableCell>
-                                  <TableCell className="w-64 px-4 py-1">
+                                  <TableCell className="w-64 px-1 py-1">
                                       {imageUrl ? (
                                           <Image
                                               src={imageUrl}
@@ -975,7 +976,7 @@ export default function Home() {
                                   <TableCell className="text-center font-semibold">
                                     <Clock className="inline h-4 w-4 mr-1" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
                                   </TableCell>
-                                  <TableCell className="font-bold">
+                                  <TableCell className="font-bold px-2">
                                       {table.gameName}
                                   </TableCell>
                                   <TableCell className="text-xs text-muted-foreground italic max-w-xs">
@@ -1046,3 +1047,4 @@ export default function Home() {
     </TooltipProvider>
   );
 }
+
