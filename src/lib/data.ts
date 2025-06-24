@@ -593,15 +593,7 @@ export const updateRegistrationControl = async (updates: Partial<ManualRegistrat
 
 
 // --- Billetweb Sync Function ---
-export const syncParticipantsWithBilletweb = async (): Promise<{
-  added: number;
-  updated: number;
-  skipped: number;
-  failed: number;
-  total: number;
-}> => {
-  if (!db) throw new Error("La connexion à Firestore n'est pas initialisée.");
-
+export const fetchBilletwebAttendees = async (): Promise<BilletwebAttendee[]> => {
   const apiKey = process.env.BILLETWEB_KEY;
   const eventId = process.env.BILLETWEB_EVENT_ID;
 
@@ -613,63 +605,14 @@ export const syncParticipantsWithBilletweb = async (): Promise<{
 
   try {
     const response = await axios.get<{ attendees: BilletwebAttendee[] }>(url);
-    const billetwebAttendees = response.data.attendees || [];
-
-    const existingParticipants = await getParticipants();
-    const existingParticipantsMap = new Map<string, Participant>();
-    existingParticipants.forEach(p => {
-      if (p.email) existingParticipantsMap.set(p.email.toLowerCase(), p);
-    });
-
-    const batch = writeBatch(db);
-    let added = 0, updated = 0, skipped = 0, failed = 0;
-
-    for (const attendee of billetwebAttendees) {
-      if (!attendee.email || !attendee.id) {
-        failed++;
-        continue;
-      }
-      
-      const ticketTypeAnswer = attendee.answers?.find(a => a.label.toLowerCase().includes('billet'));
-      const ticketType = (ticketTypeAnswer?.value as TicketType) || 'Général'; // Default to General if not found
-
-      const newParticipantData: Omit<Participant, 'id'> = {
-        nom: attendee.last_name || '',
-        prenom: attendee.first_name || '',
-        email: attendee.email,
-        typeBillet: ticketType,
-      };
-      
-      const existingParticipant = existingParticipantsMap.get(attendee.email.toLowerCase());
-
-      if (existingParticipant) {
-        // Update if data differs
-        if (
-          existingParticipant.nom !== newParticipantData.nom ||
-          existingParticipant.prenom !== newParticipantData.prenom ||
-          existingParticipant.typeBillet !== newParticipantData.typeBillet
-        ) {
-          const participantRef = doc(db, PARTICIPANTS_COLLECTION, existingParticipant.id);
-          batch.update(participantRef, newParticipantData);
-          updated++;
-        } else {
-          skipped++;
-        }
-      } else {
-        // Add new participant using Billetweb ID as Firestore doc ID
-        const participantRef = doc(db, PARTICIPANTS_COLLECTION, String(attendee.id));
-        batch.set(participantRef, newParticipantData);
-        added++;
-      }
-    }
-
-    await batch.commit();
-
-    return { added, updated, skipped, failed, total: billetwebAttendees.length };
+    return response.data.attendees || [];
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const apiError = error.response?.data?.error || error.message;
       console.error("Erreur API Billetweb:", apiError);
+      if (error.code === 'ENOTFOUND') {
+          throw new Error(`Erreur réseau (ENOTFOUND): Impossible de trouver l'hôte ${error.config?.url}. Vérifiez l'URL de l'API et votre connexion.`);
+      }
       throw new Error(`Erreur de l'API Billetweb: ${apiError}`);
     }
     console.error("Erreur lors de la synchronisation Billetweb:", error);

@@ -8,8 +8,9 @@ import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw } from 
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getRegistrationControl, updateRegistrationControl } from "@/lib/data";
-import type { ManualRegistrationControls, TicketType } from "@/lib/types"; 
+import type { ManualRegistrationControls, TicketType, BilletwebAttendee } from "@/lib/types"; 
 import { REGISTRATION_SCHEDULE } from "@/lib/types"; 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 
 export default function AdminPage() {
@@ -17,13 +18,16 @@ export default function AdminPage() {
 
   const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls | null>(null);
   const [isUpdatingControls, setIsUpdatingControls] = useState(false);
-  const [isRefreshingControls, setIsRefreshingControls] = useState(false); // New state for refresh button
+  const [isRefreshingControls, setIsRefreshingControls] = useState(false);
+
+  const [billetwebAttendees, setBilletwebAttendees] = useState<BilletwebAttendee[] | null>(null);
+  const [isFetchingBilletweb, setIsFetchingBilletweb] = useState(false);
+  const [billetwebError, setBilletwebError] = useState<string | null>(null);
 
   const fetchControls = useCallback(async () => {
-    // Determine if this call is from the refresh button or initial load/update
     const isManualRefresh = isRefreshingControls; 
-    if (!isManualRefresh) setIsUpdatingControls(true); // Show loader on phase change buttons
-    else setIsRefreshingControls(true); // Show loader on refresh button
+    if (!isManualRefresh) setIsUpdatingControls(true);
+    else setIsRefreshingControls(true);
 
     try {
       const controls = await getRegistrationControl();
@@ -41,14 +45,14 @@ export default function AdminPage() {
       if (!isManualRefresh) setIsUpdatingControls(false);
       else setIsRefreshingControls(false);
     }
-  }, [toast, isRefreshingControls]); // Add isRefreshingControls to dependency array
+  }, [toast, isRefreshingControls]);
 
   useEffect(() => {
     fetchControls();
-  }, [fetchControls]); // Initial fetch
+  }, [fetchControls]);
 
   const handleUpdateControls = async (phaseToOpen?: TicketType | 'reset') => {
-    setIsUpdatingControls(true); // This state is for the phase change buttons specifically
+    setIsUpdatingControls(true);
     let newControls: Partial<ManualRegistrationControls> = {
         strategistManuallyOpen: registrationControls?.strategistManuallyOpen || false,
         marshalManuallyOpen: registrationControls?.marshalManuallyOpen || false,
@@ -82,16 +86,41 @@ export default function AdminPage() {
 
     try {
         await updateRegistrationControl(newControls);
-        // After updating, fetch the controls again to ensure UI reflects the source of truth
-        // This also resets registrationControls state correctly.
         await fetchControls(); 
         toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'fermée (tous types)' : phaseToOpen } modifiée manuellement.` });
     } catch (error) {
         toast({ variant: "destructive", title: "Erreur de mise à jour", description: (error as Error).message });
-         // If update fails, still refresh controls to show the actual current state from DB
         await fetchControls();
     } finally {
         setIsUpdatingControls(false);
+    }
+  };
+
+  const handleFetchBilletweb = async () => {
+    setIsFetchingBilletweb(true);
+    setBilletwebError(null);
+    setBilletwebAttendees(null);
+    try {
+      const response = await fetch('/api/sync-billetweb', { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Une erreur est survenue lors de la récupération.');
+      }
+      setBilletwebAttendees(data.attendees);
+      toast({
+        title: 'Liste récupérée',
+        description: `${data.attendees.length} participants récupérés depuis Billetweb.`,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Une erreur inconnue est survenue.";
+      setBilletwebError(errorMessage);
+      toast({
+        variant: 'destructive',
+        title: 'Échec de la récupération',
+        description: errorMessage,
+      });
+    } finally {
+      setIsFetchingBilletweb(false);
     }
   };
 
@@ -137,7 +166,6 @@ export default function AdminPage() {
                 <CardDescription>Gérer les tables de jeu, les jeux et les paramètres de la convention.</CardDescription>
                 </div>
             </div>
-            {/* Removed global refresh button from here as it's too broad */}
           </div>
         </CardHeader>
         <CardContent className="pt-4">
@@ -147,7 +175,7 @@ export default function AdminPage() {
                     <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => { setIsRefreshingControls(true); fetchControls(); }} // Set isRefreshingControls before calling
+                        onClick={() => { setIsRefreshingControls(true); fetchControls(); }}
                         disabled={isUpdatingControls || isRefreshingControls}
                         className="shadow-sm rounded-md"
                     >
@@ -199,6 +227,55 @@ export default function AdminPage() {
             </div>
         </CardContent>
       </Card>
+      
+      <Card className="shadow-lg">
+        <CardHeader>
+            <CardTitle>Données Billetweb</CardTitle>
+            <CardDescription>
+                Récupérer la liste des participants directement depuis Billetweb sans mettre à jour la base de données locale.
+                Ceci est utile pour vérifier les données ou débugger les problèmes de connexion.
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="flex flex-col space-y-4">
+                <Button onClick={handleFetchBilletweb} disabled={isFetchingBilletweb}>
+                    {isFetchingBilletweb ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                    Récupérer la liste des participants Billetweb
+                </Button>
+                {billetwebError && (
+                    <p className="text-sm text-destructive">{billetwebError}</p>
+                )}
+                {billetwebAttendees && (
+                    <div className="mt-4 border rounded-md max-h-96 overflow-y-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Nom</TableHead>
+                                    <TableHead>Email</TableHead>
+                                    <TableHead>Type de Billet</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {billetwebAttendees.length > 0 ? (
+                                    billetwebAttendees.map(attendee => (
+                                        <TableRow key={attendee.id}>
+                                            <TableCell>{attendee.first_name} {attendee.last_name}</TableCell>
+                                            <TableCell>{attendee.email}</TableCell>
+                                            <TableCell>{attendee.answers?.find(a => a.label.toLowerCase().includes('billet'))?.value || 'N/A'}</TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="text-center">Aucun participant trouvé sur Billetweb.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                )}
+            </div>
+        </CardContent>
+    </Card>
 
       <ConventionManager />
     </div>

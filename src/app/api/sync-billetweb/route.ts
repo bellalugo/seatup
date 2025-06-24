@@ -1,30 +1,20 @@
 import { NextResponse } from 'next/server';
-import { syncParticipantsWithBilletweb } from '@/lib/data';
-import { auth } from '@/firebase/clientApp'; // We might not need this if we don't check for admin rights here, but good practice
-
-// Protect this route by checking for admin rights in a real-world scenario.
-// For now, we assume it's only accessible via the admin UI button.
+import { fetchBilletwebAttendees } from '@/lib/data';
 
 export async function POST() {
   try {
-    // In a production app, you would verify the user's token here
-    // to ensure they are an authorized administrator before proceeding.
+    const attendees = await fetchBilletwebAttendees();
     
-    const result = await syncParticipantsWithBilletweb();
-    
-    const message = `Participants : ${result.added} ajoutés, ${result.updated} mis à jour, ${result.skipped} inchangés.`;
-
     return NextResponse.json({ 
       success: true, 
-      message: message,
-      ...result 
+      attendees: attendees 
     });
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Une erreur inconnue est survenue.";
-    console.error('[API Sync Error]', errorMessage);
+    console.error('[API Billetweb Fetch Error]', errorMessage);
     return NextResponse.json(
-      { success: false, message: `Échec de la synchronisation : ${errorMessage}` },
+      { success: false, message: `Échec de la récupération depuis Billetweb : ${errorMessage}` },
       { status: 500 }
     );
   }
