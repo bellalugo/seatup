@@ -1,12 +1,12 @@
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringB
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+uilds: true,
   },
   watchOptions: {
     poll: 1000, // Check for changes every second

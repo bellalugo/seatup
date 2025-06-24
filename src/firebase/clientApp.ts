@@ -127,15 +127,15 @@ try {
 
 
 let db: Firestore | null = null;
-const FIRESTORE_DATABASE_ID = 'sit-asynconv25'; // Your named database ID
+// const FIRESTORE_DATABASE_ID = 'sit-asynconv25'; // Using default database now
 
 try {
-    // Explicitly connect to the named database
-    db = getFirestore(app, FIRESTORE_DATABASE_ID); 
-    console.log(`>>> [Firebase clientApp.ts] Firestore DB instance for database '${FIRESTORE_DATABASE_ID}' CREATED successfully.`);
+    // Connect to the default Firestore database
+    db = getFirestore(app);
+    console.log(`>>> [Firebase clientApp.ts] Firestore DB instance for default database CREATED successfully.`);
 } catch (error) {
-    console.error(`!!! [Firebase clientApp.ts] CRITICAL ERROR during getFirestore(app, '${FIRESTORE_DATABASE_ID}'):`, error);
-    console.error("!!! This usually means Firebase App initialization failed, the database ID is incorrect, or Firestore is not enabled/configured for the project.");
+    console.error(`!!! [Firebase clientApp.ts] CRITICAL ERROR during getFirestore(app):`, error);
+    console.error("!!! This usually means Firebase App initialization failed or Firestore is not enabled/configured for the project.");
     // db will remain null, functions using it should check for nullity or this will throw later.
 }
 
@@ -156,4 +156,3 @@ if (typeof window !== 'undefined') {
 
 
 export { app, auth, db };
-
