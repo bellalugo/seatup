@@ -1,4 +1,3 @@
-
 'use client'; // Needed for hooks (useAuth, useRouter) and onClick
 
 import Link from 'next/link';
@@ -30,6 +29,8 @@ export default function Header() {
     }
   };
 
+  const isRealUser = user && !user.isAnonymous;
+
   return (
     <header className="bg-primary text-primary-foreground shadow-md">
       <div className="container mx-auto flex h-24 items-center justify-between px-4 md:px-6"> {/* Changed h-16 to h-24 */}
@@ -45,8 +46,8 @@ export default function Header() {
           />
         </Link>
         <nav className="flex items-center gap-4">
-           {/* Show Admin link only if user is logged in */}
-           {user && (
+           {/* Show Admin link only if user is logged in and not anonymous */}
+           {isRealUser && (
              <Link href="/admin" className="flex items-center gap-1 text-sm text-primary-foreground hover:text-red-700 transition-colors font-bold" title="Espace Admin">
                <ShieldCheck className="h-4 w-4" />
                <span>Admin</span>
@@ -56,7 +57,7 @@ export default function Header() {
            {/* Authentication Buttons */}
            {authLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin text-primary-foreground"/> /* Show loader while checking auth */
-           ) : user ? (
+           ) : isRealUser ? (
             <Button
               variant="ghost"
               size="sm"
