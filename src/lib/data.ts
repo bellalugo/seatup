@@ -359,24 +359,26 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
         throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter une inscription.");
     }
     try {
-        const registrationId = `${userId}_${tableId}`;
-        const registrationRef = doc(db, REGISTRATIONS_COLLECTION, registrationId);
+        // Use addDoc to let Firestore generate the ID. This is more likely to succeed with restrictive security rules.
         const newRegistrationData = { userId, tableId, timestamp: new Date() };
-        await setDoc(registrationRef, newRegistrationData);
-        return { id: registrationId, ...newRegistrationData };
+        const docRef = await addDoc(collection(db, REGISTRATIONS_COLLECTION), newRegistrationData);
+        return { id: docRef.id, ...newRegistrationData };
     } catch (error) {
         console.error("Firestore - Erreur lors de l'ajout de l'inscription:", error);
-        throw new Error("Impossible d'ajouter l'inscription à Firestore.");
+        if (error instanceof Error && 'code' in error && (error as any).code === 'permission-denied') {
+             throw new Error("Permission refusée. Vos droits ne permettent pas de vous inscrire. Contactez un admin.");
+        }
+        throw new Error("Impossible d'ajouter l'inscription à Firestore. Une erreur technique est survenue.");
     }
 };
 
-export const removeRegistration = async (userId: string, tableId: string): Promise<void> => {
+export const removeRegistration = async (registrationId: string): Promise<void> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for removeRegistration.");
         throw new Error("La connexion à Firestore n'est pas initialisée pour supprimer une inscription.");
     }
     try {
-        const registrationId = `${userId}_${tableId}`;
+        // Use the direct document ID to delete, which is efficient and doesn't require an index.
         const registrationRef = doc(db, REGISTRATIONS_COLLECTION, registrationId);
         await deleteDoc(registrationRef);
     } catch (error) {

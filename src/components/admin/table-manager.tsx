@@ -89,7 +89,7 @@ export default function ConventionManager() {
 
   const [tables, setTables] = useState<GameTable[]>([]);
   const [allGames, setAllGames] = useState<Game[]>([]);
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [registrations, setRegistrations] = useState<(Registration & { id: string })[]>([]);
   const [allParticipantsData, setAllParticipantsData] = useState<Participant[]>([]);
   const [invitationParticipants, setInvitationParticipants] = useState<Participant[]>([]);
   const [gameResultsData, setGameResultsData] = useState<Map<string, GameResult>>(new Map());
@@ -387,9 +387,20 @@ export default function ConventionManager() {
 
   const handleRemoveParticipantFromTable = async (participantId: string) => {
     if (!editingTable) return;
+
+    const registrationToDelete = registrations.find(r => r.userId === participantId && r.tableId === editingTable.id);
+    if (!registrationToDelete) {
+        toast({
+            variant: "destructive",
+            title: "Inscription non trouvée",
+            description: "Impossible de trouver l'inscription pour ce participant à cette table."
+        });
+        return;
+    }
+
     setIsManagingParticipant(true);
     try {
-        await removeRegistrationFromDb(participantId, editingTable.id);
+        await removeRegistrationFromDb(registrationToDelete.id);
         toast({title: "Participant désinscrit", description: "Le participant a été retiré de la table."});
         await fetchPageData(false); 
         if (editingTable) fetchRegistrantsForDialog(editingTable.id); 

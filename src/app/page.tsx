@@ -70,7 +70,7 @@ interface TicketPhaseStatusInfo {
 
 export default function Home() {
   const [tables, setTables] = useState<GameTable[]>([]);
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [registrations, setRegistrations] = useState<(Registration & {id: string})[]>([]);
   const [allParticipantsData, setAllParticipantsData] = useState<Participant[]>([]);
   const [gameResultsData, setGameResultsData] = useState<Map<string, GameResult>>(new Map());
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -408,14 +408,24 @@ export default function Home() {
   };
 
   const handleUnregister = async (tableId: string) => {
-     if (!currentUser) return; 
+    if (!currentUser) return;
 
-     const table = tables.find(t => t.id === tableId);
-     if (!table) return; 
+    const table = tables.find(t => t.id === tableId);
+    if (!table) return;
 
-     setIsSubmittingRegistration(true);
-     try {
-        await removeRegistrationFromDb(currentUser.id, tableId);
+    const registrationToDelete = registrations.find(r => r.userId === currentUser.id && r.tableId === tableId);
+    if (!registrationToDelete) {
+        toast({
+            variant: "destructive",
+            title: "Inscription non trouvée",
+            description: "Impossible de trouver votre inscription pour cette table. Elle a peut-être déjà été supprimée."
+        });
+        return;
+    }
+
+    setIsSubmittingRegistration(true);
+    try {
+        await removeRegistrationFromDb(registrationToDelete.id);
         const updatedRegistrations = await getRegistrations();
         setRegistrations(updatedRegistrations);
 
@@ -429,7 +439,7 @@ export default function Home() {
     } finally {
         setIsSubmittingRegistration(false);
     }
-  }
+  };
 
   const getUserSchedule = useCallback((): GameTable[] => {
     if (!currentUser) return [];
@@ -1047,4 +1057,3 @@ export default function Home() {
     </TooltipProvider>
   );
 }
-
