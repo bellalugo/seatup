@@ -3,12 +3,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCw, ArrowLeft, DatabaseZap } from "lucide-react";
+import { Loader2, RefreshCw, ArrowLeft, DatabaseZap, CloudSync } from "lucide-react";
 import type { BilletwebAttendee } from "@/lib/types";
 
 export default function BilletwebPage() {
@@ -16,6 +16,10 @@ export default function BilletwebPage() {
   const [billetwebAttendees, setBilletwebAttendees] = useState<BilletwebAttendee[] | null>(null);
   const [isFetchingBilletweb, setIsFetchingBilletweb] = useState(false);
   const [billetwebError, setBilletwebError] = useState<string | null>(null);
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ added: number; updated: number } | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const handleFetchBilletweb = async () => {
     setIsFetchingBilletweb(true);
@@ -42,6 +46,34 @@ export default function BilletwebPage() {
       });
     } finally {
       setIsFetchingBilletweb(false);
+    }
+  };
+
+  const handleSyncWithFirestore = async () => {
+    setIsSyncing(true);
+    setSyncError(null);
+    setSyncResult(null);
+    try {
+        const response = await fetch('/api/sync-participants', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Une erreur est survenue lors de la synchronisation.');
+        }
+        setSyncResult({ added: data.added, updated: data.updated });
+        toast({
+            title: 'Synchronisation terminée',
+            description: `${data.added} participant(s) ajouté(s), ${data.updated} mis à jour.`,
+        });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Une erreur inconnue est survenue.";
+        setSyncError(errorMessage);
+        toast({
+            variant: 'destructive',
+            title: 'Échec de la synchronisation',
+            description: errorMessage,
+        });
+    } finally {
+        setIsSyncing(false);
     }
   };
 
@@ -126,6 +158,29 @@ export default function BilletwebPage() {
                 )}
             </div>
         </CardContent>
+      </Card>
+      
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><CloudSync className="h-6 w-6 text-primary"/>Synchroniser la base de données</CardTitle>
+          <CardDescription>
+              Mettre à jour la base de données des participants sur Firestore avec les dernières informations de Billetweb.
+              <br/>
+              Cette action ajoutera les nouveaux participants et mettra à jour les informations (nom, prénom, type de billet) des participants existants.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Button onClick={handleSyncWithFirestore} disabled={isSyncing}>
+                {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4" />}
+                Mettre à jour la base de données locale
+            </Button>
+        </CardContent>
+        {(syncResult || syncError) && (
+            <CardFooter className="text-sm">
+                {syncError && <p className="text-destructive">Erreur : {syncError}</p>}
+                {syncResult && <p className="text-muted-foreground">Résultat : {syncResult.added} ajouté(s), {syncResult.updated} mis(s) à jour.</p>}
+            </CardFooter>
+        )}
       </Card>
     </div>
   );

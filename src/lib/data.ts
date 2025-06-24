@@ -591,6 +591,89 @@ export const updateRegistrationControl = async (updates: Partial<ManualRegistrat
   }
 };
 
+// --- Participant Sync Function ---
+
+const mapBilletwebTicketToType = (ticketName: string): TicketType => {
+    if (!ticketName) return 'Invitation';
+    const lowerCaseTicket = ticketName.toLowerCase();
+    if (lowerCaseTicket.includes('stratège')) return 'Stratège';
+    if (lowerCaseTicket.includes('maréchal')) return 'Maréchal';
+    if (lowerCaseTicket.includes('général')) return 'Général';
+    // Any other ticket name like "Animateur" will be considered an 'Invitation' for registration purposes.
+    return 'Invitation';
+};
+
+/**
+ * Fetches attendees from Billetweb and syncs them with the Firestore 'liste_participants' collection.
+ * Adds new participants and updates existing ones based on email.
+ * @returns {Promise<{ added: number; updated: number;}>} A summary of the sync operation.
+ */
+export const syncParticipantsWithBilletweb = async (): Promise<{ added: number; updated: number;}> => {
+    if (!db) {
+        throw new Error("La connexion à Firestore n'est pas initialisée.");
+    }
+    
+    const billetwebAttendees = await fetchBilletwebAttendees();
+    if (!billetwebAttendees || billetwebAttendees.length === 0) {
+        // If Billetweb returns nothing, we don't proceed to avoid accidental deletions or empty states.
+        return { added: 0, updated: 0 };
+    }
+
+    const existingParticipantsSnapshot = await getDocs(collection(db, PARTICIPANTS_COLLECTION));
+    const existingParticipantsMapByEmail = new Map<string, Participant & { id: string }>();
+    existingParticipantsSnapshot.docs.forEach(doc => {
+        const participant = { id: doc.id, ...doc.data() } as Participant & { id: string };
+        if (participant.email) {
+            existingParticipantsMapByEmail.set(participant.email.toLowerCase(), participant);
+        }
+    });
+
+    const batch = writeBatch(db);
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    for (const attendee of billetwebAttendees) {
+        // Skip entries without a valid email, as it's our primary key
+        if (!attendee.email || attendee.email.trim() === '') continue;
+
+        const normalizedEmail = attendee.email.toLowerCase();
+        const existingParticipant = existingParticipantsMapByEmail.get(normalizedEmail);
+        
+        const participantDataFromBilletweb = {
+            nom: attendee.name.trim(),
+            prenom: attendee.firstname.trim(),
+            email: attendee.email, // Store the original-cased email
+            typeBillet: mapBilletwebTicketToType(attendee.ticket),
+        };
+
+        if (existingParticipant) {
+            // Update existing participant only if data has changed
+            const hasChanged =
+                existingParticipant.nom !== participantDataFromBilletweb.nom ||
+                existingParticipant.prenom !== participantDataFromBilletweb.prenom ||
+                existingParticipant.typeBillet !== participantDataFromBilletweb.typeBillet;
+
+            if (hasChanged) {
+                const participantRef = doc(db, PARTICIPANTS_COLLECTION, existingParticipant.id);
+                batch.update(participantRef, participantDataFromBilletweb);
+                updatedCount++;
+            }
+        } else {
+            // Add new participant, using their Billetweb ID as the Firestore document ID for idempotency.
+            const participantRef = doc(db, PARTICIPANTS_COLLECTION, String(attendee.id));
+            batch.set(participantRef, participantDataFromBilletweb);
+            addedCount++;
+        }
+    }
+
+    // Only commit if there are changes to be made
+    if (addedCount > 0 || updatedCount > 0) {
+        await batch.commit();
+    }
+
+    return { added: addedCount, updated: updatedCount };
+};
+
 
 // --- Billetweb Sync Function ---
 export const fetchBilletwebAttendees = async (): Promise<BilletwebAttendee[]> => {
