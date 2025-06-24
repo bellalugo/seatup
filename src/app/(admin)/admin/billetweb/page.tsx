@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCw, ArrowLeft, DatabaseZap, CloudSync } from "lucide-react";
+import { Loader2, RefreshCw, ArrowLeft, DatabaseZap, CloudCog } from "lucide-react";
 import type { BilletwebAttendee } from "@/lib/types";
 
 export default function BilletwebPage() {
@@ -162,7 +162,7 @@ export default function BilletwebPage() {
       
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><CloudSync className="h-6 w-6 text-primary"/>Synchroniser la base de données</CardTitle>
+          <CardTitle className="flex items-center gap-2"><CloudCog className="h-6 w-6 text-primary"/>Synchroniser la base de données</CardTitle>
           <CardDescription>
               Mettre à jour la base de données des participants sur Firestore avec les dernières informations de Billetweb.
               <br/>
