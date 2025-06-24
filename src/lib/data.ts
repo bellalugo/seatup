@@ -596,7 +596,7 @@ export const updateRegistrationControl = async (updates: Partial<ManualRegistrat
 export const fetchBilletwebAttendees = async (): Promise<BilletwebAttendee[]> => {
   const apiKey = process.env.BILLETWEB_KEY;
   const eventId = process.env.BILLETWEB_EVENT_ID;
-  const userId = process.env.BILLETWEB_USER_ID; // Getting user ID from env
+  const userId = process.env.BILLETWEB_USER; // Getting user ID from env
 
   if (!apiKey || !eventId || !userId) { // Checking all required variables
     throw new Error("Les variables d'environnement BILLETWEB_KEY, BILLETWEB_EVENT_ID et BILLETWEB_USER_ID sont requises.");
