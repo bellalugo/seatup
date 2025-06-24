@@ -596,34 +596,43 @@ export const updateRegistrationControl = async (updates: Partial<ManualRegistrat
 export const fetchBilletwebAttendees = async (): Promise<BilletwebAttendee[]> => {
   const apiKey = process.env.BILLETWEB_KEY;
   const eventId = process.env.BILLETWEB_EVENT_ID;
+  const userId = process.env.BILLETWEB_USER_ID; // Getting user ID from env
 
-  if (!apiKey || !eventId) {
-    throw new Error("Les variables d'environnement BILLETWEB_KEY et BILLETWEB_EVENT_ID sont requises.");
+  if (!apiKey || !eventId || !userId) { // Checking all required variables
+    throw new Error("Les variables d'environnement BILLETWEB_KEY, BILLETWEB_EVENT_ID et BILLETWEB_USER_ID sont requises.");
   }
 
-  // Corrected URL using the right domain and parameters from environment variables
-  const url = `https://api.billetweb.com/v1/event/${eventId}/attendees?api_key=${apiKey}&version=2`;
+  // Updated URL with all required elements: Event ID, User ID, and Key.
+  // Using the www.billetweb.fr domain and version 1 API structure.
+  const url = `https://www.billetweb.fr/api/event/${eventId}/attendees?user=${userId}&key=${apiKey}&version=1`;
 
   try {
-    const response = await axios.get<{ attendees: BilletwebAttendee[] }>(url);
+    // API v1 returns an array of attendees directly.
+    const response = await axios.get<BilletwebAttendee[]>(url);
     
-    if (!response.data || !Array.isArray(response.data.attendees)) {
-        console.warn("Billetweb API a répondu mais le format est inattendu. Attendu: { attendees: [...] }, Reçu:", response.data);
+    // The API should return an array. If not, it's an error.
+    if (!Array.isArray(response.data)) {
+        console.warn("Billetweb API a répondu mais le format est inattendu. Attendu: un tableau `[...]`, Reçu:", response.data);
+        // Handle cases where Billetweb returns an error object like { error: 'message' }
+        if (typeof response.data === 'object' && response.data !== null && 'error' in response.data) {
+          throw new Error(`Erreur de l'API Billetweb: ${(response.data as {error: string}).error}`);
+        }
         throw new Error("La réponse de l'API Billetweb n'a pas le format attendu.");
     }
     
-    return response.data.attendees || [];
+    return response.data || [];
 
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      const apiError = error.response?.data?.error || error.message;
-      console.error(`Erreur API Billetweb (Status: ${error.response?.status}):`, apiError);
+      const apiError = error.response?.data?.error || (typeof error.response?.data === 'string' ? error.response.data : error.message);
+      const urlForLogs = url.replace(apiKey, '***'); // Hide key from logs
+      console.error(`Erreur API Billetweb (Status: ${error.response?.status}) pour URL: ${urlForLogs}`, apiError);
       
       if (error.code === 'ENOTFOUND') {
-          throw new Error(`Erreur réseau (ENOTFOUND): Impossible de trouver l'hôte de l'API Billetweb. Vérifiez l'URL de l'API et votre connexion.`);
+          throw new Error(`Erreur réseau (ENOTFOUND): Impossible de trouver l'hôte de l'API Billetweb. Vérifiez l'URL (${urlForLogs}) et votre connexion.`);
       }
       if (error.response?.status === 403) {
-          throw new Error(`Erreur d'authentification Billetweb (403): Clé API invalide ou permissions insuffisantes pour l'événement ${eventId}.`);
+          throw new Error(`Erreur d'authentification Billetweb (403): Clé API ou User ID invalide, ou permissions insuffisantes pour l'événement ${eventId}.`);
       }
       if (error.response?.status === 404) {
           throw new Error(`Erreur Billetweb (404): Événement avec l'ID ${eventId} non trouvé.`);
