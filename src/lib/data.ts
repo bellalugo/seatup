@@ -609,7 +609,7 @@ export const syncParticipantsWithBilletweb = async (): Promise<{
     throw new Error("Les variables d'environnement BILLETWEB_KEY et BILLETWEB_EVENT_ID sont requises.");
   }
 
-  const url = `https://api.billetweb.fr/v1/event/${eventId}/attendees?api_key=${apiKey}&version=2`;
+  const url = `https://api.billetweb.com/v1/event/${eventId}/attendees?api_key=${apiKey}&version=2`;
 
   try {
     const response = await axios.get<{ attendees: BilletwebAttendee[] }>(url);
