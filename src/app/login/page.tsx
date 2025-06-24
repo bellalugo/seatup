@@ -53,8 +53,8 @@ export default function LoginPage() {
            switch (firebaseError.code) {
              case 'auth/user-not-found':
              case 'auth/wrong-password':
-             case 'auth/invalid-credential': // Often covers both wrong email/password
-               errorMessage = 'Identifiant ou mot de passe invalide.';
+             case 'auth/invalid-credential':
+               errorMessage = "L'identifiant ou le mot de passe est incorrect. Veuillez vérifier vos informations et réessayer.";
                break;
              case 'auth/invalid-email':
                 errorMessage = 'Format d\'email invalide.'; // Adjusted for "Identifiant"
@@ -165,4 +165,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
