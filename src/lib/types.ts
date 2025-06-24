@@ -127,12 +127,12 @@ export interface ManualRegistrationControls {
 
 // Represents the structure of an attendee from the Billetweb API
 export interface BilletwebAttendee {
-  id: number;
-  last_name: string;
-  first_name: string;
+  id: number | string;
+  name: string;
+  firstname: string;
   email: string;
-  price: string;
-  date: string; // e.g., "2024-05-15 14:30:00"
+  ticket: string;
+  date?: string;
   answers?: {
     label: string;
     value: string;

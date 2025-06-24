@@ -259,9 +259,9 @@ export default function AdminPage() {
                                 {billetwebAttendees.length > 0 ? (
                                     billetwebAttendees.map(attendee => (
                                         <TableRow key={attendee.id}>
-                                            <TableCell>{attendee.last_name} {attendee.first_name}</TableCell>
+                                            <TableCell>{attendee.firstname} {attendee.name}</TableCell>
                                             <TableCell>{attendee.email}</TableCell>
-                                            <TableCell>{attendee.price || 'N/A'}</TableCell>
+                                            <TableCell>{attendee.ticket || 'N/A'}</TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
