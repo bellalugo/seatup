@@ -9,13 +9,6 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  experimental: {
-    watchOptions: {
-      // Ignore the .genkit directory to prevent an infinite reload loop when running the Genkit server.
-      // See: https://nextjs.org/docs/app/api-reference/next-config-js/watchOptions
-      ignored: ['**/.genkit/**'],
-    },
-  },
   images: {
     remotePatterns: [
       {

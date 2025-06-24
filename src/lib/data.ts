@@ -402,59 +402,6 @@ export const removeRegistration = async (userId: string, tableId: string): Promi
 
 
 // --- Participant Functions ---
-export const saveParticipants = async (participants: Participant[]): Promise<void> => {
-  console.log('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++');
-  console.log('+++ SERVER LOG: saveParticipants FUNCTION CALLED +++');
-  console.log('+++ SERVER LOG: Nombre de participants à sauvegarder:', participants.length);
-  if (participants.length > 0) {
-      console.log('+++ SERVER LOG: Premier participant (aperçu):', JSON.stringify(participants[0]));
-  }
-  console.log('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++');
-
-  if (!db) {
-    console.error("!!! SERVER LOG: Firestore DB instance is NOT INITIALIZED for saveParticipants. This is critical. !!!");
-    throw new Error("La connexion à Firestore n'est pas initialisée pour sauvegarder les participants.");
-  }
-  console.log(">>> SERVER LOG: Firestore 'db' instance in saveParticipants appears to be available.");
-
-  try {
-    const batch = writeBatch(db);
-    const participantsCollectionRef = collection(db, PARTICIPANTS_COLLECTION);
-    console.log(">>> SERVER LOG: writeBatch and collectionRef created for participants.");
-    let batchedCount = 0;
-    for (const participant of participants) {
-      if (!participant.id || typeof participant.id !== 'string' || participant.id.trim() === '') {
-        console.warn("[saveParticipants_DEBUG_SERVER] Participant avec ID invalide ignoré:", participant);
-        continue;
-      }
-
-      const participantDataToSave = {
-        nom: participant.nom || '',
-        prenom: participant.prenom || '',
-        email: participant.email || '',
-        typeBillet: participant.typeBillet || 'Invitation', 
-      };
-
-      const participantRef = doc(participantsCollectionRef, participant.id);
-      batch.set(participantRef, participantDataToSave, { merge: true });
-      batchedCount++;
-    }
-    console.log(`>>> SERVER LOG: Batching ${batchedCount} participants. Attempting batch.commit()...`);
-    await batch.commit();
-    console.log(`[saveParticipants_DEBUG_SERVER] ${batchedCount} participant(s) traité(s) pour sauvegarde dans Firestore (commit réussi).`);
-  } catch (error) {
-    console.error("!!! SERVER LOG: Firestore - ERREUR DÉTAILLÉE lors de la sauvegarde des participants (batch.commit failed): !!!", error);
-    let detailedMessage = "Impossible de sauvegarder les participants dans Firestore.";
-    if (error instanceof Error) {
-        detailedMessage += ` Message original: ${(error as any).message || 'N/A'}`;
-        if ((error as any).code) {
-            detailedMessage += ` Code Firebase: ${(error as any).code}`;
-        }
-    }
-    throw error;
-  }
-};
-
 /** Fetches all participants from Firestore */
 export const getParticipants = async (): Promise<Participant[]> => {
     if (!db) {
