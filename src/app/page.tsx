@@ -487,11 +487,10 @@ export default function Home() {
   const openPhaseBadges = ticketPhaseStatuses.filter(s => s.isOpen);
   const closedPhaseBadges = ticketPhaseStatuses.filter(s => !s.isOpen);
   
-  const showUserSpecificWarning = currentUser && 
-                                registrationControls && 
-                                currentUser.ticketType !== 'Invitation' && 
-                                !canRegisterBasedOnTicket(currentUser.ticketType, registrationControls) &&
-                                openPhaseBadges.length > 0; 
+  const isRegistrationBlockedForUser = currentUser && 
+                                       registrationControls && 
+                                       currentUser.ticketType !== 'Invitation' && 
+                                       !canRegisterBasedOnTicket(currentUser.ticketType, registrationControls);
 
   const timeSlotTypeSortOrder = TIME_SLOT_TYPE_OPTIONS.map(opt => opt.value);
 
@@ -539,12 +538,6 @@ export default function Home() {
                             Billet : {currentUser.ticketType}
                         </Badge>
                         <p className="text-xs text-muted-foreground mt-1">Email: {currentUser.email}</p>
-                        {showUserSpecificWarning && (
-                            <p className="text-xs text-destructive mt-1 font-medium">
-                                <AlertCircle className="inline h-3.5 w-3.5 mr-1" />
-                                L'inscription aux tables pour votre type de billet ({currentUser.ticketType}) n'est pas encore ouverte.
-                            </p>
-                        )}
                     </div>
                     <Button onClick={handleLogout} variant="outline" className="shadow-sm rounded-md">
                         <LogOut className="mr-2 h-4 w-4" />
@@ -559,6 +552,12 @@ export default function Home() {
                 )}
                 {registrationControls && ( 
                     <>
+                        {isRegistrationBlockedForUser && openPhaseBadges.length > 0 && (
+                            <p className="text-sm text-amber-700 font-medium p-2 bg-amber-50 rounded-md">
+                                <AlertCircle className="inline h-4 w-4 mr-1.5" />
+                                Votre billet <strong>({currentUser?.ticketType})</strong> ne permet pas encore de vous inscrire.
+                            </p>
+                        )}
                         {openPhaseBadges.length > 0 && (
                         <div>
                             <p className="text-xs font-medium text-foreground mb-1">Accès aux tables ouvert pour :</p>
