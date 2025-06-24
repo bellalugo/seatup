@@ -5,12 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import ConventionManager from "@/components/admin/table-manager";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils } from "lucide-react";
+import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils, Users } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { getRegistrationControl, updateRegistrationControl, getRegistrations, getGameTables } from "@/lib/data";
-import type { ManualRegistrationControls, TicketType, ConventionDay, Registration, GameTable } from "@/lib/types"; 
+import { getRegistrationControl, updateRegistrationControl, getRegistrations, getGameTables, getParticipants } from "@/lib/data";
+import type { ManualRegistrationControls, TicketType, ConventionDay, Registration, GameTable, Participant } from "@/lib/types"; 
 import { CONVENTION_DAYS } from "@/lib/types"; 
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 
 // Structure pour le décompte détaillé des repas
 interface DailyMealCounts {
@@ -19,11 +21,19 @@ interface DailyMealCounts {
   total: number;
 }
 
+// Structure pour les statistiques de participation
+interface ParticipantStats {
+  total: number;
+  registered: number;
+  ratio: number;
+}
+
 export default function AdminPage() {
   const { toast } = useToast();
 
   const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls | null>(null);
   const [mealCounts, setMealCounts] = useState<Record<ConventionDay, DailyMealCounts> | null>(null);
+  const [participantStats, setParticipantStats] = useState<Record<Exclude<TicketType, 'Invitation'>, ParticipantStats> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingControls, setIsUpdatingControls] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -83,6 +93,34 @@ export default function AdminPage() {
     return finalCounts;
   };
 
+  const calculateParticipantStats = (participants: Participant[], registrations: Registration[]): Record<Exclude<TicketType, 'Invitation'>, ParticipantStats> => {
+    const ticketTypes: Exclude<TicketType, 'Invitation'>[] = ['Stratège', 'Maréchal', 'Général'];
+    const stats: Record<string, ParticipantStats> = {};
+
+    ticketTypes.forEach(type => {
+        stats[type] = { total: 0, registered: 0, ratio: 0 };
+    });
+
+    const registeredUserIds = new Set(registrations.map(reg => reg.userId));
+
+    for (const participant of participants) {
+        const pType = participant.typeBillet;
+        if (ticketTypes.includes(pType as any)) {
+            stats[pType].total++;
+            if (registeredUserIds.has(participant.id)) {
+                stats[pType].registered++;
+            }
+        }
+    }
+
+    ticketTypes.forEach(type => {
+        const { total, registered } = stats[type];
+        stats[type].ratio = total > 0 ? (registered / total) * 100 : 0;
+    });
+
+    return stats as Record<Exclude<TicketType, 'Invitation'>, ParticipantStats>;
+  };
+
   const fetchAdminData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) {
       setIsRefreshing(true);
@@ -91,10 +129,11 @@ export default function AdminPage() {
     }
 
     try {
-      const [controls, registrations, tables] = await Promise.all([
+      const [controls, registrations, tables, participants] = await Promise.all([
         getRegistrationControl(),
         getRegistrations(),
         getGameTables(),
+        getParticipants(),
       ]);
       
       setRegistrationControls(controls);
@@ -102,8 +141,11 @@ export default function AdminPage() {
       const counts = calculateMealCounts(registrations, tables);
       setMealCounts(counts);
 
+      const pStats = calculateParticipantStats(participants, registrations);
+      setParticipantStats(pStats);
+
       if (isManualRefresh) {
-        toast({ title: "Données actualisées", description: "L'état des inscriptions et le décompte des repas ont été rechargés." });
+        toast({ title: "Données actualisées", description: "Les statistiques et décomptes ont été rechargés." });
       }
     } catch (error) {
       toast({ 
@@ -196,6 +238,15 @@ export default function AdminPage() {
     if (registrationControls?.generalManuallyOpen) return "Fermer Généraux";
     return "Ouvrir Généraux";
   };
+  
+  const getTicketBadgeVariant = (ticketType: TicketType): "strategist" | "marshal" | "general" | "secondary" => {
+    switch (ticketType) {
+        case 'Stratège': return 'strategist';
+        case 'Maréchal': return 'marshal';
+        case 'Général': return 'general';
+        default: return 'secondary';
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -277,6 +328,40 @@ export default function AdminPage() {
         </CardContent>
       </Card>
       
+      <Card className="shadow-lg">
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+                <Users className="h-6 w-6 text-primary" /> Statistiques des Inscriptions par Billet
+            </CardTitle>
+            <CardDescription>
+                Taux d'inscription des participants aux tables de jeu, par type de billet (hors invitations/animateurs).
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {isLoading ? (
+                <div className="flex items-center justify-center p-4">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <p>Chargement des statistiques...</p>
+                </div>
+            ) : participantStats ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {(['Stratège', 'Maréchal', 'Général'] as const).map(type => (
+                        <div key={type} className="p-4 bg-muted/50 rounded-lg shadow-inner flex flex-col gap-2">
+                            <Badge variant={getTicketBadgeVariant(type)} className="w-fit font-bold">{type}</Badge>
+                            <div className="text-sm text-muted-foreground">
+                                <span className="font-bold text-foreground text-lg">{participantStats[type].registered}</span> / {participantStats[type].total} participants inscrits
+                            </div>
+                            <Progress value={participantStats[type].ratio} className="h-2" />
+                            <div className="text-xs font-semibold text-right text-muted-foreground">{Math.round(participantStats[type].ratio)}%</div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                 <p className="text-center text-destructive p-4">Impossible de calculer les statistiques des participants.</p>
+            )}
+        </CardContent>
+      </Card>
+
       <Card className="shadow-lg">
         <CardHeader>
             <CardTitle className="flex items-center gap-2">
