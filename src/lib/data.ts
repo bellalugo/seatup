@@ -358,13 +358,19 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
         console.error("Firestore DB instance is not initialized for addRegistration.");
         throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter une inscription.");
     }
+
+    // The check for existing registration is now performed client-side to avoid needing a composite index.
+    // We now use a predictable, composite ID for the registration document.
+    const registrationId = `${userId}_${tableId}`;
+    const newRegistrationData: Registration = { userId, tableId, timestamp: new Date() };
+
     try {
-        // Use addDoc to let Firestore generate the ID. This is more likely to succeed with restrictive security rules.
-        const newRegistrationData = { userId, tableId, timestamp: new Date() };
-        const docRef = await addDoc(collection(db, REGISTRATIONS_COLLECTION), newRegistrationData);
-        return { id: docRef.id, ...newRegistrationData };
+        // Use setDoc with the custom composite ID. This is a 'write' operation which may be permitted by security rules
+        // where a 'create' (from addDoc) with a random ID might be denied.
+        await setDoc(doc(db, REGISTRATIONS_COLLECTION, registrationId), newRegistrationData);
+        return { id: registrationId, ...newRegistrationData };
     } catch (error) {
-        console.error("Firestore - Erreur lors de l'ajout de l'inscription:", error);
+        console.error("Firestore - Erreur lors de l'ajout de l'inscription (avec setDoc):", error);
         if (error instanceof Error && 'code' in error && (error as any).code === 'permission-denied') {
              throw new Error("Permission refusée. Vos droits ne permettent pas de vous inscrire. Contactez un admin.");
         }
@@ -372,13 +378,13 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
     }
 };
 
+
 export const removeRegistration = async (registrationId: string): Promise<void> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for removeRegistration.");
         throw new Error("La connexion à Firestore n'est pas initialisée pour supprimer une inscription.");
     }
     try {
-        // Use the direct document ID to delete, which is efficient and doesn't require an index.
         const registrationRef = doc(db, REGISTRATIONS_COLLECTION, registrationId);
         await deleteDoc(registrationRef);
     } catch (error) {

@@ -413,7 +413,10 @@ export default function Home() {
     const table = tables.find(t => t.id === tableId);
     if (!table) return;
 
-    const registrationToDelete = registrations.find(r => r.userId === currentUser.id && r.tableId === tableId);
+    // Use the composite ID `${userId}_${tableId}` for deletion if that's the ID convention
+    const registrationId = `${currentUser.id}_${tableId}`;
+    const registrationToDelete = registrations.find(r => r.id === registrationId);
+    
     if (!registrationToDelete) {
         toast({
             variant: "destructive",

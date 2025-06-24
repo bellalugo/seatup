@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type React from 'react';
@@ -388,7 +389,9 @@ export default function ConventionManager() {
   const handleRemoveParticipantFromTable = async (participantId: string) => {
     if (!editingTable) return;
 
-    const registrationToDelete = registrations.find(r => r.userId === participantId && r.tableId === editingTable.id);
+    const registrationId = `${participantId}_${editingTable.id}`;
+    const registrationToDelete = registrations.find(r => r.id === registrationId);
+
     if (!registrationToDelete) {
         toast({
             variant: "destructive",
