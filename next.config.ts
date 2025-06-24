@@ -10,7 +10,13 @@ const nextConfig = {
   },
   watchOptions: {
     poll: 1000, // Check for changes every second
-    ignored: ['**/.vscode/**', '**/.next/**'],
+    // More aggressive ignore list to prevent loops
+    ignored: [
+        '**/.vscode/**', 
+        '**/.next/**',
+        '**/node_modules/**',
+        '**/patches/**',
+    ],
   },
   images: {
     remotePatterns: [
