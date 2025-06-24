@@ -11,6 +11,7 @@ import { getRegistrationControl, updateRegistrationControl } from "@/lib/data";
 import type { ManualRegistrationControls, TicketType, BilletwebAttendee } from "@/lib/types"; 
 import { REGISTRATION_SCHEDULE } from "@/lib/types"; 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 
 export default function AdminPage() {
@@ -153,6 +154,21 @@ export default function AdminPage() {
     return "Ouvrir Généraux";
   };
 
+  const getBadgeVariantFromTicket = (ticketName: string | null | undefined): "strategist" | "marshal" | "general" | "secondary" => {
+    if (!ticketName) return 'secondary';
+    const lowerCaseTicket = ticketName.toLowerCase();
+    if (lowerCaseTicket.includes('stratège')) {
+        return 'strategist';
+    }
+    if (lowerCaseTicket.includes('maréchal')) {
+        return 'marshal';
+    }
+    if (lowerCaseTicket.includes('général')) {
+        return 'general';
+    }
+    return 'secondary';
+  };
+
 
   return (
     <div className="space-y-6">
@@ -263,7 +279,11 @@ export default function AdminPage() {
                                             <TableCell>{attendee.firstname}</TableCell>
                                             <TableCell>{attendee.name}</TableCell>
                                             <TableCell>{attendee.email}</TableCell>
-                                            <TableCell>{attendee.ticket || 'N/A'}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={getBadgeVariantFromTicket(attendee.ticket)}>
+                                                    {attendee.ticket || 'N/A'}
+                                                </Badge>
+                                            </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
