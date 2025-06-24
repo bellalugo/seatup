@@ -50,19 +50,19 @@ export default function AdminPage() {
       }
     }
     
-    // 2. Décompte des animateurs (un par table par jour)
-    const dailyAnimators: Record<ConventionDay, number> = {
-      Jeudi: 0,
-      Vendredi: 0,
-      Samedi: 0,
-      Dimanche: 0,
+    // 2. Décompte des animateurs (uniques par jour)
+    const dailyAnimators: Record<ConventionDay, Set<string>> = {
+        Jeudi: new Set<string>(),
+        Vendredi: new Set<string>(),
+        Samedi: new Set<string>(),
+        Dimanche: new Set<string>(),
     };
-    
+
     for (const table of tables) {
         if (table.authorAnimator && table.timeSlotType !== 'Off') {
             for (const day of table.days) {
                 if (CONVENTION_DAYS.includes(day)) {
-                    dailyAnimators[day]++;
+                    dailyAnimators[day].add(table.authorAnimator);
                 }
             }
         }
@@ -72,7 +72,7 @@ export default function AdminPage() {
     const finalCounts = {} as Record<ConventionDay, DailyMealCounts>;
     for (const day of CONVENTION_DAYS) {
         const participantCount = dailyParticipants[day].size;
-        const animatorCount = dailyAnimators[day];
+        const animatorCount = dailyAnimators[day].size;
         finalCounts[day] = {
             participants: participantCount,
             animators: animatorCount,
