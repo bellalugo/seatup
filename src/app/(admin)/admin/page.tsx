@@ -12,16 +12,24 @@ import { getRegistrationControl, updateRegistrationControl, getRegistrations, ge
 import type { ManualRegistrationControls, TicketType, ConventionDay, Registration, GameTable } from "@/lib/types"; 
 import { CONVENTION_DAYS } from "@/lib/types"; 
 
+// Structure pour le décompte détaillé des repas
+interface DailyMealCounts {
+  participants: number;
+  animators: number;
+  total: number;
+}
+
 export default function AdminPage() {
   const { toast } = useToast();
 
   const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls | null>(null);
-  const [mealCounts, setMealCounts] = useState<Record<ConventionDay, number> | null>(null);
+  const [mealCounts, setMealCounts] = useState<Record<ConventionDay, DailyMealCounts> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingControls, setIsUpdatingControls] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const calculateMealCounts = (registrations: Registration[], tables: GameTable[]): Record<ConventionDay, number> => {
+  const calculateMealCounts = (registrations: Registration[], tables: GameTable[]): Record<ConventionDay, DailyMealCounts> => {
+    // 1. Décompte des participants (uniques par jour)
     const dailyParticipants: Record<ConventionDay, Set<string>> = {
       Jeudi: new Set<string>(),
       Vendredi: new Set<string>(),
@@ -41,13 +49,38 @@ export default function AdminPage() {
         }
       }
     }
-
-    return {
-      Jeudi: dailyParticipants.Jeudi.size,
-      Vendredi: dailyParticipants.Vendredi.size,
-      Samedi: dailyParticipants.Samedi.size,
-      Dimanche: dailyParticipants.Dimanche.size,
+    
+    // 2. Décompte des animateurs (un par table par jour)
+    const dailyAnimators: Record<ConventionDay, number> = {
+      Jeudi: 0,
+      Vendredi: 0,
+      Samedi: 0,
+      Dimanche: 0,
     };
+    
+    for (const table of tables) {
+        if (table.authorAnimator && table.timeSlotType !== 'Off') {
+            for (const day of table.days) {
+                if (CONVENTION_DAYS.includes(day)) {
+                    dailyAnimators[day]++;
+                }
+            }
+        }
+    }
+
+    // 3. Combinaison des résultats
+    const finalCounts = {} as Record<ConventionDay, DailyMealCounts>;
+    for (const day of CONVENTION_DAYS) {
+        const participantCount = dailyParticipants[day].size;
+        const animatorCount = dailyAnimators[day];
+        finalCounts[day] = {
+            participants: participantCount,
+            animators: animatorCount,
+            total: participantCount + animatorCount,
+        };
+    }
+    
+    return finalCounts;
   };
 
   const fetchAdminData = useCallback(async (isManualRefresh = false) => {
@@ -250,7 +283,7 @@ export default function AdminPage() {
                 <Utensils className="h-6 w-6 text-primary" /> Décompte des Repas
             </CardTitle>
             <CardDescription>
-                Nombre de repas à prévoir par jour, basé sur les inscriptions aux tables (hors créneaux 'Off'). Un participant est compté une seule fois par jour.
+                Décompte des repas participants (comptés une fois par jour) et animateurs (un par table par jour), hors créneaux 'Off'.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -262,10 +295,20 @@ export default function AdminPage() {
             ) : mealCounts ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {CONVENTION_DAYS.map(day => (
-                        <div key={day} className="p-4 bg-muted/50 rounded-lg text-center shadow-inner">
-                            <p className="text-sm font-medium text-muted-foreground">{day}</p>
-                            <p className="text-4xl font-bold tracking-tight">{mealCounts[day]}</p>
-                            <p className="text-xs text-muted-foreground">repas</p>
+                        <div key={day} className="p-4 bg-muted/50 rounded-lg text-center shadow-inner flex flex-col">
+                            <div className="flex-grow">
+                                <p className="text-sm font-medium text-muted-foreground">{day}</p>
+                                <p className="text-4xl font-bold tracking-tight">{mealCounts[day].total}</p>
+                                <p className="text-xs text-muted-foreground">repas au total</p>
+                            </div>
+                            <div className="mt-2 pt-2 border-t">
+                                <p className="text-xs text-muted-foreground">
+                                    {mealCounts[day].participants} participant(s)
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    {mealCounts[day].animators} animateur(s)
+                                </p>
+                            </div>
                         </div>
                     ))}
                 </div>
