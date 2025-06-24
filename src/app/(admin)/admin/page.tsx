@@ -250,6 +250,7 @@ export default function AdminPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead>Prénom</TableHead>
                                     <TableHead>Nom</TableHead>
                                     <TableHead>Email</TableHead>
                                     <TableHead>Type de Billet</TableHead>
@@ -259,14 +260,15 @@ export default function AdminPage() {
                                 {billetwebAttendees.length > 0 ? (
                                     billetwebAttendees.map(attendee => (
                                         <TableRow key={attendee.id}>
-                                            <TableCell>{attendee.firstname} {attendee.name}</TableCell>
+                                            <TableCell>{attendee.firstname}</TableCell>
+                                            <TableCell>{attendee.name}</TableCell>
                                             <TableCell>{attendee.email}</TableCell>
                                             <TableCell>{attendee.ticket || 'N/A'}</TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={3} className="text-center">Aucun participant trouvé sur Billetweb.</TableCell>
+                                        <TableCell colSpan={4} className="text-center">Aucun participant trouvé sur Billetweb.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
