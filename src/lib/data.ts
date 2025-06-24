@@ -302,7 +302,7 @@ export const updateGameTableStatus = async (tableId: string, status: TableStatus
 
 // --- Registrations Functions ---
 
-export const getRegistrations = async (): Promise<Registration[]> => {
+export const getRegistrations = async (): Promise<(Registration & { id: string })[]> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for getRegistrations.");
         throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les inscriptions.");
@@ -338,7 +338,7 @@ export const getRegistrations = async (): Promise<Registration[]> => {
     }
 };
 
-export const getRegistrationsForTable = async (tableId: string): Promise<Registration[]> => {
+export const getRegistrationsForTable = async (tableId: string): Promise<(Registration & { id: string })[]> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for getRegistrationsForTable.");
         throw new Error("La connexion à Firestore n'est pas initialisée pour récupérer les inscriptions de la table.");
@@ -353,31 +353,20 @@ export const getRegistrationsForTable = async (tableId: string): Promise<Registr
     }
 };
 
-export const addRegistration = async (userId: string, tableId: string): Promise<Registration> => {
+export const addRegistration = async (userId: string, tableId: string): Promise<Registration & { id: string }> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for addRegistration.");
         throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter une inscription.");
     }
     try {
-        const q = query(collection(db, REGISTRATIONS_COLLECTION), where("userId", "==", userId), where("tableId", "==", tableId));
-        const existingRegs = await getDocs(q);
-        if (!existingRegs.empty) {
-            return { id: existingRegs.docs[0].id, ...existingRegs.docs[0].data() } as Registration & { id: string };
-        }
-
-        const newRegistrationData = { userId, tableId, timestamp: new Date() }; // Add timestamp
-        const docRef = await addDoc(collection(db, REGISTRATIONS_COLLECTION), newRegistrationData);
-        return { id: docRef.id, ...newRegistrationData };
+        const registrationId = `${userId}_${tableId}`;
+        const registrationRef = doc(db, REGISTRATIONS_COLLECTION, registrationId);
+        const newRegistrationData = { userId, tableId, timestamp: new Date() };
+        await setDoc(registrationRef, newRegistrationData);
+        return { id: registrationId, ...newRegistrationData };
     } catch (error) {
         console.error("Firestore - Erreur lors de l'ajout de l'inscription:", error);
-        let detail = "Vérifiez les logs du serveur Next.js ou la console du navigateur pour l'erreur Firebase d'origine.";
-        if (error instanceof Error && 'code' in error) {
-            const fbError = error as {code: string, message: string};
-            detail = `Erreur Firebase: ${fbError.message} (Code: ${fbError.code}). Vérifiez les index Firestore si le code est 'failed-precondition'.`;
-        } else if (error instanceof Error) {
-            detail = `Détail: ${error.message}`;
-        }
-        throw new Error(`Impossible d'ajouter l'inscription à Firestore. ${detail}`);
+        throw new Error("Impossible d'ajouter l'inscription à Firestore.");
     }
 };
 
@@ -387,13 +376,9 @@ export const removeRegistration = async (userId: string, tableId: string): Promi
         throw new Error("La connexion à Firestore n'est pas initialisée pour supprimer une inscription.");
     }
     try {
-        const q = query(collection(db, REGISTRATIONS_COLLECTION), where("userId", "==", userId), where("tableId", "==", tableId));
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) {
-            return;
-        }
-        const registrationDoc = querySnapshot.docs[0];
-        await deleteDoc(doc(db, REGISTRATIONS_COLLECTION, registrationDoc.id));
+        const registrationId = `${userId}_${tableId}`;
+        const registrationRef = doc(db, REGISTRATIONS_COLLECTION, registrationId);
+        await deleteDoc(registrationRef);
     } catch (error) {
         console.error("Firestore - Erreur lors de la suppression de l'inscription:", error);
         throw new Error("Impossible de supprimer l'inscription de Firestore.");
@@ -604,7 +589,7 @@ export const updateRegistrationControl = async (updates: Partial<ManualRegistrat
 
 // --- Utility Functions ---
 
-export const getAvailableSeats = (tableId: string, registrations: Registration[], tables: GameTable[]): number => {
+export const getAvailableSeats = (tableId: string, registrations: (Registration & { id: string })[], tables: GameTable[]): number => {
     const table = tables.find(t => t.id === tableId);
     if (!table) return 0;
     const currentRegistrations = registrations.filter(r => r.tableId === tableId).length;
@@ -613,7 +598,7 @@ export const getAvailableSeats = (tableId: string, registrations: Registration[]
 
 export const hasTimeConflict = (
   newTableCandidate: { days: ConventionDay[]; timeSlotType: TimeSlotType },
-  userRegistrations: Registration[],
+  userRegistrations: (Registration & { id: string })[],
   allTables: GameTable[]
 ): boolean => {
   const newTableActualGranularSlots = getActualGranularSlotsForTimeSlotType(newTableCandidate.timeSlotType);
