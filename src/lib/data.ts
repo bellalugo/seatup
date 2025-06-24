@@ -1,4 +1,4 @@
-import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls, ConventionDay, TimeSlotType, TableStatus } from '@/lib/types';
+import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls, ConventionDay, TimeSlotType, TableStatus, BilletwebAttendee } from '@/lib/types';
 import { auth, db } from '@/firebase/clientApp'; // Import 'auth'
 import {
     collection,
@@ -18,6 +18,7 @@ import {
     type DocumentSnapshot,
 } from 'firebase/firestore';
 import { CONVENTION_DAYS, TIME_SLOT_TYPE_OPTIONS, getActualGranularSlotsForTimeSlotType, getTimeSlotTypeDisplayLabel } from '@/lib/types';
+import axios from 'axios';
 
 
 const GAMES_COLLECTION = 'games';
@@ -359,14 +360,10 @@ export const addRegistration = async (userId: string, tableId: string): Promise<
         throw new Error("La connexion à Firestore n'est pas initialisée pour ajouter une inscription.");
     }
 
-    // The check for existing registration is now performed client-side to avoid needing a composite index.
-    // We now use a predictable, composite ID for the registration document.
     const registrationId = `${userId}_${tableId}`;
     const newRegistrationData: Registration = { userId, tableId, timestamp: new Date() };
 
     try {
-        // Use setDoc with the custom composite ID. This is a 'write' operation which may be permitted by security rules
-        // where a 'create' (from addDoc) with a random ID might be denied.
         await setDoc(doc(db, REGISTRATIONS_COLLECTION, registrationId), newRegistrationData);
         return { id: registrationId, ...newRegistrationData };
     } catch (error) {
@@ -595,6 +592,92 @@ export const updateRegistrationControl = async (updates: Partial<ManualRegistrat
 };
 
 
+// --- Billetweb Sync Function ---
+export const syncParticipantsWithBilletweb = async (): Promise<{
+  added: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  total: number;
+}> => {
+  if (!db) throw new Error("La connexion à Firestore n'est pas initialisée.");
+
+  const apiKey = process.env.BILLETWEB_KEY;
+  const eventId = process.env.BILLETWEB_EVENT_ID;
+
+  if (!apiKey || !eventId) {
+    throw new Error("Les variables d'environnement BILLETWEB_KEY et BILLETWEB_EVENT_ID sont requises.");
+  }
+
+  const url = `https://api.billetweb.fr/v1/event/${eventId}/attendees?api_key=${apiKey}&version=2`;
+
+  try {
+    const response = await axios.get<{ attendees: BilletwebAttendee[] }>(url);
+    const billetwebAttendees = response.data.attendees || [];
+
+    const existingParticipants = await getParticipants();
+    const existingParticipantsMap = new Map<string, Participant>();
+    existingParticipants.forEach(p => {
+      if (p.email) existingParticipantsMap.set(p.email.toLowerCase(), p);
+    });
+
+    const batch = writeBatch(db);
+    let added = 0, updated = 0, skipped = 0, failed = 0;
+
+    for (const attendee of billetwebAttendees) {
+      if (!attendee.email || !attendee.id) {
+        failed++;
+        continue;
+      }
+      
+      const ticketTypeAnswer = attendee.answers?.find(a => a.label.toLowerCase().includes('billet'));
+      const ticketType = (ticketTypeAnswer?.value as TicketType) || 'Général'; // Default to General if not found
+
+      const newParticipantData: Omit<Participant, 'id'> = {
+        nom: attendee.last_name || '',
+        prenom: attendee.first_name || '',
+        email: attendee.email,
+        typeBillet: ticketType,
+      };
+      
+      const existingParticipant = existingParticipantsMap.get(attendee.email.toLowerCase());
+
+      if (existingParticipant) {
+        // Update if data differs
+        if (
+          existingParticipant.nom !== newParticipantData.nom ||
+          existingParticipant.prenom !== newParticipantData.prenom ||
+          existingParticipant.typeBillet !== newParticipantData.typeBillet
+        ) {
+          const participantRef = doc(db, PARTICIPANTS_COLLECTION, existingParticipant.id);
+          batch.update(participantRef, newParticipantData);
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        // Add new participant using Billetweb ID as Firestore doc ID
+        const participantRef = doc(db, PARTICIPANTS_COLLECTION, String(attendee.id));
+        batch.set(participantRef, newParticipantData);
+        added++;
+      }
+    }
+
+    await batch.commit();
+
+    return { added, updated, skipped, failed, total: billetwebAttendees.length };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const apiError = error.response?.data?.error || error.message;
+      console.error("Erreur API Billetweb:", apiError);
+      throw new Error(`Erreur de l'API Billetweb: ${apiError}`);
+    }
+    console.error("Erreur lors de la synchronisation Billetweb:", error);
+    throw new Error("Une erreur interne est survenue lors de la synchronisation.");
+  }
+};
+
+
 // --- Utility Functions ---
 
 export const getAvailableSeats = (tableId: string, registrations: (Registration & { id: string })[], tables: GameTable[]): number => {
@@ -615,33 +698,22 @@ export const hasTimeConflict = (
     const registeredTable = allTables.find(t => t.id === registration.tableId);
     if (!registeredTable) continue;
 
-    // Skip conflict check if the registered table is the same as the new table candidate (e.g. when editing)
-    // This check is primarily for new registrations, not for re-validating an existing one against itself.
-    // However, the current structure of `openConfirmationDialog` calls this for new registrations only.
-    // If `newTableCandidate` could represent an existing table being modified, an ID check would be needed here.
-
     const registeredTableActualGranularSlots = getActualGranularSlotsForTimeSlotType(registeredTable.timeSlotType);
 
     // Check for day overlap
     const commonDays = newTableCandidate.days.filter(day => registeredTable.days.includes(day));
-    if (commonDays.length === 0) continue; // No common days, no conflict with this specific registered table
+    if (commonDays.length === 0) continue; 
 
-    // For each common day, check for slot overlap
-    // Since commonDays.length > 0, we know there's at least one common day.
-    // A conflict on any common day for any overlapping granular slot is sufficient.
     const granularSlotsOverlap = newTableActualGranularSlots.some(newSlot =>
       registeredTableActualGranularSlots.includes(newSlot)
     );
 
     if (granularSlotsOverlap) {
-      // 'Off_Slot' only conflicts with 'Off_Slot'.
-      // 'Matin_Slot' or 'Aprem_Slot' conflict with themselves or each other if part of 'Journée'.
       const newIsOff = newTableActualGranularSlots.includes('Off_Slot');
       const registeredIsOff = registeredTableActualGranularSlots.includes('Off_Slot');
 
       if (newIsOff && registeredIsOff) return true; // Off conflicts with Off
       if (!newIsOff && !registeredIsOff) return true; // Regular slots (Matin/Aprem/Journée) conflict
-      // If one is Off and the other is not, they do not conflict.
     }
   }
   return false;

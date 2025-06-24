@@ -124,3 +124,17 @@ export interface ManualRegistrationControls {
   generalManuallyOpen: boolean;
   lastUpdated?: Date;
 }
+
+// Represents the structure of an attendee from the Billetweb API
+export interface BilletwebAttendee {
+  id: number;
+  last_name: string;
+  first_name: string;
+  email: string;
+  price: string;
+  date: string; // e.g., "2024-05-15 14:30:00"
+  answers?: {
+    label: string;
+    value: string;
+  }[];
+}

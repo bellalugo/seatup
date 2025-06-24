@@ -5,13 +5,14 @@ import Image from 'next/image'; // Import Image component
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { ShieldCheck, LogIn, LogOut, Loader2 } from 'lucide-react'; // Import icons
+import { ShieldCheck, LogIn, LogOut, Loader2, RefreshCw } from 'lucide-react'; // Import icons
 import { useToast } from '@/hooks/use-toast';
 import * as React from 'react'; // Import React for useState
 
 export default function Header() {
   const { user, signOut, loading: authLoading } = useAuth();
   const [signOutLoading, setSignOutLoading] = React.useState(false); // Specific loading state for sign-out
+  const [syncLoading, setSyncLoading] = React.useState(false); // State for Billetweb sync
   const router = useRouter();
   const { toast } = useToast();
 
@@ -28,6 +29,36 @@ export default function Header() {
       setSignOutLoading(false);
     }
   };
+
+  const handleSyncBilletweb = async () => {
+    setSyncLoading(true);
+    toast({ title: 'Synchronisation en cours...', description: 'Récupération des données depuis Billetweb...' });
+    try {
+      const response = await fetch('/api/sync-billetweb', { method: 'POST' });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Une erreur est survenue.');
+      }
+
+      toast({
+        title: 'Synchronisation terminée !',
+        description: `Participants : ${data.added} ajoutés, ${data.updated} mis à jour, ${data.skipped} sans changement.`,
+        duration: 7000,
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Une erreur inconnue est survenue.";
+      toast({
+        variant: 'destructive',
+        title: 'Échec de la synchronisation',
+        description: errorMessage,
+      });
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
 
   const isRealUser = user && !user.isAnonymous;
 
@@ -46,12 +77,28 @@ export default function Header() {
           />
         </Link>
         <nav className="flex items-center gap-4">
-           {/* Show Admin link only if user is logged in and not anonymous */}
            {isRealUser && (
-             <Link href="/admin" className="flex items-center gap-1 text-sm text-primary-foreground hover:text-red-700 transition-colors font-bold" title="Espace Admin">
-               <ShieldCheck className="h-4 w-4" />
-               <span>Admin</span>
-             </Link>
+             <>
+               <Button
+                 variant="ghost"
+                 size="sm"
+                 onClick={handleSyncBilletweb}
+                 disabled={syncLoading}
+                 className="text-primary-foreground hover:bg-primary/80 hover:text-red-700 font-bold"
+                 title="Mettre à jour la liste des participants depuis Billetweb"
+               >
+                 {syncLoading ? (
+                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                 ) : (
+                   <RefreshCw className="mr-2 h-4 w-4" />
+                 )}
+                 Mise à jour Billetweb
+               </Button>
+               <Link href="/admin" className="flex items-center gap-1 text-sm text-primary-foreground hover:text-red-700 transition-colors font-bold" title="Espace Admin">
+                 <ShieldCheck className="h-4 w-4" />
+                 <span>Admin</span>
+               </Link>
+             </>
            )}
 
            {/* Authentication Buttons */}
