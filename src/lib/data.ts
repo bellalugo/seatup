@@ -601,22 +601,39 @@ export const fetchBilletwebAttendees = async (): Promise<BilletwebAttendee[]> =>
     throw new Error("Les variables d'environnement BILLETWEB_KEY et BILLETWEB_EVENT_ID sont requises.");
   }
 
+  // Corrected URL using the right domain and parameters from environment variables
   const url = `https://api.billetweb.com/v1/event/${eventId}/attendees?api_key=${apiKey}&version=2`;
 
   try {
     const response = await axios.get<{ attendees: BilletwebAttendee[] }>(url);
+    
+    if (!response.data || !Array.isArray(response.data.attendees)) {
+        console.warn("Billetweb API a répondu mais le format est inattendu. Attendu: { attendees: [...] }, Reçu:", response.data);
+        throw new Error("La réponse de l'API Billetweb n'a pas le format attendu.");
+    }
+    
     return response.data.attendees || [];
+
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const apiError = error.response?.data?.error || error.message;
-      console.error("Erreur API Billetweb:", apiError);
+      console.error(`Erreur API Billetweb (Status: ${error.response?.status}):`, apiError);
+      
       if (error.code === 'ENOTFOUND') {
-          throw new Error(`Erreur réseau (ENOTFOUND): Impossible de trouver l'hôte ${error.config?.url}. Vérifiez l'URL de l'API et votre connexion.`);
+          throw new Error(`Erreur réseau (ENOTFOUND): Impossible de trouver l'hôte de l'API Billetweb. Vérifiez l'URL de l'API et votre connexion.`);
       }
+      if (error.response?.status === 403) {
+          throw new Error(`Erreur d'authentification Billetweb (403): Clé API invalide ou permissions insuffisantes pour l'événement ${eventId}.`);
+      }
+      if (error.response?.status === 404) {
+          throw new Error(`Erreur Billetweb (404): Événement avec l'ID ${eventId} non trouvé.`);
+      }
+
       throw new Error(`Erreur de l'API Billetweb: ${apiError}`);
     }
-    console.error("Erreur lors de la synchronisation Billetweb:", error);
-    throw new Error("Une erreur interne est survenue lors de la synchronisation.");
+    
+    console.error("Erreur non-axios lors de la synchronisation Billetweb:", error);
+    throw new Error("Une erreur interne est survenue lors de la synchronisation avec Billetweb.");
   }
 };
 
