@@ -5,47 +5,91 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import ConventionManager from "@/components/admin/table-manager";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap } from "lucide-react";
+import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { getRegistrationControl, updateRegistrationControl } from "@/lib/data";
-import type { ManualRegistrationControls, TicketType } from "@/lib/types"; 
-import { REGISTRATION_SCHEDULE } from "@/lib/types"; 
-
+import { getRegistrationControl, updateRegistrationControl, getRegistrations, getGameTables } from "@/lib/data";
+import type { ManualRegistrationControls, TicketType, ConventionDay, Registration, GameTable } from "@/lib/types"; 
+import { CONVENTION_DAYS } from "@/lib/types"; 
 
 export default function AdminPage() {
   const { toast } = useToast();
 
   const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls | null>(null);
+  const [mealCounts, setMealCounts] = useState<Record<ConventionDay, number> | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingControls, setIsUpdatingControls] = useState(false);
-  const [isRefreshingControls, setIsRefreshingControls] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchControls = useCallback(async () => {
-    const isManualRefresh = isRefreshingControls; 
-    if (!isManualRefresh) setIsUpdatingControls(true);
-    else setIsRefreshingControls(true);
+  const calculateMealCounts = (registrations: Registration[], tables: GameTable[]): Record<ConventionDay, number> => {
+    const dailyParticipants: Record<ConventionDay, Set<string>> = {
+      Jeudi: new Set<string>(),
+      Vendredi: new Set<string>(),
+      Samedi: new Set<string>(),
+      Dimanche: new Set<string>(),
+    };
+
+    const tablesMap = new Map(tables.map(t => [t.id, t]));
+
+    for (const reg of registrations) {
+      const table = tablesMap.get(reg.tableId);
+      if (table && table.timeSlotType !== 'Off') {
+        for (const day of table.days) {
+          if (CONVENTION_DAYS.includes(day)) {
+            dailyParticipants[day].add(reg.userId);
+          }
+        }
+      }
+    }
+
+    return {
+      Jeudi: dailyParticipants.Jeudi.size,
+      Vendredi: dailyParticipants.Vendredi.size,
+      Samedi: dailyParticipants.Samedi.size,
+      Dimanche: dailyParticipants.Dimanche.size,
+    };
+  };
+
+  const fetchAdminData = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
 
     try {
-      const controls = await getRegistrationControl();
+      const [controls, registrations, tables] = await Promise.all([
+        getRegistrationControl(),
+        getRegistrations(),
+        getGameTables(),
+      ]);
+      
       setRegistrationControls(controls);
+      
+      const counts = calculateMealCounts(registrations, tables);
+      setMealCounts(counts);
+
       if (isManualRefresh) {
-        toast({ title: "Contrôles actualisés", description: "L'état des phases d'inscription a été rechargé." });
+        toast({ title: "Données actualisées", description: "L'état des inscriptions et le décompte des repas ont été rechargés." });
       }
     } catch (error) {
       toast({ 
         variant: "destructive", 
-        title: "Erreur de chargement des contrôles", 
-        description: error instanceof Error ? error.message : "Impossible de charger les contrôles d'inscription."
+        title: "Erreur de chargement des données", 
+        description: error instanceof Error ? error.message : "Impossible de charger les données d'administration."
       });
     } finally {
-      if (!isManualRefresh) setIsUpdatingControls(false);
-      else setIsRefreshingControls(false);
+      if (isManualRefresh) {
+        setIsRefreshing(false);
+      } else {
+        setIsLoading(false);
+      }
     }
-  }, [toast, isRefreshingControls]);
+  }, [toast]);
 
   useEffect(() => {
-    fetchControls();
-  }, [fetchControls]);
+    fetchAdminData();
+  }, [fetchAdminData]);
 
   const handleUpdateControls = async (phaseToOpen?: TicketType | 'reset') => {
     setIsUpdatingControls(true);
@@ -82,11 +126,11 @@ export default function AdminPage() {
 
     try {
         await updateRegistrationControl(newControls);
-        await fetchControls(); 
+        await fetchAdminData(); 
         toast({ title: "Contrôles mis à jour", description: `Phase d'inscription ${phaseToOpen === 'reset' ? 'fermée (tous types)' : phaseToOpen } modifiée manuellement.` });
     } catch (error) {
         toast({ variant: "destructive", title: "Erreur de mise à jour", description: (error as Error).message });
-        await fetchControls();
+        await fetchAdminData();
     } finally {
         setIsUpdatingControls(false);
     }
@@ -120,7 +164,6 @@ export default function AdminPage() {
     return "Ouvrir Généraux";
   };
 
-
   return (
     <div className="space-y-6">
       <Card className="shadow-lg">
@@ -148,22 +191,22 @@ export default function AdminPage() {
                     <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => { setIsRefreshingControls(true); fetchControls(); }}
-                        disabled={isUpdatingControls || isRefreshingControls}
+                        onClick={() => fetchAdminData(true)}
+                        disabled={isUpdatingControls || isRefreshing || isLoading}
                         className="shadow-sm rounded-md"
                     >
-                        {isRefreshingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
-                        Actualiser Contrôles
+                        {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
+                        Actualiser les Données
                     </Button>
                 </div>
                  <p className="text-xs text-muted-foreground">
-                    État actuel : <span className="font-semibold">{getPhaseStatusMessage()}</span>
+                    État actuel : <span className="font-semibold">{isLoading ? 'Chargement...' : getPhaseStatusMessage()}</span>
                  </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                     <Button 
                         variant={registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Stratège')} 
-                        disabled={isUpdatingControls || isRefreshingControls || !!registrationControls?.marshalManuallyOpen || !!registrationControls?.generalManuallyOpen}
+                        disabled={isUpdatingControls || isRefreshing || isLoading || !!registrationControls?.marshalManuallyOpen || !!registrationControls?.generalManuallyOpen}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
@@ -172,7 +215,7 @@ export default function AdminPage() {
                     <Button 
                         variant={registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Maréchal')} 
-                        disabled={isUpdatingControls || isRefreshingControls || !!registrationControls?.generalManuallyOpen}
+                        disabled={isUpdatingControls || isRefreshing || isLoading || !!registrationControls?.generalManuallyOpen}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
@@ -181,7 +224,7 @@ export default function AdminPage() {
                     <Button 
                         variant={registrationControls?.generalManuallyOpen ? "default" : "outline"}
                         onClick={() => handleUpdateControls('Général')} 
-                        disabled={isUpdatingControls || isRefreshingControls}
+                        disabled={isUpdatingControls || isRefreshing || isLoading}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
@@ -190,7 +233,7 @@ export default function AdminPage() {
                     <Button 
                         variant="destructive" 
                         onClick={() => handleUpdateControls('reset')} 
-                        disabled={isUpdatingControls || isRefreshingControls || (!registrationControls?.strategistManuallyOpen && !registrationControls?.marshalManuallyOpen && !registrationControls?.generalManuallyOpen)}
+                        disabled={isUpdatingControls || isRefreshing || isLoading || (!registrationControls?.strategistManuallyOpen && !registrationControls?.marshalManuallyOpen && !registrationControls?.generalManuallyOpen)}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4"/>}
@@ -201,6 +244,37 @@ export default function AdminPage() {
         </CardContent>
       </Card>
       
+      <Card className="shadow-lg">
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+                <Utensils className="h-6 w-6 text-primary" /> Décompte des Repas
+            </CardTitle>
+            <CardDescription>
+                Nombre de repas à prévoir par jour, basé sur les inscriptions aux tables (hors créneaux 'Off'). Un participant est compté une seule fois par jour.
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {isLoading ? (
+                <div className="flex items-center justify-center p-4">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <p>Chargement du décompte...</p>
+                </div>
+            ) : mealCounts ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {CONVENTION_DAYS.map(day => (
+                        <div key={day} className="p-4 bg-muted/50 rounded-lg text-center shadow-inner">
+                            <p className="text-sm font-medium text-muted-foreground">{day}</p>
+                            <p className="text-4xl font-bold tracking-tight">{mealCounts[day]}</p>
+                            <p className="text-xs text-muted-foreground">repas</p>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                 <p className="text-center text-destructive p-4">Impossible de calculer le nombre de repas.</p>
+            )}
+        </CardContent>
+      </Card>
+
       <ConventionManager />
     </div>
   );
