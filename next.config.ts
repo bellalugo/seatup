@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  watchOptions: {
+    ignored: ['**/.vscode/**', '**/.next/**'],
+  },
   images: {
     remotePatterns: [
       {
