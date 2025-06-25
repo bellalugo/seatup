@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type React from 'react';
@@ -118,6 +119,7 @@ export default function HallOfFamePage() {
 
     // Calculate overall ranking
     const sortedOverall = [...allPlayersArray]
+      .filter(p => p.totalScore > 0)
       .sort((a, b) => b.totalScore - a.totalScore || a.name.localeCompare(b.name))
       .map((player, index) => ({ ...player, rank: index + 1 }));
 
@@ -125,7 +127,7 @@ export default function HallOfFamePage() {
     const daily: Record<ConventionDay, RankedPlayer[]> = { Jeudi: [], Vendredi: [], Samedi: [], Dimanche: [] };
     CONVENTION_DAYS.forEach(day => {
       daily[day] = [...allPlayersArray]
-        .filter(p => p.dailyScores[day] > 0 || p.dailyGamesPlayed[day] > 0) 
+        .filter(p => p.dailyScores[day] > 0) 
         .sort((a, b) => b.dailyScores[day] - a.dailyScores[day] || a.name.localeCompare(b.name))
         .map((player, index) => ({ ...player, rank: index + 1 }));
     });

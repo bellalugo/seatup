@@ -229,7 +229,7 @@ export default function Home() {
 
 
         const rankedToday = Array.from(playerScoresMap.values())
-            .filter(p => p.score > 0 || p.gamesPlayedToday > 0) 
+            .filter(p => p.score > 0) 
             .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)) 
             .slice(0, 5) 
             .map((player, index) => ({
