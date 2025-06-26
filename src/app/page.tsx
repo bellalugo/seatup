@@ -945,7 +945,7 @@ export default function Home() {
                               <TableHead className="w-64" />
                               <TableHead>Créneau horaire</TableHead>
                               <TableHead>Jeu</TableHead>
-                              <TableHead>Description</TableHead>
+                              <TableHead>Jour</TableHead>
                               <TableHead className="text-center">Action</TableHead>
                               </TableRow>
                           </TableHeader>
@@ -991,8 +991,9 @@ export default function Home() {
                                   <TableCell className="font-bold px-2">
                                       {table.gameName}
                                   </TableCell>
-                                  <TableCell className="text-xs text-muted-foreground italic max-w-xs">
-                                      {table.gameDescription}
+                                  <TableCell className="text-center font-semibold">
+                                      <CalendarDays className="inline h-4 w-4 mr-1" />
+                                      {table.days.join(', ')}
                                   </TableCell>
                                   <TableCell className="text-center">
                                           <Button
