@@ -943,9 +943,9 @@ export default function Home() {
                               <TableRow>
                               <TableHead className="w-24 text-center">Table n°</TableHead>
                               <TableHead className="w-64" />
+                              <TableHead>Jour</TableHead>
                               <TableHead>Créneau horaire</TableHead>
                               <TableHead>Jeu</TableHead>
-                              <TableHead>Jour</TableHead>
                               <TableHead className="text-center">Action</TableHead>
                               </TableRow>
                           </TableHeader>
@@ -986,14 +986,14 @@ export default function Home() {
                                       )}
                                   </TableCell>
                                   <TableCell className="text-center font-semibold">
+                                      <CalendarDays className="inline h-4 w-4 mr-1" />
+                                      {table.days.join(', ')}
+                                  </TableCell>
+                                  <TableCell className="text-center font-semibold">
                                     <Clock className="inline h-4 w-4 mr-1" />{getTimeSlotTypeDisplayLabel(table.timeSlotType)}
                                   </TableCell>
                                   <TableCell className="font-bold px-2">
                                       {table.gameName}
-                                  </TableCell>
-                                  <TableCell className="text-center font-semibold">
-                                      <CalendarDays className="inline h-4 w-4 mr-1" />
-                                      {table.days.join(', ')}
                                   </TableCell>
                                   <TableCell className="text-center">
                                           <Button
