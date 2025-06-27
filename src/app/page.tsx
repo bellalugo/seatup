@@ -468,6 +468,10 @@ export default function Home() {
 
   const userSchedule = useMemo(() => getUserSchedule(), [getUserSchedule]);
 
+  const handlePrintSchedule = useCallback(() => {
+    window.print();
+  }, []);
+
   const getTicketBadgeVariant = (ticketType?: TicketType): "strategist" | "marshal" | "general" | "secondary" => {
     if (!ticketType) return 'secondary';
     switch (ticketType) {
@@ -932,18 +936,18 @@ export default function Home() {
 
               {currentUser && currentUser.ticketType !== 'Invitation' && ( 
                   <Card className="mt-6 shadow-lg rounded-lg print:shadow-none print:border-none">
-                  <CardHeader>
+                     <CardHeader>
                       <div className="flex justify-between items-start">
                         <div>
                             <CardTitle>Planning de {currentUser.name}</CardTitle>
                             <CardDescription>Tables auxquelles vous êtes actuellement inscrit(e).</CardDescription>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => window.print()} className="print:hidden">
+                        <Button variant="outline" size="sm" onClick={handlePrintSchedule} className="print:hidden">
                             <Printer className="mr-2 h-4 w-4" />
                             Imprimer le planning
                         </Button>
                       </div>
-                  </CardHeader>
+                    </CardHeader>
                   <CardContent>
                       {userSchedule.length > 0 ? (
                       <Table>
@@ -1028,7 +1032,7 @@ export default function Home() {
                   </Card>
               )}
                {currentUser && currentUser.ticketType === 'Invitation' && ( 
-                   <Card className="mt-6 shadow-lg rounded-lg print:hidden">
+ <Card className="mt-6 shadow-lg rounded-lg">
                       <CardHeader>
                           <CardTitle>Planning de {currentUser.name}</CardTitle>
                       </CardHeader>
