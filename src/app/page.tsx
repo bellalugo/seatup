@@ -42,7 +42,7 @@ import {
 } from '@/lib/data';
 import type { GameTable, User, Registration, Participant, GameResult, TicketType, ManualRegistrationControls, ConventionDay, TimeSlotType } from '@/lib/types';
 import { CONVENTION_DAYS as APP_CONVENTION_DAYS, getTimeSlotTypeDisplayLabel, TIME_SLOT_TYPE_OPTIONS } from '@/lib/types'; // Renamed to avoid conflict & IMPORTED TIME_SLOT_TYPE_OPTIONS
-import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban, Star, Dices, Printer } from 'lucide-react';
+import { Users, CalendarDays, Clock, CheckCircle, AlertCircle, Info, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, ListChecks, Ban, Star, Dices } from 'lucide-react';
 
 const conventionDaysConfig = [
     { name: 'Jeudi' as ConventionDay, date: '03/07', value: 'jeudi' },
@@ -498,7 +498,7 @@ export default function Home() {
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0 print:hidden">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
           <Card className="shadow-lg rounded-lg h-full flex flex-col"> 
               <CardHeader>
               <div className="flex flex-row items-center justify-between">
@@ -648,13 +648,13 @@ export default function Home() {
         </div>
 
          {isLoading && !tables.length ? ( 
-             <div className="flex justify-center items-center min-h-[calc(100vh-25rem)] print:hidden"> 
+             <div className="flex justify-center items-center min-h-[calc(100vh-25rem)]"> 
                <Loader2 className="h-12 w-12 animate-spin text-primary" />
                <p className="ml-4 text-muted-foreground">Chargement des tables de jeu...</p>
              </div>
          ) : (
             <>
-              <Tabs defaultValue={conventionDaysConfig[0].value} className="w-full print:hidden">
+              <Tabs defaultValue={conventionDaysConfig[0].value} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 shadow-sm rounded-md">
                   {conventionDaysConfig.map(day => (
                       <TabsTrigger key={day.value} value={day.value} disabled={isSubmittingRegistration || isLookingUpUser}>{day.name} {day.date}</TabsTrigger>
@@ -932,20 +932,13 @@ export default function Home() {
               </Tabs>
 
               {currentUser && currentUser.ticketType !== 'Invitation' && ( 
-                  <Card className="mt-6 shadow-lg rounded-lg print:shadow-none print:border-none">
+                  <Card className="mt-6 shadow-lg rounded-lg">
                      <CardHeader>
                       <div className="flex justify-between items-start">
                         <div>
                             <CardTitle>Planning de {currentUser.name}</CardTitle>
                             <CardDescription>Tables auxquelles vous êtes actuellement inscrit(e).</CardDescription>
                         </div>
-                        <button
-                            onClick={(e) => { e.preventDefault(); window.print(); }}
-                            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "print:hidden")}
-                        >
-                            <Printer className="mr-2 h-4 w-4" />
-                            Imprimer le planning
-                        </button>
                       </div>
                     </CardHeader>
                   <CardContent>
@@ -958,7 +951,7 @@ export default function Home() {
                               <TableHead>Jour</TableHead>
                               <TableHead>Créneau horaire</TableHead>
                               <TableHead>Jeu</TableHead>
-                              <TableHead className="text-center print:hidden">Action</TableHead>
+                              <TableHead className="text-center">Action</TableHead>
                               </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -1007,7 +1000,7 @@ export default function Home() {
                                   <TableCell className="font-bold px-2">
                                       {table.gameName}
                                   </TableCell>
-                                  <TableCell className="text-center print:hidden">
+                                  <TableCell className="text-center">
                                           <Button
                                           onClick={() => handleUnregister(table.id)}
                                           size="sm"
