@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 import {
     getGameTables,
@@ -942,10 +943,13 @@ export default function Home() {
                             <CardTitle>Planning de {currentUser.name}</CardTitle>
                             <CardDescription>Tables auxquelles vous êtes actuellement inscrit(e).</CardDescription>
                         </div>
-                        <Button variant="outline" size="sm" onClick={handlePrintSchedule} className="print:hidden">
+                        <button
+                            onClick={handlePrintSchedule}
+                            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "print:hidden")}
+                        >
                             <Printer className="mr-2 h-4 w-4" />
                             Imprimer le planning
-                        </Button>
+                        </button>
                       </div>
                     </CardHeader>
                   <CardContent>
