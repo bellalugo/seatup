@@ -469,10 +469,6 @@ export default function Home() {
 
   const userSchedule = useMemo(() => getUserSchedule(), [getUserSchedule]);
 
-  const handlePrintSchedule = useCallback(() => {
-    window.print();
-  }, []);
-
   const getTicketBadgeVariant = (ticketType?: TicketType): "strategist" | "marshal" | "general" | "secondary" => {
     if (!ticketType) return 'secondary';
     switch (ticketType) {
@@ -944,7 +940,7 @@ export default function Home() {
                             <CardDescription>Tables auxquelles vous êtes actuellement inscrit(e).</CardDescription>
                         </div>
                         <button
-                            onClick={handlePrintSchedule}
+                            onClick={(e) => { e.preventDefault(); window.print(); }}
                             className={cn(buttonVariants({ variant: "outline", size: "sm" }), "print:hidden")}
                         >
                             <Printer className="mr-2 h-4 w-4" />
