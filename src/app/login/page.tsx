@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
-  // Pre-filling credentials for ease of use in this prototype
+  // Les identifiants sont pré-remplis pour faciliter l'accès administrateur
   const [email, setEmail] = useState('olivier@asynconv.fr');
   const [password, setPassword] = useState('p4SIT/ASYNCONV25%');
   const [showPassword, setShowPassword] = useState(false);
@@ -102,16 +102,14 @@ export default function LoginPage() {
                     disabled={loading}
                     className="pr-10"
                   />
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                    className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     onClick={togglePasswordVisibility}
                     disabled={loading}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
+                  </button>
               </div>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
