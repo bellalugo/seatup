@@ -73,7 +73,7 @@ export default function LoginPage() {
              <LogIn className="h-6 w-6 text-primary-foreground" />
            </div>
           <CardTitle>Connexion Admin</CardTitle>
-          <CardDescription>Les identifiants sont pré-remplis pour ce prototype.</CardDescription>
+          <CardDescription>Les identifiants sont pré-remplis pour faciliter votre accès.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
