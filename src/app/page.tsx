@@ -168,6 +168,7 @@ export default function Home() {
   useEffect(() => {
     if (isLoading || !allParticipantsData.length || !tables.length ) return; 
     setIsLoadingLiveHof(true);
+    // Simuler le jour actuel pour le Hall of Fame "Live"
     const liveDayName: ConventionDay | null = 'Jeudi'; 
     setCurrentLiveConventionDay(liveDayName);
 

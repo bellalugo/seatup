@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
-  // Les identifiants sont pré-remplis pour faciliter l'accès administrateur
+  // Identifiants administrateur pré-remplis
   const [email, setEmail] = useState('olivier@asynconv.fr');
   const [password, setPassword] = useState('p4SIT/ASYNCONV25%');
   const [showPassword, setShowPassword] = useState(false);
