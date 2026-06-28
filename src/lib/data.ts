@@ -135,6 +135,8 @@ export const getGameTables = async (): Promise<GameTable[]> => {
                 gameImageUrl: game?.imageUrl,
                 imageUrl: game?.imageUrl, // For backward compatibility
                 authorAnimator: tableData.authorAnimator || '',
+                animatorPlays: tableData.animatorPlays ?? false,
+                tableShape: tableData.tableShape ?? 'round',
             } as GameTable;
         });
     } catch (error) {
@@ -171,7 +173,10 @@ export const addGameTable = async (tableInput: GameTableInput): Promise<GameTabl
             timeSlotType: tableInput.timeSlotType,
             totalSeats: tableInput.totalSeats,
             tableNumber: tableInput.tableNumber,
+            tableShape: tableInput.tableShape || 'round',
             authorAnimator: tableInput.authorAnimator || '',
+            // animatorPlays only makes sense if there IS an animator; force false otherwise.
+            animatorPlays: (tableInput.authorAnimator && tableInput.animatorPlays) ? true : false,
             status: 'Ouverte',
         };
 
@@ -215,13 +220,16 @@ export const updateGameTable = async (tableToUpdate: GameTableInput & { id: stri
             timeSlotType: dataToUpdate.timeSlotType,
             totalSeats: dataToUpdate.totalSeats,
             tableNumber: dataToUpdate.tableNumber,
+            tableShape: dataToUpdate.tableShape || 'round',
             authorAnimator: dataToUpdate.authorAnimator || '',
+            // animatorPlays only makes sense if there IS an animator; force false otherwise.
+            animatorPlays: (dataToUpdate.authorAnimator && dataToUpdate.animatorPlays) ? true : false,
             status: dataToUpdate.status || 'Ouverte',
         };
 
         const cleanedPayload = Object.entries(firestorePayload).reduce((acc, [key, value]) => {
             if (value !== undefined) {
-                acc[key as keyof typeof firestorePayload] = value;
+                (acc as Record<string, unknown>)[key] = value;
             }
             return acc;
         }, {} as Partial<typeof firestorePayload>);
@@ -551,6 +559,7 @@ export const getRegistrationControl = async (): Promise<ManualRegistrationContro
         strategistManuallyOpen: data.strategistManuallyOpen || false,
         marshalManuallyOpen: data.marshalManuallyOpen || false,
         generalManuallyOpen: data.generalManuallyOpen || false,
+        colonelManuallyOpen: data.colonelManuallyOpen || false,
         lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated.toDate() : undefined,
       };
     }
@@ -559,6 +568,7 @@ export const getRegistrationControl = async (): Promise<ManualRegistrationContro
       strategistManuallyOpen: false,
       marshalManuallyOpen: false,
       generalManuallyOpen: false,
+      colonelManuallyOpen: false,
     };
   } catch (error) {
     console.error("Firestore - Erreur lors de la récupération des contrôles d'inscription:", error);
@@ -596,9 +606,11 @@ export const updateRegistrationControl = async (updates: Partial<ManualRegistrat
 const mapBilletwebTicketToType = (ticketName: string): TicketType => {
     if (!ticketName) return 'Invitation';
     const lowerCaseTicket = ticketName.toLowerCase();
+    // Order matters: most specific grades first to avoid mis-matches on composite labels.
     if (lowerCaseTicket.includes('stratège')) return 'Stratège';
     if (lowerCaseTicket.includes('maréchal')) return 'Maréchal';
     if (lowerCaseTicket.includes('général')) return 'Général';
+    if (lowerCaseTicket.includes('colonel')) return 'Colonel';
     // Any other ticket name like "Animateur" will be considered an 'Invitation' for registration purposes.
     return 'Invitation';
 };
@@ -736,7 +748,9 @@ export const getAvailableSeats = (tableId: string, registrations: (Registration 
     const table = tables.find(t => t.id === tableId);
     if (!table) return 0;
     const currentRegistrations = registrations.filter(r => r.tableId === tableId).length;
-    return table.totalSeats - currentRegistrations;
+    // If the animator plays, they occupy one of the seats — players have one less seat to register for.
+    const animatorSeatOffset = table.animatorPlays ? 1 : 0;
+    return table.totalSeats - currentRegistrations - animatorSeatOffset;
 };
 
 export const hasTimeConflict = (
@@ -778,8 +792,15 @@ export const canRegisterBasedOnTicket = (
 ): boolean => {
   if (userTicketType === 'Invitation') return false;
 
+  // Cascade: Stratège (highest priority) -> Maréchal -> Général -> Colonel (lowest).
+  // Each phase opens registration for its own grade AND all higher-priority grades.
+  if (manualControls.colonelManuallyOpen) {
+      return true; // Every grade can register
+  }
   if (manualControls.generalManuallyOpen) {
-      return true;
+      return userTicketType === 'Stratège'
+          || userTicketType === 'Maréchal'
+          || userTicketType === 'Général';
   }
   if (manualControls.marshalManuallyOpen) {
       return userTicketType === 'Maréchal' || userTicketType === 'Stratège';
@@ -789,6 +810,234 @@ export const canRegisterBasedOnTicket = (
   }
 
   return false;
+};
+
+
+// --- Archives 2025 (read-only access to historical data) ---
+// Once the migration endpoint has moved data under archives/2025/*, these helpers
+// allow the admin archive page to display the previous edition's data in a frozen state.
+
+const ARCHIVES_COLLECTION = 'archives';
+const ARCHIVE_2025_DOC = '2025';
+
+/** Fetches all archived participants (2025 edition) from Firestore */
+export const getArchivedParticipants = async (): Promise<Participant[]> => {
+    if (!db) {
+        throw new Error("La connexion à Firestore n'est pas initialisée.");
+    }
+    try {
+        const ref = collection(db, ARCHIVES_COLLECTION, ARCHIVE_2025_DOC, PARTICIPANTS_COLLECTION);
+        const snap = await getDocs(ref);
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
+    } catch (error) {
+        console.error("Firestore - Erreur récupération participants archivés 2025:", error);
+        throw new Error("Impossible de récupérer les participants archivés 2025.");
+    }
+};
+
+/** Fetches all archived games (2025 edition) from Firestore, sorted by name */
+export const getArchivedGames = async (): Promise<Game[]> => {
+    if (!db) {
+        throw new Error("La connexion à Firestore n'est pas initialisée.");
+    }
+    try {
+        const ref = collection(db, ARCHIVES_COLLECTION, ARCHIVE_2025_DOC, GAMES_COLLECTION);
+        const snap = await getDocs(ref);
+        return snap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Game))
+            .sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
+    } catch (error) {
+        console.error("Firestore - Erreur récupération jeux archivés 2025:", error);
+        throw new Error("Impossible de récupérer les jeux archivés 2025.");
+    }
+};
+
+/** Fetches all archived game tables (2025 edition) with hydrated game info */
+export const getArchivedGameTables = async (): Promise<GameTable[]> => {
+    if (!db) {
+        throw new Error("La connexion à Firestore n'est pas initialisée.");
+    }
+    try {
+        const [tablesSnap, gamesSnap] = await Promise.all([
+            getDocs(collection(db, ARCHIVES_COLLECTION, ARCHIVE_2025_DOC, TABLES_COLLECTION)),
+            getDocs(collection(db, ARCHIVES_COLLECTION, ARCHIVE_2025_DOC, GAMES_COLLECTION)),
+        ]);
+
+        const gamesMap = new Map<string, Game>();
+        gamesSnap.docs.forEach(d => gamesMap.set(d.id, { id: d.id, ...d.data() } as Game));
+
+        return tablesSnap.docs.map(doc => {
+            const tableData = doc.data() as Omit<GameTable, 'id' | 'gameName' | 'gameImageUrl' | 'imageUrl' | 'gameDescription'>;
+            const game = gamesMap.get(tableData.gameId);
+            return {
+                id: doc.id,
+                ...tableData,
+                days: tableData.days || [CONVENTION_DAYS[0]],
+                timeSlotType: tableData.timeSlotType || 'Matin',
+                status: tableData.status || 'Ouverte',
+                gameName: game?.nom || 'Jeu inconnu (ID: ' + tableData.gameId + ')',
+                gameDescription: game?.description || '',
+                gameImageUrl: game?.imageUrl,
+                imageUrl: game?.imageUrl,
+                authorAnimator: tableData.authorAnimator || '',
+            } as GameTable;
+        });
+    } catch (error) {
+        console.error("Firestore - Erreur récupération tables archivées 2025:", error);
+        throw new Error("Impossible de récupérer les tables archivées 2025.");
+    }
+};
+
+/** Fetches all archived game results (2025 edition) */
+export const getArchivedGameResults = async (): Promise<GameResult[]> => {
+    if (!db) {
+        throw new Error("La connexion à Firestore n'est pas initialisée.");
+    }
+    try {
+        const ref = collection(db, ARCHIVES_COLLECTION, ARCHIVE_2025_DOC, GAME_RESULTS_COLLECTION);
+        const snap = await getDocs(ref);
+        return snap.docs.map(doc => ({ tableId: doc.id, ...doc.data() } as GameResult));
+    } catch (error) {
+        console.error("Firestore - Erreur récupération résultats archivés 2025:", error);
+        throw new Error("Impossible de récupérer les résultats archivés 2025.");
+    }
+};
+
+/** Fetches all archived registrations (2025 edition) */
+export const getArchivedRegistrations = async (): Promise<(Registration & { id: string })[]> => {
+    if (!db) {
+        throw new Error("La connexion à Firestore n'est pas initialisée.");
+    }
+    try {
+        const ref = collection(db, ARCHIVES_COLLECTION, ARCHIVE_2025_DOC, REGISTRATIONS_COLLECTION);
+        const snap = await getDocs(ref);
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Registration & { id: string }));
+    } catch (error) {
+        console.error("Firestore - Erreur récupération inscriptions archivées 2025:", error);
+        throw new Error("Impossible de récupérer les inscriptions archivées 2025.");
+    }
+};
+
+const ARCHIVABLE_COLLECTIONS = [
+    GAMES_COLLECTION,
+    TABLES_COLLECTION,
+    REGISTRATIONS_COLLECTION,
+    PARTICIPANTS_COLLECTION,
+    GAME_RESULTS_COLLECTION,
+    SYSTEM_SETTINGS_COLLECTION,
+] as const;
+
+// Some collections (typically settings) have Firestore rules that authorize `get` on a known
+// document ID but deny `list` on the collection. For those, we cannot call getDocs — we must
+// fetch each known document individually via getDoc. The map below lists, per collection,
+// the known doc IDs to probe in that scenario.
+const KNOWN_DOC_IDS_FALLBACK: Record<string, string[]> = {
+    [SYSTEM_SETTINGS_COLLECTION]: [REGISTRATION_CONTROL_DOC_ID],
+};
+
+/** Lists documents from a root collection, with a fallback path for collections whose
+ *  security rules deny `list` (like system_settings). Returns id+data pairs. */
+async function listDocsForCollectionSafe(firestore: ReturnType<typeof getFirestoreOrThrow>, colName: string): Promise<{ id: string; data: Record<string, unknown> }[]> {
+    try {
+        const snap = await getDocs(collection(firestore, colName));
+        return snap.docs.map(d => ({ id: d.id, data: d.data() as Record<string, unknown> }));
+    } catch (listError) {
+        const fallbackIds = KNOWN_DOC_IDS_FALLBACK[colName];
+        if (!fallbackIds || fallbackIds.length === 0) {
+            // No fallback strategy for this collection — re-throw.
+            throw listError;
+        }
+        // Fallback: try each known document individually.
+        const results = await Promise.all(
+            fallbackIds.map(async (docId) => {
+                try {
+                    const snap = await getDoc(doc(firestore, colName, docId));
+                    return snap.exists() ? { id: snap.id, data: snap.data() as Record<string, unknown> } : null;
+                } catch (e) {
+                    console.warn(`[listDocsForCollectionSafe] Could not read ${colName}/${docId}:`, e);
+                    return null;
+                }
+            })
+        );
+        return results.filter((r): r is { id: string; data: Record<string, unknown> } => r !== null);
+    }
+}
+
+function getFirestoreOrThrow() {
+    if (!db) {
+        throw new Error("La connexion à Firestore n'est pas initialisée.");
+    }
+    return db;
+}
+
+/** Migrates all root-level data into archives/2025/{collection}/* and clears the root collections.
+ *  Idempotent : a collection that is already empty at root is simply skipped.
+ *  Firestore batches are capped at 500 operations, so we chunk both the copy and the delete passes.
+ *  Returns a per-collection summary (number of documents archived). */
+export const migrate2025DataToArchives = async (): Promise<{ summary: Record<string, number>; archivedAt: string; }> => {
+    const firestore = getFirestoreOrThrow();
+
+    const summary: Record<string, number> = {};
+
+    // Ensure the parent archive document exists so it shows up in the Firestore console.
+    const archiveDocRef = doc(firestore, ARCHIVES_COLLECTION, ARCHIVE_2025_DOC);
+    const archivedAt = new Date().toISOString();
+    await setDoc(archiveDocRef, { archivedAt, edition: '2025' }, { merge: true });
+
+    for (const colName of ARCHIVABLE_COLLECTIONS) {
+        // Uses the safe lister so system_settings (no list permission) still works via known IDs.
+        const docs = await listDocsForCollectionSafe(firestore, colName);
+        if (docs.length === 0) {
+            summary[colName] = 0;
+            continue;
+        }
+
+        // Pass 1: copy in chunks of 500.
+        const COPY_CHUNK = 500;
+        for (let i = 0; i < docs.length; i += COPY_CHUNK) {
+            const batch = writeBatch(firestore);
+            const slice = docs.slice(i, i + COPY_CHUNK);
+            for (const d of slice) {
+                const target = doc(firestore, ARCHIVES_COLLECTION, ARCHIVE_2025_DOC, colName, d.id);
+                batch.set(target, d.data);
+            }
+            await batch.commit();
+        }
+
+        // Pass 2: delete originals in chunks of 500 (only after copy is committed).
+        const DELETE_CHUNK = 500;
+        for (let i = 0; i < docs.length; i += DELETE_CHUNK) {
+            const batch = writeBatch(firestore);
+            const slice = docs.slice(i, i + DELETE_CHUNK);
+            for (const d of slice) {
+                batch.delete(doc(firestore, colName, d.id));
+            }
+            await batch.commit();
+        }
+
+        summary[colName] = docs.length;
+    }
+
+    return { summary, archivedAt };
+};
+
+/** Counts root-level documents per collection to estimate the migration scope.
+ *  Returns a record { collection: count }. Used by the admin UI to display a pre-migration summary.
+ *  Uses listDocsForCollectionSafe so collections without list permission (e.g. system_settings)
+ *  still get a sensible count via getDoc on known document IDs. */
+export const getRootCollectionCounts = async (): Promise<Record<string, number>> => {
+    const firestore = getFirestoreOrThrow();
+    const counts: Record<string, number> = {};
+    await Promise.all(ARCHIVABLE_COLLECTIONS.map(async (name) => {
+        try {
+            const docs = await listDocsForCollectionSafe(firestore, name);
+            counts[name] = docs.length;
+        } catch (e) {
+            console.warn(`Could not count ${name}:`, e);
+            counts[name] = -1;
+        }
+    }));
+    return counts;
 };
 
 

@@ -5,14 +5,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import ConventionManager from "@/components/admin/table-manager";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils, Users } from "lucide-react";
+import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils, Users, Archive, AlertTriangle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { getRegistrationControl, updateRegistrationControl, getRegistrations, getGameTables, getParticipants } from "@/lib/data";
-import type { ManualRegistrationControls, TicketType, ConventionDay, Registration, GameTable, Participant } from "@/lib/types"; 
-import { CONVENTION_DAYS } from "@/lib/types"; 
+import { getRegistrationControl, updateRegistrationControl, getRegistrations, getGameTables, getParticipants, getRootCollectionCounts, migrate2025DataToArchives } from "@/lib/data";
+import type { ManualRegistrationControls, TicketType, ConventionDay, Registration, GameTable, Participant } from "@/lib/types";
+import { CONVENTION_DAYS } from "@/lib/types";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Structure pour le décompte détaillé des repas
 interface DailyMealCounts {
@@ -38,14 +48,18 @@ export default function AdminPage() {
   const [isUpdatingControls, setIsUpdatingControls] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Archivage 2025 -> archives/2025/*
+  const [rootCounts, setRootCounts] = useState<Record<string, number> | null>(null);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [archiveConfirmText, setArchiveConfirmText] = useState('');
+
   const calculateMealCounts = (registrations: Registration[], tables: GameTable[]): Record<ConventionDay, DailyMealCounts> => {
-    // 1. Décompte des participants (uniques par jour)
-    const dailyParticipants: Record<ConventionDay, Set<string>> = {
-      Jeudi: new Set<string>(),
-      Vendredi: new Set<string>(),
-      Samedi: new Set<string>(),
-      Dimanche: new Set<string>(),
-    };
+    // 1. Décompte des participants (uniques par jour) - auto-extensible via CONVENTION_DAYS
+    const dailyParticipants: Record<ConventionDay, Set<string>> = CONVENTION_DAYS.reduce((acc, day) => {
+        acc[day] = new Set<string>();
+        return acc;
+    }, {} as Record<ConventionDay, Set<string>>);
 
     const tablesMap = new Map(tables.map(t => [t.id, t]));
 
@@ -59,14 +73,12 @@ export default function AdminPage() {
         }
       }
     }
-    
-    // 2. Décompte des animateurs (uniques par jour)
-    const dailyAnimators: Record<ConventionDay, Set<string>> = {
-        Jeudi: new Set<string>(),
-        Vendredi: new Set<string>(),
-        Samedi: new Set<string>(),
-        Dimanche: new Set<string>(),
-    };
+
+    // 2. Décompte des animateurs (uniques par jour) - auto-extensible via CONVENTION_DAYS
+    const dailyAnimators: Record<ConventionDay, Set<string>> = CONVENTION_DAYS.reduce((acc, day) => {
+        acc[day] = new Set<string>();
+        return acc;
+    }, {} as Record<ConventionDay, Set<string>>);
 
     for (const table of tables) {
         if (table.authorAnimator && table.timeSlotType !== 'Off') {
@@ -94,7 +106,7 @@ export default function AdminPage() {
   };
 
   const calculateParticipantStats = (participants: Participant[], registrations: Registration[]): Record<Exclude<TicketType, 'Invitation'>, ParticipantStats> => {
-    const ticketTypes: Exclude<TicketType, 'Invitation'>[] = ['Stratège', 'Maréchal', 'Général'];
+    const ticketTypes: Exclude<TicketType, 'Invitation'>[] = ['Stratège', 'Maréchal', 'Général', 'Colonel'];
     const stats: Record<string, ParticipantStats> = {};
 
     ticketTypes.forEach(type => {
@@ -129,15 +141,17 @@ export default function AdminPage() {
     }
 
     try {
-      const [controls, registrations, tables, participants] = await Promise.all([
+      const [controls, registrations, tables, participants, rCounts] = await Promise.all([
         getRegistrationControl(),
         getRegistrations(),
         getGameTables(),
         getParticipants(),
+        getRootCollectionCounts(),
       ]);
-      
+
       setRegistrationControls(controls);
-      
+      setRootCounts(rCounts);
+
       const counts = calculateMealCounts(registrations, tables);
       setMealCounts(counts);
 
@@ -172,30 +186,49 @@ export default function AdminPage() {
         strategistManuallyOpen: registrationControls?.strategistManuallyOpen || false,
         marshalManuallyOpen: registrationControls?.marshalManuallyOpen || false,
         generalManuallyOpen: registrationControls?.generalManuallyOpen || false,
+        colonelManuallyOpen: registrationControls?.colonelManuallyOpen || false,
     };
 
-    const currentControls = registrationControls || { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false };
+    const currentControls = registrationControls || { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false, colonelManuallyOpen: false };
 
+    // Cascade rules:
+    //   - Opening a phase ALSO opens all higher-priority phases (Stratège > Maréchal > Général > Colonel).
+    //   - Closing a phase ALSO closes all lower-priority phases.
     if (phaseToOpen === 'reset') {
-        newControls = { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false };
+        newControls = { strategistManuallyOpen: false, marshalManuallyOpen: false, generalManuallyOpen: false, colonelManuallyOpen: false };
     } else if (phaseToOpen === 'Stratège') {
         newControls.strategistManuallyOpen = !currentControls.strategistManuallyOpen;
-        if (!newControls.strategistManuallyOpen) { 
+        if (!newControls.strategistManuallyOpen) {
+            // Closing Stratège closes all lower phases.
             newControls.marshalManuallyOpen = false;
             newControls.generalManuallyOpen = false;
+            newControls.colonelManuallyOpen = false;
         }
     } else if (phaseToOpen === 'Maréchal') {
         newControls.marshalManuallyOpen = !currentControls.marshalManuallyOpen;
-        if (newControls.marshalManuallyOpen) { 
-            newControls.strategistManuallyOpen = true; 
-        } else { 
-            newControls.generalManuallyOpen = false; 
+        if (newControls.marshalManuallyOpen) {
+            newControls.strategistManuallyOpen = true; // Cascade up
+        } else {
+            // Closing Maréchal closes Général and Colonel.
+            newControls.generalManuallyOpen = false;
+            newControls.colonelManuallyOpen = false;
         }
     } else if (phaseToOpen === 'Général') {
         newControls.generalManuallyOpen = !currentControls.generalManuallyOpen;
-        if (newControls.generalManuallyOpen) { 
-            newControls.strategistManuallyOpen = true; 
+        if (newControls.generalManuallyOpen) {
+            newControls.strategistManuallyOpen = true;
             newControls.marshalManuallyOpen = true;
+        } else {
+            // Closing Général closes Colonel.
+            newControls.colonelManuallyOpen = false;
+        }
+    } else if (phaseToOpen === 'Colonel') {
+        newControls.colonelManuallyOpen = !currentControls.colonelManuallyOpen;
+        if (newControls.colonelManuallyOpen) {
+            // Opening Colonel opens everything (every grade can register).
+            newControls.strategistManuallyOpen = true;
+            newControls.marshalManuallyOpen = true;
+            newControls.generalManuallyOpen = true;
         }
     }
 
@@ -211,17 +244,50 @@ export default function AdminPage() {
     }
   };
 
+  const handleArchive2025 = async () => {
+    setIsArchiving(true);
+    try {
+        // L'archivage doit s'exécuter CÔTÉ CLIENT (dans le navigateur), où l'admin est
+        // authentifié. La route API serveur n'a pas de session Firebase et serait refusée
+        // par les règles Firestore (request.auth == null).
+        const data = await migrate2025DataToArchives();
+        const total = Object.values(data.summary || {}).reduce((acc: number, v) => acc + (Number(v) || 0), 0);
+        toast({
+            title: "Archivage 2025 terminé",
+            description: `${total} document(s) déplacés sous archives/2025/*.`,
+        });
+        setIsArchiveDialogOpen(false);
+        setArchiveConfirmText('');
+        await fetchAdminData();
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Échec de l'archivage",
+            description: error instanceof Error ? error.message : "Erreur inconnue.",
+        });
+    } finally {
+        setIsArchiving(false);
+    }
+  };
+
+  const totalRootDocs = rootCounts
+    ? Object.values(rootCounts).reduce((acc, v) => acc + (v > 0 ? v : 0), 0)
+    : 0;
+  const canArchive2025 = totalRootDocs > 0;
+
   const getPhaseStatusMessage = () => {
     if (!registrationControls) return "Chargement de l'état des phases...";
 
-    if (registrationControls.generalManuallyOpen) return "OUVERT MANUELLEMENT : Général, Maréchal, Stratège.";
-    if (registrationControls.marshalManuallyOpen) return "OUVERT MANUELLEMENT : Maréchal, Stratège. (Général fermé via contrôle manuel).";
-    if (registrationControls.strategistManuallyOpen) return "OUVERT MANUELLEMENT : Stratège. (Maréchal, Général fermés via contrôle manuel).";
-    
+    if (registrationControls.colonelManuallyOpen) return "OUVERT MANUELLEMENT : Colonel, Général, Maréchal, Stratège.";
+    if (registrationControls.generalManuallyOpen) return "OUVERT MANUELLEMENT : Général, Maréchal, Stratège. (Colonel fermé via contrôle manuel).";
+    if (registrationControls.marshalManuallyOpen) return "OUVERT MANUELLEMENT : Maréchal, Stratège. (Général, Colonel fermés via contrôle manuel).";
+    if (registrationControls.strategistManuallyOpen) return "OUVERT MANUELLEMENT : Stratège. (Maréchal, Général, Colonel fermés via contrôle manuel).";
+
     return "INSCRIPTIONS FERMÉES. (Contrôles manuels uniquement)";
   };
 
   const strategistsButtonText = () => {
+    if (registrationControls?.colonelManuallyOpen) return "Stratèges (via Colonel)";
     if (registrationControls?.generalManuallyOpen) return "Stratèges (via Général)";
     if (registrationControls?.marshalManuallyOpen) return "Stratèges (via Maréchal)";
     if (registrationControls?.strategistManuallyOpen) return "Fermer Stratèges";
@@ -229,21 +295,29 @@ export default function AdminPage() {
   };
 
   const marshalsButtonText = () => {
+    if (registrationControls?.colonelManuallyOpen) return "Maréchaux (via Colonel)";
     if (registrationControls?.generalManuallyOpen) return "Maréchaux (via Général)";
     if (registrationControls?.marshalManuallyOpen) return "Fermer Maréchaux";
     return "Ouvrir Maréchaux";
   };
 
   const generalsButtonText = () => {
+    if (registrationControls?.colonelManuallyOpen) return "Généraux (via Colonel)";
     if (registrationControls?.generalManuallyOpen) return "Fermer Généraux";
     return "Ouvrir Généraux";
   };
-  
-  const getTicketBadgeVariant = (ticketType: TicketType): "strategist" | "marshal" | "general" | "secondary" => {
+
+  const colonelsButtonText = () => {
+    if (registrationControls?.colonelManuallyOpen) return "Fermer Colonels";
+    return "Ouvrir Colonels";
+  };
+
+  const getTicketBadgeVariant = (ticketType: TicketType): "strategist" | "marshal" | "general" | "colonel" | "secondary" => {
     switch (ticketType) {
         case 'Stratège': return 'strategist';
         case 'Maréchal': return 'marshal';
         case 'Général': return 'general';
+        case 'Colonel': return 'colonel';
         default: return 'secondary';
     }
   };
@@ -260,12 +334,20 @@ export default function AdminPage() {
                 <CardDescription>Gérer les tables de jeu, les jeux et les paramètres de la convention.</CardDescription>
                 </div>
             </div>
-            <Link href="/admin/billetweb" passHref>
-                <Button variant="outline">
-                    <DatabaseZap className="mr-2 h-4 w-4" />
-                    Consulter les données Billetweb
-                </Button>
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-2">
+                <Link href="/admin/archives-2025" passHref>
+                    <Button variant="outline">
+                        <Archive className="mr-2 h-4 w-4" />
+                        Archives 2025
+                    </Button>
+                </Link>
+                <Link href="/admin/billetweb" passHref>
+                    <Button variant="outline">
+                        <DatabaseZap className="mr-2 h-4 w-4" />
+                        Consulter les données Billetweb
+                    </Button>
+                </Link>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-4">
@@ -286,38 +368,47 @@ export default function AdminPage() {
                  <p className="text-xs text-muted-foreground">
                     État actuel : <span className="font-semibold">{isLoading ? 'Chargement...' : getPhaseStatusMessage()}</span>
                  </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-                    <Button 
-                        variant={registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
-                        onClick={() => handleUpdateControls('Stratège')} 
-                        disabled={isUpdatingControls || isRefreshing || isLoading || !!registrationControls?.marshalManuallyOpen || !!registrationControls?.generalManuallyOpen}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
+                    <Button
+                        variant={registrationControls?.strategistManuallyOpen && !registrationControls.marshalManuallyOpen && !registrationControls.generalManuallyOpen && !registrationControls.colonelManuallyOpen ? "default" : "outline"}
+                        onClick={() => handleUpdateControls('Stratège')}
+                        disabled={isUpdatingControls || isRefreshing || isLoading || !!registrationControls?.marshalManuallyOpen || !!registrationControls?.generalManuallyOpen || !!registrationControls?.colonelManuallyOpen}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
                         {strategistsButtonText()}
                     </Button>
-                    <Button 
-                        variant={registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen ? "default" : "outline"}
-                        onClick={() => handleUpdateControls('Maréchal')} 
-                        disabled={isUpdatingControls || isRefreshing || isLoading || !!registrationControls?.generalManuallyOpen}
+                    <Button
+                        variant={registrationControls?.marshalManuallyOpen && !registrationControls.generalManuallyOpen && !registrationControls.colonelManuallyOpen ? "default" : "outline"}
+                        onClick={() => handleUpdateControls('Maréchal')}
+                        disabled={isUpdatingControls || isRefreshing || isLoading || !!registrationControls?.generalManuallyOpen || !!registrationControls?.colonelManuallyOpen}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
                         {marshalsButtonText()}
                     </Button>
-                    <Button 
-                        variant={registrationControls?.generalManuallyOpen ? "default" : "outline"}
-                        onClick={() => handleUpdateControls('Général')} 
-                        disabled={isUpdatingControls || isRefreshing || isLoading}
+                    <Button
+                        variant={registrationControls?.generalManuallyOpen && !registrationControls.colonelManuallyOpen ? "default" : "outline"}
+                        onClick={() => handleUpdateControls('Général')}
+                        disabled={isUpdatingControls || isRefreshing || isLoading || !!registrationControls?.colonelManuallyOpen}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
                         {generalsButtonText()}
                     </Button>
-                    <Button 
-                        variant="destructive" 
-                        onClick={() => handleUpdateControls('reset')} 
-                        disabled={isUpdatingControls || isRefreshing || isLoading || (!registrationControls?.strategistManuallyOpen && !registrationControls?.marshalManuallyOpen && !registrationControls?.generalManuallyOpen)}
+                    <Button
+                        variant={registrationControls?.colonelManuallyOpen ? "default" : "outline"}
+                        onClick={() => handleUpdateControls('Colonel')}
+                        disabled={isUpdatingControls || isRefreshing || isLoading}
+                        className="w-full"
+                    >
+                        {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
+                        {colonelsButtonText()}
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        onClick={() => handleUpdateControls('reset')}
+                        disabled={isUpdatingControls || isRefreshing || isLoading || (!registrationControls?.strategistManuallyOpen && !registrationControls?.marshalManuallyOpen && !registrationControls?.generalManuallyOpen && !registrationControls?.colonelManuallyOpen)}
                         className="w-full"
                     >
                         {isUpdatingControls ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4"/>}
@@ -344,8 +435,8 @@ export default function AdminPage() {
                     <p>Chargement des statistiques...</p>
                 </div>
             ) : participantStats ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {(['Stratège', 'Maréchal', 'Général'] as const).map(type => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {(['Stratège', 'Maréchal', 'Général', 'Colonel'] as const).map(type => (
                         <div key={type} className="p-4 bg-muted/50 rounded-lg shadow-inner flex flex-col gap-2">
                             <Badge variant={getTicketBadgeVariant(type)} className="w-fit font-bold">{type}</Badge>
                             <div className="text-sm text-muted-foreground">
@@ -378,7 +469,7 @@ export default function AdminPage() {
                     <p>Chargement du décompte...</p>
                 </div>
             ) : mealCounts ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     {CONVENTION_DAYS.map(day => (
                         <div key={day} className="p-4 bg-muted/50 rounded-lg text-center shadow-inner flex flex-col">
                             <div className="flex-grow">
@@ -402,6 +493,96 @@ export default function AdminPage() {
             )}
         </CardContent>
       </Card>
+
+      <Card className="shadow-lg border-destructive/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Archive className="h-6 w-6 text-destructive" /> Archivage de l&apos;édition 2025
+          </CardTitle>
+          <CardDescription>
+            Déplace toutes les données de l&apos;édition 2025 (games, gameTables, gameResults, registrations,
+            liste_participants, system_settings) sous <code className="text-xs px-1 py-0.5 bg-muted rounded">archives/2025/*</code>,
+            puis vide les collections racine pour repartir à zéro sur 2026.
+            Action irréversible. À effectuer une seule fois, juste avant le démarrage de l&apos;édition 2026.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {isLoading ? (
+                <div className="flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Chargement…</div>
+            ) : !canArchive2025 ? (
+                <div className="flex items-start gap-2 p-3 bg-muted/40 rounded-md text-sm">
+                    <Archive className="h-4 w-4 mt-0.5 flex-shrink-0 text-primary" />
+                    <span>
+                        Les collections racine sont déjà vides — l&apos;archivage a soit déjà été effectué,
+                        soit il n&apos;y a rien à archiver. Consulte les <Link href="/admin/archives-2025" className="underline">archives 2025</Link> pour vérifier.
+                    </span>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                        {rootCounts && Object.entries(rootCounts).map(([col, count]) => (
+                            <div key={col} className="p-2 bg-muted/40 rounded">
+                                <div className="font-mono text-muted-foreground">{col}</div>
+                                <div className="font-bold text-base">{count >= 0 ? count : '?'} doc(s)</div>
+                            </div>
+                        ))}
+                    </div>
+                    <Button
+                        variant="destructive"
+                        onClick={() => setIsArchiveDialogOpen(true)}
+                        disabled={isArchiving || isRefreshing || isLoading}
+                    >
+                        {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Archive className="mr-2 h-4 w-4"/>}
+                        Archiver l&apos;édition 2025 maintenant
+                    </Button>
+                </div>
+            )}
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={isArchiveDialogOpen} onOpenChange={(open) => {
+          setIsArchiveDialogOpen(open);
+          if (!open) setArchiveConfirmText('');
+      }}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-destructive" /> Confirmer l&apos;archivage 2025
+                </AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                    <div className="space-y-3">
+                        <span className="block">
+                            Cette action déplace <strong>{totalRootDocs} document(s)</strong> sous
+                            <code className="ml-1 text-xs px-1 py-0.5 bg-muted rounded">archives/2025/*</code> et
+                            vide les collections racine. Elle est <strong>irréversible</strong> via l&apos;interface.
+                        </span>
+                        <span className="block">
+                            Pour confirmer, tape <code className="text-xs px-1 py-0.5 bg-muted rounded font-bold">ARCHIVER 2025</code> ci-dessous :
+                        </span>
+                        <input
+                            type="text"
+                            value={archiveConfirmText}
+                            onChange={(e) => setArchiveConfirmText(e.target.value)}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            placeholder="ARCHIVER 2025"
+                            autoFocus
+                        />
+                    </div>
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel disabled={isArchiving}>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                    onClick={(e) => { e.preventDefault(); handleArchive2025(); }}
+                    disabled={isArchiving || archiveConfirmText !== 'ARCHIVER 2025'}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                    {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Archive className="mr-2 h-4 w-4"/>}
+                    Confirmer l&apos;archivage
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ConventionManager />
     </div>

@@ -50,6 +50,15 @@ service cloud.firestore {
       allow write: if request.auth != null; // Seuls les utilisateurs connectés (admin) peuvent modifier
     }
 
+    // Archives des éditions passées (ex: archives/2025/*).
+    // Lecture publique (page de consultation des archives) ;
+    // écriture réservée aux utilisateurs connectés (admin) pour l'opération d'archivage.
+    // Le wildcard {document=**} couvre le document d'édition ET toutes ses sous-collections.
+    match /archives/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
     // Toutes les autres collections ou chemins non explicitement autorisés seront refusés par défaut.
   }
 }
