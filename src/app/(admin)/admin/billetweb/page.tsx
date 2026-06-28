@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCw, ArrowLeft, DatabaseZap, CloudCog } from "lucide-react";
+import { Loader2, RefreshCw, ArrowLeft, DatabaseZap, CloudCog, Copy } from "lucide-react";
 import type { BilletwebAttendee } from "@/lib/types";
 
 export default function BilletwebPage() {
@@ -83,6 +83,33 @@ export default function BilletwebPage() {
         setIsSyncing(false);
     }
   };
+
+  const handleCopy = async (text: string, label: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: 'Copié', description: `${label} copié dans le presse-papiers.` });
+    } catch {
+      toast({ variant: 'destructive', title: 'Échec de la copie', description: "Impossible de copier automatiquement." });
+    }
+  };
+
+  const renderCopyable = (value: string | undefined | null, label: string) => (
+    <div className="flex items-center gap-1.5">
+      <span className="truncate">{value || '–'}</span>
+      {value && (
+        <button
+          type="button"
+          onClick={() => handleCopy(value, label)}
+          className="text-muted-foreground hover:text-foreground shrink-0"
+          title={`Copier ${label.toLowerCase()}`}
+          aria-label={`Copier ${label.toLowerCase()}`}
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
 
   const getBadgeVariantFromTicket = (ticketName: string | null | undefined): "strategist" | "marshal" | "general" | "secondary" => {
     if (!ticketName) return 'secondary';
@@ -174,6 +201,7 @@ export default function BilletwebPage() {
                                     <TableHead>Prénom</TableHead>
                                     <TableHead>Nom</TableHead>
                                     <TableHead>Email</TableHead>
+                                    <TableHead>Numéro de billet</TableHead>
                                     <TableHead>Type de Billet</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -183,7 +211,8 @@ export default function BilletwebPage() {
                                         <TableRow key={attendee.id}>
                                             <TableCell>{attendee.firstname}</TableCell>
                                             <TableCell>{attendee.name}</TableCell>
-                                            <TableCell>{attendee.email}</TableCell>
+                                            <TableCell>{renderCopyable(attendee.email, 'Email')}</TableCell>
+                                            <TableCell>{renderCopyable(attendee.ext_id, 'Numéro de billet')}</TableCell>
                                             <TableCell>
                                                 <Badge variant={getBadgeVariantFromTicket(attendee.ticket)}>
                                                     {attendee.ticket || 'N/A'}
@@ -193,12 +222,19 @@ export default function BilletwebPage() {
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={4} className="text-center">Aucun participant trouvé sur Billetweb.</TableCell>
+                                        <TableCell colSpan={5} className="text-center">Aucun participant trouvé sur Billetweb.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
                     </div>
+                )}
+
+                {billetwebAttendees && billetwebAttendees.length > 0 && !isFetchingBilletweb && (
+                    <details className="mt-3 text-xs">
+                        <summary className="cursor-pointer text-muted-foreground">Voir les données brutes d&apos;un participant (diagnostic : tous les champs renvoyés par Billetweb)</summary>
+                        <pre className="mt-2 p-3 bg-muted rounded-md overflow-auto max-h-72 whitespace-pre-wrap break-all">{JSON.stringify(billetwebAttendees[0], null, 2)}</pre>
+                    </details>
                 )}
             </div>
         </CardContent>

@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3, Star } from 'lucide-react';
+import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3, Star, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getAllGameResults, getGameTables, getParticipants, getRegistrations } from '@/lib/data';
 import type { GameResult, GameTable, Participant, Registration, ConventionDay } from '@/lib/types';
@@ -37,12 +37,10 @@ interface RankedPlayer extends PlayerScore {
 
 export default function HallOfFamePage() {
   const [rankedPlayersOverall, setRankedPlayersOverall] = useState<RankedPlayer[]>([]);
-  const [dailyRankings, setDailyRankings] = useState<Record<ConventionDay, RankedPlayer[]>>({
-    Jeudi: [],
-    Vendredi: [],
-    Samedi: [],
-    Dimanche: [],
-  });
+  const [dailyRankings, setDailyRankings] = useState<Record<ConventionDay, RankedPlayer[]>>(
+    () => Object.fromEntries(CONVENTION_DAYS.map(d => [d, [] as RankedPlayer[]])) as Record<ConventionDay, RankedPlayer[]>
+  );
+  const [hasAnyResults, setHasAnyResults] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -57,6 +55,9 @@ export default function HallOfFamePage() {
     const gameTablesMap = new Map(gameTables.map(t => [t.id, t]));
 
     // Initialize scores for all participants
+    const emptyDailyRecord = (): Record<ConventionDay, number> =>
+      Object.fromEntries(CONVENTION_DAYS.map(d => [d, 0])) as Record<ConventionDay, number>;
+
     participants.forEach(p => {
       if (p.typeBillet !== 'Invitation') {
         const formattedName = `${p.prenom || ''} ${p.nom ? p.nom.charAt(0) + '.' : ''}`.trim();
@@ -64,9 +65,9 @@ export default function HallOfFamePage() {
           id: p.id,
           name: formattedName,
           // email: p.email, // Not displayed
-          dailyScores: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
-          dailyGamesPlayed: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
-          dailyWins: { Jeudi: 0, Vendredi: 0, Samedi: 0, Dimanche: 0 },
+          dailyScores: emptyDailyRecord(),
+          dailyGamesPlayed: emptyDailyRecord(),
+          dailyWins: emptyDailyRecord(),
           totalScore: 0,
           gamesPlayed: 0,
           wins: 0,
@@ -124,10 +125,12 @@ export default function HallOfFamePage() {
       .map((player, index) => ({ ...player, rank: index + 1 }));
 
     // Calculate daily rankings
-    const daily: Record<ConventionDay, RankedPlayer[]> = { Jeudi: [], Vendredi: [], Samedi: [], Dimanche: [] };
+    const daily: Record<ConventionDay, RankedPlayer[]> = Object.fromEntries(
+      CONVENTION_DAYS.map(d => [d, [] as RankedPlayer[]])
+    ) as Record<ConventionDay, RankedPlayer[]>;
     CONVENTION_DAYS.forEach(day => {
       daily[day] = [...allPlayersArray]
-        .filter(p => p.dailyScores[day] > 0) 
+        .filter(p => p.dailyScores[day] > 0)
         .sort((a, b) => b.dailyScores[day] - a.dailyScores[day] || a.name.localeCompare(b.name))
         .map((player, index) => ({ ...player, rank: index + 1 }));
     });
@@ -149,7 +152,9 @@ export default function HallOfFamePage() {
       if (!results || !tables || !participants || !registrationsData) {
           throw new Error("Données de base manquantes (résultats, tables, participants ou inscriptions) pour calculer le Hall of Fame.");
       }
-      
+
+      setHasAnyResults(results.length > 0);
+
       const { overall, daily } = calculateScores(results, tables, participants, registrationsData);
       setRankedPlayersOverall(overall);
       setDailyRankings(daily);
@@ -251,7 +256,7 @@ export default function HallOfFamePage() {
            <div className="mx-auto bg-black rounded-full p-4 w-fit mb-4 shadow-md">
              <Trophy className="h-10 w-10 text-primary" />
            </div>
-          <CardTitle className="text-4xl font-bold tracking-tight text-primary-foreground">ASYNCONV25 : HALL OF FAME (for the fun !)</CardTitle>
+          <CardTitle className="text-4xl font-bold tracking-tight text-primary-foreground">ASYNCONV26 : HALL OF FAME (for the fun !)</CardTitle>
           <CardDescription className="text-lg text-primary-foreground/90">
             Classement des Grands Maîtres de la convention !
           </CardDescription>
@@ -260,6 +265,22 @@ export default function HallOfFamePage() {
           </Badge>
         </CardHeader>
       </Card>
+
+      {!isLoading && !hasAnyResults && (
+        <Card className="shadow-lg border-primary/30">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3 p-4 bg-muted/40 rounded-md">
+              <Info className="h-5 w-5 mt-0.5 flex-shrink-0 text-primary" />
+              <div className="text-sm">
+                <p className="font-semibold">Aucun classement disponible pour le moment.</p>
+                <p className="text-muted-foreground">
+                  Le calcul du Hall of Fame se fera dès l&apos;enregistrement du premier résultat de partie.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -270,7 +291,7 @@ export default function HallOfFamePage() {
           <CardDescription>Performance globale des participants sur l'ensemble de la convention.</CardDescription>
         </CardHeader>
         <CardContent>
-          {renderRankingTable(rankedPlayersOverall, "Classement général sur les 4 jours")}
+          {renderRankingTable(rankedPlayersOverall, "Classement général sur les 5 jours")}
         </CardContent>
       </Card>
 
@@ -284,7 +305,7 @@ export default function HallOfFamePage() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue={CONVENTION_DAYS[0]} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
               {CONVENTION_DAYS.map(day => (
                 <TabsTrigger key={day} value={day}>{day}</TabsTrigger>
               ))}

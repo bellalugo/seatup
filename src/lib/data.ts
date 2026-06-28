@@ -1,4 +1,4 @@
-import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls, ConventionDay, TimeSlotType, TableStatus, BilletwebAttendee } from '@/lib/types';
+import type { Game, GameInput, GameTable, User, Registration, TicketType, GameTableInput, Participant, GameResult, ManualRegistrationControls, ConventionDay, TimeSlotType, TableStatus, BilletwebAttendee, Animator, AnimatorInput, TableConfig, TableConfigInput, Slot, SlotInput } from '@/lib/types';
 import { auth, db } from '@/firebase/clientApp'; // Import 'auth'
 import {
     collection,
@@ -18,11 +18,15 @@ import {
     type DocumentSnapshot,
 } from 'firebase/firestore';
 import { CONVENTION_DAYS, TIME_SLOT_TYPE_OPTIONS, getActualGranularSlotsForTimeSlotType, getTimeSlotTypeDisplayLabel } from '@/lib/types';
+import { GAMES_2026_SEED } from '@/lib/games-2026-seed';
 import axios from 'axios';
 
 
 const GAMES_COLLECTION = 'games';
+const ANIMATORS_COLLECTION = 'animateurs';
 const TABLES_COLLECTION = 'gameTables';
+const CONFIGS_COLLECTION = 'configurations'; // gabarits réutilisables (nouveau modèle)
+const SLOTS_COLLECTION = 'slots';            // configurations placées sur la grille (nouveau modèle)
 const REGISTRATIONS_COLLECTION = 'registrations';
 const PARTICIPANTS_COLLECTION = 'liste_participants';
 const GAME_RESULTS_COLLECTION = 'gameResults';
@@ -107,6 +111,372 @@ export const deleteGame = async (gameId: string): Promise<void> => {
 
 
 // --- GameTables CRUD Functions ---
+
+// --- Animators (auteurs / animateurs) CRUD ---
+
+/** Liste des animateurs/auteurs, triée par prénom puis nom. */
+export const getAnimators = async (): Promise<Animator[]> => {
+    const firestore = getFirestoreOrThrow();
+    const snap = await getDocs(collection(firestore, ANIMATORS_COLLECTION));
+    return snap.docs
+        .map(d => ({ id: d.id, prenom: '', nom: '', ...(d.data() as Partial<Animator>) } as Animator))
+        .sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`, 'fr'));
+};
+
+/** Ajoute un animateur. */
+export const addAnimator = async (input: AnimatorInput): Promise<Animator> => {
+    const firestore = getFirestoreOrThrow();
+    const data = { prenom: (input.prenom || '').trim(), nom: (input.nom || '').trim() };
+    const ref = await addDoc(collection(firestore, ANIMATORS_COLLECTION), data);
+    return { id: ref.id, ...data };
+};
+
+/** Met à jour un animateur. */
+export const updateAnimator = async (animator: Animator): Promise<void> => {
+    const firestore = getFirestoreOrThrow();
+    await updateDoc(doc(firestore, ANIMATORS_COLLECTION, animator.id), {
+        prenom: (animator.prenom || '').trim(),
+        nom: (animator.nom || '').trim(),
+    });
+};
+
+/** Supprime un animateur. */
+export const deleteAnimator = async (animatorId: string): Promise<void> => {
+    const firestore = getFirestoreOrThrow();
+    await deleteDoc(doc(firestore, ANIMATORS_COLLECTION, animatorId));
+};
+
+// Animateurs/auteurs 2026 issus des paragraphes « Configuration ASYNCONV » du programme.
+// nom laissé vide quand seul le prénom est connu (conforme au programme public).
+const ANIMATORS_2026_SEED: AnimatorInput[] = [
+    { prenom: 'Sébastien', nom: '' },
+    { prenom: 'Patrick', nom: '' },
+    { prenom: 'Cyril', nom: '' },
+    { prenom: 'Sacha', nom: '' },
+    { prenom: 'Éric', nom: 'Goffinon' },
+    { prenom: 'Morgane', nom: '' },
+    { prenom: 'Florian', nom: 'Dumont' },
+    { prenom: 'Olivier', nom: '' },
+    { prenom: 'Simon', nom: '' },
+    { prenom: 'Hervé', nom: '' },
+    { prenom: 'Lucas', nom: '' },
+    { prenom: 'Arnaud', nom: '' },
+];
+
+/** Importe les animateurs 2026 (idempotent : un animateur déjà présent, même prénom+nom, est ignoré).
+ *  À appeler CÔTÉ CLIENT (admin authentifié). */
+export const importAnimators2026 = async (): Promise<{ added: number; skipped: number }> => {
+    const firestore = getFirestoreOrThrow();
+    const snap = await getDocs(collection(firestore, ANIMATORS_COLLECTION));
+    const existing = new Set(
+        snap.docs.map(d => {
+            const a = d.data() as Partial<Animator>;
+            return `${(a.prenom || '').trim().toLowerCase()}|${(a.nom || '').trim().toLowerCase()}`;
+        })
+    );
+    const batch = writeBatch(firestore);
+    let added = 0;
+    let skipped = 0;
+    for (const a of ANIMATORS_2026_SEED) {
+        const key = `${a.prenom.trim().toLowerCase()}|${a.nom.trim().toLowerCase()}`;
+        if (existing.has(key)) { skipped++; continue; }
+        batch.set(doc(collection(firestore, ANIMATORS_COLLECTION)), { prenom: a.prenom.trim(), nom: a.nom.trim() });
+        existing.add(key);
+        added++;
+    }
+    if (added > 0) await batch.commit();
+    return { added, skipped };
+};
+
+/** Numérote les tables des jeux selon l'ordre chronologique de publication au programme.
+ *  L'ordre est lu depuis le numéro encodé dans le visuel (".../Publication_NN_..."), trié
+ *  croissant (tie-break par nom). Attribue tableNumber = 1..N. À exécuter côté client (admin). */
+export const assignTableNumbersByPublicationOrder = async (): Promise<{ nom: string; tableNumber: string }[]> => {
+    const firestore = getFirestoreOrThrow();
+    const snap = await getDocs(collection(firestore, GAMES_COLLECTION));
+    const games = snap.docs.map(d => ({ id: d.id, ...d.data() } as Game));
+    const pubNum = (g: Game): number => {
+        const m = (g.imageUrl || '').match(/Publication_0*(\d+)/i);
+        return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+    };
+    const ordered = [...games].sort((a, b) => {
+        const pa = pubNum(a);
+        const pb = pubNum(b);
+        if (pa !== pb) return pa - pb;
+        return (a.nom || '').localeCompare(b.nom || '');
+    });
+    const batch = writeBatch(firestore);
+    ordered.forEach((g, i) => {
+        batch.update(doc(firestore, GAMES_COLLECTION, g.id), { tableNumber: String(i + 1) });
+    });
+    await batch.commit();
+    return ordered.map((g, i) => ({ nom: g.nom, tableNumber: String(i + 1) }));
+};
+
+// =============================================================================
+//  NOUVEAU MODÈLE — Configurations (gabarits) & Slots (grille)
+// =============================================================================
+
+/** Configurations (gabarits) hydratées avec les infos du jeu, triées par jeu puis libellé. */
+export const getTableConfigs = async (): Promise<TableConfig[]> => {
+    const firestore = getFirestoreOrThrow();
+    const [configsSnap, gamesSnap] = await Promise.all([
+        getDocs(collection(firestore, CONFIGS_COLLECTION)),
+        getDocs(collection(firestore, GAMES_COLLECTION)),
+    ]);
+    const gamesMap = new Map<string, Game>();
+    gamesSnap.docs.forEach(d => gamesMap.set(d.id, { id: d.id, ...d.data() } as Game));
+    return configsSnap.docs
+        .map(d => {
+            const data = d.data() as Omit<TableConfig, 'id'>;
+            const game = gamesMap.get(data.gameId);
+            return {
+                id: d.id,
+                ...data,
+                gameName: game?.nom || 'Jeu inconnu',
+                gameImageUrl: game?.imageUrl || '',
+                gameDescription: game?.description || '',
+                gameTableNumber: game?.tableNumber || '',
+                nbreMin: game?.nbre_min,
+                nbreMax: game?.nbre_max,
+            } as TableConfig;
+        })
+        .sort((a, b) => (a.gameName || '').localeCompare(b.gameName || '') || (a.label || '').localeCompare(b.label || ''));
+};
+
+// Garantit qu'un seul gabarit est « par défaut » pour un jeu : désactive isDefault sur les autres.
+async function ensureSingleDefaultConfig(firestore: ReturnType<typeof getFirestoreOrThrow>, gameId: string, keepConfigId: string): Promise<void> {
+    const snap = await getDocs(query(collection(firestore, CONFIGS_COLLECTION), where('gameId', '==', gameId)));
+    const batch = writeBatch(firestore);
+    let changed = false;
+    snap.docs.forEach(d => {
+        if (d.id !== keepConfigId && (d.data() as { isDefault?: boolean }).isDefault) {
+            batch.update(d.ref, { isDefault: false });
+            changed = true;
+        }
+    });
+    if (changed) await batch.commit();
+}
+
+export const addTableConfig = async (input: TableConfigInput): Promise<TableConfig> => {
+    const firestore = getFirestoreOrThrow();
+    const data = {
+        gameId: input.gameId,
+        label: (input.label || '').trim(),
+        totalSeats: Math.max(1, input.totalSeats || 1),
+        tableShape: input.tableShape || 'round',
+        authorAnimator: (input.authorAnimator || '').trim(),
+        animatorPlays: !!input.animatorPlays,
+        isDefault: !!input.isDefault,
+    };
+    const ref = await addDoc(collection(firestore, CONFIGS_COLLECTION), data);
+    if (data.isDefault) await ensureSingleDefaultConfig(firestore, data.gameId, ref.id);
+    return { id: ref.id, ...data };
+};
+
+export const updateTableConfig = async (config: TableConfig): Promise<void> => {
+    const firestore = getFirestoreOrThrow();
+    await updateDoc(doc(firestore, CONFIGS_COLLECTION, config.id), {
+        gameId: config.gameId,
+        label: (config.label || '').trim(),
+        totalSeats: Math.max(1, config.totalSeats || 1),
+        tableShape: config.tableShape || 'round',
+        authorAnimator: (config.authorAnimator || '').trim(),
+        animatorPlays: !!config.animatorPlays,
+        isDefault: !!config.isDefault,
+    });
+    if (config.isDefault) await ensureSingleDefaultConfig(firestore, config.gameId, config.id);
+};
+
+/** Supprime une configuration. Refuse si elle est encore utilisée par un slot. */
+export const deleteTableConfig = async (configId: string): Promise<void> => {
+    const firestore = getFirestoreOrThrow();
+    const usedSnap = await getDocs(query(collection(firestore, SLOTS_COLLECTION), where('configId', '==', configId)));
+    if (!usedSnap.empty) {
+        throw new Error(`Cette configuration est utilisée par ${usedSnap.size} slot(s). Retirez-la de la grille avant de la supprimer.`);
+    }
+    await deleteDoc(doc(firestore, CONFIGS_COLLECTION, configId));
+};
+
+/** Slots (configurations placées sur la grille), hydratés avec leur configuration (+ infos jeu). */
+export const getSlots = async (): Promise<Slot[]> => {
+    const firestore = getFirestoreOrThrow();
+    const [slotsSnap, configs] = await Promise.all([
+        getDocs(collection(firestore, SLOTS_COLLECTION)),
+        getTableConfigs(),
+    ]);
+    const configMap = new Map(configs.map(c => [c.id, c]));
+    return slotsSnap.docs.map(d => {
+        const data = d.data() as Omit<Slot, 'id' | 'config'>;
+        return {
+            id: d.id,
+            ...data,
+            cells: data.cells || [],
+            status: data.status || 'Ouverte',
+            config: configMap.get(data.configId),
+        } as Slot;
+    });
+};
+
+export const addSlot = async (input: SlotInput): Promise<Slot> => {
+    const firestore = getFirestoreOrThrow();
+    const data = {
+        configId: input.configId,
+        cells: input.cells || [],
+        status: (input.status || 'Ouverte') as TableStatus,
+    };
+    const ref = await addDoc(collection(firestore, SLOTS_COLLECTION), data);
+    return { id: ref.id, ...data };
+};
+
+/** Crée en lot un slot par cellule (un slot = une case), tous avec la même configuration.
+ *  Sert au remplissage « demi-journées » de la grille. */
+export const fillSlotsForCells = async (configId: string, cells: SlotCell[]): Promise<number> => {
+    return createSlotsFromGroups(configId, cells.map(c => [c]));
+};
+
+/** Crée un slot par groupe de cellules (chaque groupe = les cellules d'UN slot), même configuration.
+ *  Permet « journée » (groupe [Matin, Après-midi]) ou « plusieurs jours » (groupe multi-jours). */
+export const createSlotsFromGroups = async (configId: string, groups: SlotCell[][]): Promise<number> => {
+    const firestore = getFirestoreOrThrow();
+    const valid = groups.filter(g => g.length > 0);
+    if (valid.length === 0) return 0;
+    const batch = writeBatch(firestore);
+    valid.forEach(cells => {
+        batch.set(doc(collection(firestore, SLOTS_COLLECTION)), {
+            configId,
+            cells,
+            status: 'Ouverte' as TableStatus,
+        });
+    });
+    await batch.commit();
+    return valid.length;
+};
+
+export const updateSlot = async (slot: SlotInput & { id: string }): Promise<void> => {
+    const firestore = getFirestoreOrThrow();
+    await updateDoc(doc(firestore, SLOTS_COLLECTION, slot.id), {
+        configId: slot.configId,
+        cells: slot.cells || [],
+        status: slot.status || 'Ouverte',
+    });
+};
+
+/** Change uniquement le statut d'un slot (Ouverte / EnCours / Terminee), piloté par l'animateur. */
+export const setSlotStatus = async (slotId: string, status: TableStatus): Promise<void> => {
+    const firestore = getFirestoreOrThrow();
+    await updateDoc(doc(firestore, SLOTS_COLLECTION, slotId), { status });
+};
+
+/** Supprime un slot. Refuse s'il a des inscriptions confirmées ; sinon retire aussi ses entrées de file d'attente. */
+export const deleteSlot = async (slotId: string): Promise<void> => {
+    const firestore = getFirestoreOrThrow();
+    const regsSnap = await getDocs(query(collection(firestore, REGISTRATIONS_COLLECTION), where('slotId', '==', slotId)));
+    const confirmed = regsSnap.docs.filter(d => (d.data() as Registration).status === 'confirmed');
+    if (confirmed.length > 0) {
+        throw new Error(`Ce slot a ${confirmed.length} joueur(s) inscrit(s) : désinscrivez-les avant de le supprimer.`);
+    }
+    const batch = writeBatch(firestore);
+    regsSnap.docs.forEach(d => batch.delete(d.ref));
+    batch.delete(doc(firestore, SLOTS_COLLECTION, slotId));
+    await batch.commit();
+};
+
+/** Outil de TEST : remet à zéro les inscriptions puis remplit aléatoirement les slots avec de vrais
+ *  participants (places confirmées + quelques files d'attente sur les tables pleines). À exécuter côté
+ *  client (admin). Réversible via la remise à zéro des inscriptions. */
+export const simulateTestRegistrations = async (): Promise<{ slots: number; confirmed: number }> => {
+    const firestore = getFirestoreOrThrow();
+    const [slotsSnap, partsSnap, regsSnap, configs] = await Promise.all([
+        getDocs(collection(firestore, SLOTS_COLLECTION)),
+        getDocs(collection(firestore, PARTICIPANTS_COLLECTION)),
+        getDocs(collection(firestore, REGISTRATIONS_COLLECTION)),
+        getTableConfigs(),
+    ]);
+    const participantIds = partsSnap.docs.map(d => d.id);
+    if (participantIds.length === 0) throw new Error("Aucun participant : lance d'abord la synchro Billetweb.");
+    if (slotsSnap.empty) throw new Error('Aucun slot : remplis d’abord la grille.');
+
+    // 1) Efface les inscriptions existantes (repart propre).
+    for (let i = 0; i < regsSnap.docs.length; i += 450) {
+        const batch = writeBatch(firestore);
+        regsSnap.docs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+    }
+
+    const configById = new Map(configs.map(c => [c.id, c]));
+
+    // Un joueur ne peut pas se dédoubler : on suit les créneaux déjà pris (place OU file) par chacun.
+    const busyCells = new Map<string, Set<string>>();
+    const conflicts = (uid: string, keys: string[]) => {
+        const s = busyCells.get(uid);
+        return !!s && keys.some(k => s.has(k));
+    };
+    const markBusy = (uid: string, keys: string[]) => {
+        let s = busyCells.get(uid);
+        if (!s) { s = new Set(); busyCells.set(uid, s); }
+        keys.forEach(k => s!.add(k));
+    };
+    const pick = (n: number, exclude: Set<string>, keys: string[]): string[] => {
+        const pool = participantIds.filter(p => !exclude.has(p) && !conflicts(p, keys));
+        const res: string[] = [];
+        while (res.length < n && pool.length > 0) res.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+        return res;
+    };
+
+    const writes: { id: string; data: Registration }[] = [];
+    let confirmed = 0, slotsFilled = 0;
+    slotsSnap.docs.forEach(d => {
+        const slot = d.data() as Slot;
+        const cfg = configById.get(slot.configId);
+        if (!cfg) return;
+        const keys = (slot.cells || []).map(c => `${c.day}|${c.session}`);
+        const capacity = Math.max(1, (cfg.totalSeats || 1) - (cfg.animatorPlays ? 1 : 0));
+        const full = Math.random() < 0.4;
+        const confN = full ? capacity : Math.floor(Math.random() * (capacity + 1));
+        const used = new Set<string>();
+        pick(confN, used, keys).forEach(uid => { used.add(uid); markBusy(uid, keys); writes.push({ id: `${uid}_${d.id}`, data: { userId: uid, slotId: d.id, status: 'confirmed', timestamp: new Date() } }); confirmed++; });
+        if (used.size > 0) slotsFilled++;
+    });
+
+    for (let i = 0; i < writes.length; i += 450) {
+        const batch = writeBatch(firestore);
+        writes.slice(i, i + 450).forEach(w => batch.set(doc(firestore, REGISTRATIONS_COLLECTION, w.id), w.data));
+        await batch.commit();
+    }
+    return { slots: slotsFilled, confirmed };
+};
+
+/** Efface UNIQUEMENT les inscriptions (places + files). Conserve la grille (slots), les
+ *  configurations, les jeux et les participants. À exécuter côté client (admin). */
+export const clearAllRegistrations = async (): Promise<{ registrations: number }> => {
+    const firestore = getFirestoreOrThrow();
+    const regsSnap = await getDocs(collection(firestore, REGISTRATIONS_COLLECTION));
+    for (let i = 0; i < regsSnap.docs.length; i += 450) {
+        const batch = writeBatch(firestore);
+        regsSnap.docs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+    }
+    return { registrations: regsSnap.size };
+};
+
+/** Remet à zéro les données de planning : gameTables (ancien modèle), slots et TOUTES les inscriptions.
+ *  Conserve games, configurations, animateurs et participants. À exécuter côté client (admin). */
+export const wipePlanningData = async (): Promise<{ gameTables: number; slots: number; registrations: number }> => {
+    const firestore = getFirestoreOrThrow();
+    const [tablesSnap, slotsSnap, regsSnap] = await Promise.all([
+        getDocs(collection(firestore, TABLES_COLLECTION)),
+        getDocs(collection(firestore, SLOTS_COLLECTION)),
+        getDocs(collection(firestore, REGISTRATIONS_COLLECTION)),
+    ]);
+    const allDocs = [...tablesSnap.docs, ...slotsSnap.docs, ...regsSnap.docs];
+    for (let i = 0; i < allDocs.length; i += 450) {
+        const batch = writeBatch(firestore);
+        allDocs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+    }
+    return { gameTables: tablesSnap.size, slots: slotsSnap.size, registrations: regsSnap.size };
+};
 
 export const getGameTables = async (): Promise<GameTable[]> => {
     if (!db) {
@@ -276,17 +646,17 @@ export const deleteGameTable = async (tableId: string): Promise<void> => {
             batch.delete(gameResultRef);
         }
 
+        // Garde-fou : on refuse la suppression d'un slot ayant des joueurs inscrits.
         const registrationsQuery = query(collection(db, REGISTRATIONS_COLLECTION), where("tableId", "==", tableId));
         const registrationsSnapshot = await getDocs(registrationsQuery);
-
         if (registrationsSnapshot.docs.length > 0) {
-            throw new Error(`La table a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) et ne peut pas être supprimée (ou les inscriptions doivent être supprimées manuellement/automatiquement).`);
+            throw new Error(`Ce slot a ${registrationsSnapshot.docs.length} joueur(s) inscrit(s) : désinscrivez-les avant de le supprimer.`);
         }
 
         batch.delete(tableRef);
         await batch.commit();
     } catch (error) {
-        if (error instanceof Error && error.message.includes("joueur(s) inscrit(s)")) {
+        if (error instanceof Error && error.message.includes("inscrit(s)")) {
             throw error;
         }
         console.error("Firestore - Erreur lors de la suppression de la table de jeu et/ou de ses résultats:", error);
@@ -360,6 +730,58 @@ export const getRegistrationsForTable = async (tableId: string): Promise<(Regist
         console.error("Firestore - Erreur lors de la récupération des inscriptions pour la table:", error);
         throw new Error(`Impossible de récupérer les inscriptions pour la table ${tableId} depuis Firestore.`);
     }
+};
+
+/** Inscrit un participant sur un SLOT (nouveau modèle). Statut par défaut : 'confirmed' (place).
+ *  Id déterministe `${userId}_${slotId}` => idempotent (pas de doublon). */
+/** Cellule occupée = `${jour}|${session}`. Un joueur ne peut pas se dédoubler :
+ *  une seule inscription (place OU file) par créneau, toutes tables confondues.
+ *  Lève une erreur si l'inscription au slot cible créerait un conflit horaire. */
+const assertNoSlotTimeConflict = async (userId: string, targetSlotId: string): Promise<void> => {
+    if (!db) return;
+    const slotsSnap = await getDocs(collection(db, SLOTS_COLLECTION));
+    const slotsById = new Map(slotsSnap.docs.map(d => [d.id, d.data() as Slot]));
+    const target = slotsById.get(targetSlotId);
+    const targetKeys = new Set((target?.cells || []).map(c => `${c.day}|${c.session}`));
+    if (targetKeys.size === 0) return;
+
+    const regSnap = await getDocs(query(collection(db, REGISTRATIONS_COLLECTION), where('userId', '==', userId)));
+    for (const d of regSnap.docs) {
+        const r = d.data() as Registration;
+        if (!r.slotId || r.slotId === targetSlotId) continue; // même slot : simple mise à jour, pas un doublon
+        const other = slotsById.get(r.slotId);
+        const clash = (other?.cells || []).some(c => targetKeys.has(`${c.day}|${c.session}`));
+        if (clash) {
+            throw new Error("Conflit de créneau : ce joueur a déjà une partie prévue sur ce créneau (un joueur ne peut pas être à deux tables en même temps).");
+        }
+    }
+};
+
+export const addSlotRegistration = async (
+    userId: string,
+    slotId: string,
+    status: 'confirmed' | 'waiting' | 'offered' = 'confirmed',
+): Promise<Registration & { id: string }> => {
+    if (!db) throw new Error("La connexion à Firestore n'est pas initialisée.");
+    await assertNoSlotTimeConflict(userId, slotId);
+    const registrationId = `${userId}_${slotId}`;
+    const data: Registration = { userId, slotId, status, timestamp: new Date() };
+    try {
+        await setDoc(doc(db, REGISTRATIONS_COLLECTION, registrationId), data);
+        return { id: registrationId, ...data };
+    } catch (error) {
+        console.error("Firestore - Erreur lors de l'inscription au slot:", error);
+        if (error instanceof Error && 'code' in error && (error as { code?: string }).code === 'permission-denied') {
+            throw new Error("Permission refusée. Vos droits ne permettent pas de vous inscrire. Contactez un admin.");
+        }
+        throw new Error("Impossible de vous inscrire à ce slot. Une erreur technique est survenue.");
+    }
+};
+
+/** Met à jour le statut d'une inscription (file d'attente : waiting -> offered -> confirmed). */
+export const updateRegistrationStatus = async (registrationId: string, status: 'confirmed' | 'waiting' | 'offered'): Promise<void> => {
+    if (!db) throw new Error("La connexion à Firestore n'est pas initialisée.");
+    await updateDoc(doc(db, REGISTRATIONS_COLLECTION, registrationId), { status });
 };
 
 export const addRegistration = async (userId: string, tableId: string): Promise<Registration & { id: string }> => {
@@ -464,6 +886,52 @@ export const getParticipantByEmail = async (email: string): Promise<Participant 
         console.error("Firestore - Erreur lors de la récupération du participant par email:", email, error);
         throw new Error(`Impossible de récupérer le participant pour l'email ${email} depuis Firestore.`);
     }
+};
+
+// --- Vérification par numéro de billet (ext_id) ---
+// Le numéro de billet n'est JAMAIS stocké en clair (la liste des participants est lisible
+// publiquement) : on ne conserve qu'une empreinte SHA-256, comparée à la connexion.
+
+/** Normalise un numéro de billet : majuscules + suppression de tout sauf lettres/chiffres
+ *  (tolère espaces, tirets, casse différents lors de la saisie). */
+export const normalizeTicket = (s: string): string => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/** Empreinte SHA-256 (hex) du numéro de billet normalisé. Fonctionne côté navigateur et côté serveur (Node 18+). */
+export const hashTicket = async (s: string): Promise<string> => {
+    const norm = normalizeTicket(s);
+    if (!norm) return '';
+    const data = new TextEncoder().encode(norm);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+/** Récupère TOUS les participants liés à un email (une même personne peut avoir acheté
+ *  plusieurs billets pour ses amis : même email, numéros différents). Insensible à la casse. */
+export const getParticipantsByEmail = async (email: string): Promise<Participant[]> => {
+    if (!email || email.trim() === '') return [];
+    const target = email.trim().toLowerCase();
+    const all = await getParticipants();
+    return all.filter(p => (p.email || '').trim().toLowerCase() === target);
+};
+
+/** Vérifie un participant via email + numéro de billet. Parmi tous les billets liés à cet email,
+ *  retourne celui dont l'empreinte du numéro correspond (permet à un acheteur de réserver pour
+ *  chacun de ses billets/amis), sinon null. */
+export const verifyParticipantCredentials = async (email: string, ticketNumber: string): Promise<Participant | null> => {
+    const provided = await hashTicket(ticketNumber);
+    if (!provided) return null;
+
+    const candidates = await getParticipantsByEmail(email);
+    if (candidates.length === 0) return null;
+
+    const match = candidates.find(p => (p.ticketHash || '') === provided);
+    if (match) return match;
+
+    // Aucun numéro ne correspond : si aucun billet de cet email n'a d'empreinte, c'est un défaut de synchro.
+    if (candidates.every(p => !p.ticketHash)) {
+        throw new Error("Aucun numéro de billet enregistré pour cet email. L'administrateur doit relancer la synchronisation Billetweb.");
+    }
+    return null;
 };
 
 
@@ -651,11 +1119,15 @@ export const syncParticipantsWithBilletweb = async (): Promise<{ added: number; 
         const normalizedEmail = attendee.email.toLowerCase();
         const existingParticipant = existingParticipantsMapByEmail.get(normalizedEmail);
         
+        // Empreinte du numéro de billet (ext_id) — jamais stockée en clair.
+        const ticketHash = await hashTicket(attendee.ext_id || '');
+
         const participantDataFromBilletweb = {
             nom: attendee.name.trim(),
             prenom: attendee.firstname.trim(),
             email: attendee.email, // Store the original-cased email
             typeBillet: mapBilletwebTicketToType(attendee.ticket),
+            ticketHash,
         };
 
         if (existingParticipant) {
@@ -663,7 +1135,8 @@ export const syncParticipantsWithBilletweb = async (): Promise<{ added: number; 
             const hasChanged =
                 existingParticipant.nom !== participantDataFromBilletweb.nom ||
                 existingParticipant.prenom !== participantDataFromBilletweb.prenom ||
-                existingParticipant.typeBillet !== participantDataFromBilletweb.typeBillet;
+                existingParticipant.typeBillet !== participantDataFromBilletweb.typeBillet ||
+                (existingParticipant.ticketHash || '') !== ticketHash;
 
             if (hasChanged) {
                 const participantRef = doc(db, PARTICIPANTS_COLLECTION, existingParticipant.id);
@@ -833,6 +1306,61 @@ export const getArchivedParticipants = async (): Promise<Participant[]> => {
         console.error("Firestore - Erreur récupération participants archivés 2025:", error);
         throw new Error("Impossible de récupérer les participants archivés 2025.");
     }
+};
+
+/** Imports the 2026 games (from GAMES_2026_SEED) into the root `games` collection.
+ *  Idempotent: a game whose name already exists (case-insensitive) is skipped, so the
+ *  import can safely be re-run. Must be called CLIENT-SIDE (authenticated admin) because
+ *  the `games` collection requires `request.auth != null` to write. */
+export const importGames2026 = async (): Promise<{ added: number; updated: number; skipped: number; addedNames: string[] }> => {
+    const firestore = getFirestoreOrThrow();
+    const existingSnap = await getDocs(collection(firestore, GAMES_COLLECTION));
+    // Map nom (normalisé) -> { id, imageUrl } pour les jeux déjà présents.
+    const existingByName = new Map<string, { id: string; imageUrl: string }>();
+    existingSnap.docs.forEach(d => {
+        const data = d.data() as { nom?: string; imageUrl?: string };
+        const key = String(data.nom || '').trim().toLowerCase();
+        if (key) existingByName.set(key, { id: d.id, imageUrl: String(data.imageUrl || '') });
+    });
+
+    const batch = writeBatch(firestore);
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    const addedNames: string[] = [];
+
+    for (const game of GAMES_2026_SEED) {
+        const key = game.nom.trim().toLowerCase();
+        const existing = existingByName.get(key);
+        if (existing) {
+            // Jeu déjà présent : on complète seulement l'image si elle est vide côté Firestore
+            // et que le seed en fournit une (backfill non destructif).
+            if (!existing.imageUrl && game.imageUrl) {
+                batch.update(doc(firestore, GAMES_COLLECTION, existing.id), { imageUrl: game.imageUrl });
+                updated++;
+            } else {
+                skipped++;
+            }
+            continue;
+        }
+        const ref = doc(collection(firestore, GAMES_COLLECTION));
+        batch.set(ref, {
+            nom: game.nom,
+            description: game.description,
+            imageUrl: game.imageUrl || '',
+            asynconvURL: game.asynconvURL || '',
+            nbre_min: game.nbre_min,
+            nbre_max: game.nbre_max,
+        });
+        existingByName.set(key, { id: ref.id, imageUrl: game.imageUrl || '' }); // garde-fou doublons internes
+        added++;
+        addedNames.push(game.nom);
+    }
+
+    if (added > 0 || updated > 0) {
+        await batch.commit();
+    }
+    return { added, updated, skipped, addedNames };
 };
 
 /** Fetches all archived games (2025 edition) from Firestore, sorted by name */

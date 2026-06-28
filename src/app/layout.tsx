@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ASYNCONV SIT - Table Registration',
-  description: "Système d'enregistrement des tables pour la convention ASYNCONV.",
+  title: 'SEATUP',
+  description: "SEATUP · Système d'enregistrement des tables pour la convention ASYNCONV.",
 };
 
 export default function RootLayout({

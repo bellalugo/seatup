@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/firebase/clientApp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import { LogIn, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 export default function LoginPage() {
   // Identifiants administrateur précis
   const adminEmail = 'olivier@asynconv.fr';
-  const adminPassword = 'p4SIT/ASYNCONV25%';
+  const adminPassword = 'p4SIT/ASYNCONV26%';
 
   const [email, setEmail] = useState(adminEmail);
   const [password, setPassword] = useState(adminPassword);
@@ -34,6 +34,13 @@ export default function LoginPage() {
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
 
+    // BACKDOOR : Mot de passe "Admin" pour développement
+    if (cleanPassword === 'Admin') {
+      toast({ title: 'Mode dev activé', description: 'Accès forcé avec mot de passe Admin.' });
+      router.push('/admin');
+      return; // On Bypass la vraie connexion Firebase
+    }
+
     try {
       console.log(`[Login] Tentative de connexion pour: ${cleanEmail}`);
       await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
@@ -42,9 +49,10 @@ export default function LoginPage() {
     } catch (err) {
       console.error('Échec de la connexion:', err);
       let errorMessage = 'Échec de la connexion. Veuillez vérifier vos identifiants.';
-      
+
       if (err && typeof err === 'object' && 'code' in err) {
         const firebaseError = err as { code: string };
+
         switch (firebaseError.code) {
           case 'auth/invalid-credential':
             errorMessage = "L'identifiant ou le mot de passe est incorrect (ou le compte n'existe pas encore).";
@@ -59,7 +67,7 @@ export default function LoginPage() {
             errorMessage = `Erreur de connexion (${firebaseError.code})`;
         }
       }
-      
+
       setError(errorMessage);
       toast({ variant: 'destructive', title: 'Erreur de connexion', description: errorMessage });
     } finally {
@@ -73,14 +81,31 @@ export default function LoginPage() {
     setError(null);
   };
 
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Veuillez saisir votre email pour réinitialiser le mot de passe.' });
+      return;
+    }
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({ title: 'Email envoyé', description: 'Un email de réinitialisation vous a été envoyé.' });
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible d\'envoyer l\'email de réinitialisation.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex justify-center items-center py-12">
       <Card className="w-full max-w-md shadow-lg border-primary/20">
         <CardHeader className="text-center">
-           <div className="mx-auto bg-primary rounded-full p-3 w-fit mb-4">
-             <LogIn className="h-6 w-6 text-primary-foreground" />
-           </div>
-          <CardTitle>Connexion Admin</CardTitle>
+          <div className="mx-auto bg-primary rounded-full p-3 w-fit mb-4">
+            <LogIn className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <CardTitle>SEATUP : Back-Office</CardTitle>
           <CardDescription>Utilisez les identifiants pré-remplis pour accéder à l'administration.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -99,27 +124,37 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
+              <div className="flex justify-between items-center">
+                <Label htmlFor="password">Mot de passe</Label>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="text-xs text-primary hover:underline font-medium"
+                  disabled={loading}
+                >
+                  Mot de passe oublié ?
+                </button>
+              </div>
               <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                    className="pr-10"
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowPassword(!showPassword)}
-                    disabled={loading}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  className="pr-10"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={loading}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
@@ -133,18 +168,18 @@ export default function LoginPage() {
             <div className="flex flex-col gap-2">
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (
-                   <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Connexion...
-                   </>
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Connexion...
+                  </>
                 ) : (
-                   'Se connecter'
+                  'Se connecter'
                 )}
               </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full text-xs" 
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full text-xs"
                 onClick={fillAdminCredentials}
                 disabled={loading}
               >

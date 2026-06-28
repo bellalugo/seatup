@@ -315,7 +315,7 @@ export default function Archives2025Page() {
             Archives ASYNCONV25
           </CardTitle>
           <CardDescription className="text-lg text-primary-foreground/90">
-            Édition précédente — figée en lecture seule
+            Édition précédente · figée en lecture seule
           </CardDescription>
         </CardHeader>
       </Card>
@@ -437,7 +437,7 @@ export default function Archives2025Page() {
                     <TableRow key={g.id}>
                       <TableCell className="font-medium">{g.nom}</TableCell>
                       <TableCell className="text-center text-muted-foreground">
-                        {g.nbre_min && g.nbre_max ? `${g.nbre_min}–${g.nbre_max}` : '—'}
+                        {g.nbre_min && g.nbre_max ? `${g.nbre_min}–${g.nbre_max}` : '–'}
                       </TableCell>
                       <TableCell className="text-center">{tableCount}</TableCell>
                     </TableRow>

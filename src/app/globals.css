@@ -50,6 +50,8 @@ body {
     --badge-marshal-foreground: 0 0% 100%; /* White */
     --badge-general-background: 146 62% 24%; /* Dark Green #166534 */
     --badge-general-foreground: 0 0% 100%; /* White */
+    --badge-colonel-background: 275 55% 32%; /* Deep Purple, matches ticket print */
+    --badge-colonel-foreground: 0 0% 100%; /* White */
   }
   .dark {
     /* Define dark theme if needed, for now use light theme values */
@@ -93,6 +95,8 @@ body {
     --badge-marshal-foreground: 0 0% 100%;
     --badge-general-background: 146 62% 24%;
     --badge-general-foreground: 0 0% 100%;
+    --badge-colonel-background: 275 55% 32%;
+    --badge-colonel-foreground: 0 0% 100%;
   }
 }
 

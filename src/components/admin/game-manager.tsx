@@ -54,6 +54,7 @@ const defaultGameFormData: GameInput = {
   asynconvURL: '',
   nbre_min: 1,
   nbre_max: 4,
+  tableNumber: '',
 };
 
 export default function GameManager() {
@@ -102,6 +103,7 @@ export default function GameManager() {
         asynconvURL: game.asynconvURL,
         nbre_min: game.nbre_min,
         nbre_max: game.nbre_max,
+        tableNumber: game.tableNumber || '',
     });
     setIsGameDialogOpen(true);
   };
@@ -215,6 +217,10 @@ export default function GameManager() {
                     <Label htmlFor="nom" className="text-right">Nom du jeu</Label>
                     <Input id="nom" name="nom" value={gameFormData.nom} onChange={handleGameInputChange} className="col-span-3 rounded-md shadow-sm" required disabled={isSubmitting} />
                  </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="tableNumber" className="text-right">N° de table</Label>
+                    <Input id="tableNumber" name="tableNumber" value={gameFormData.tableNumber || ''} onChange={handleGameInputChange} className="col-span-3 rounded-md shadow-sm" disabled={isSubmitting} placeholder="Ex: 1, A5 (table physique fixe)" />
+                 </div>
                  <div className="grid grid-cols-4 items-start gap-4">
                     <Label htmlFor="description" className="text-right pt-2">Description</Label>
                     <Textarea id="description" name="description" value={gameFormData.description} onChange={handleGameInputChange} className="col-span-3 rounded-md shadow-sm" rows={4} disabled={isSubmitting} />
@@ -255,6 +261,7 @@ export default function GameManager() {
             <TableHeader>
                 <TableRow>
                 <TableHead className="w-40">Image</TableHead>
+                <TableHead className="text-center w-20">N° table</TableHead>
                 <TableHead>Nom</TableHead>
                 <TableHead className="w-1/3">Description</TableHead>
                 <TableHead>Page ASYNCONV</TableHead>
@@ -278,6 +285,9 @@ export default function GameManager() {
                             ) : (
                                 <div className="h-16 w-full bg-muted rounded flex items-center justify-center text-xs text-muted-foreground shadow-sm">?</div>
                             )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                            {game.tableNumber ? <span className="bg-foreground text-background px-1.5 py-0.5 rounded text-xs font-medium">{game.tableNumber}</span> : <span className="text-muted-foreground text-xs">–</span>}
                         </TableCell>
                         <TableCell className="font-medium"><strong>{game.nom}</strong></TableCell>
                         <TableCell className="text-xs text-muted-foreground italic whitespace-pre-line">{game.description}</TableCell>

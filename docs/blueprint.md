@@ -1,4 +1,4 @@
-# **App Name**: ASYNCONV SIT
+# **App Name**: SEATUP
 
 ## Core Features:
 

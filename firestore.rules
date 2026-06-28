@@ -14,6 +14,24 @@ service cloud.firestore {
       allow write: if request.auth != null; // Seuls les utilisateurs connectés peuvent écrire
     }
 
+    // Animateurs / auteurs (collection dédiée). Lecture publique ; écriture admin connecté.
+    match /animateurs/{animatorId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Configurations de tables (gabarits) — nouveau modèle. Lecture publique ; écriture admin connecté.
+    match /configurations/{configId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Slots (configurations placées sur la grille) — nouveau modèle. Lecture publique ; écriture admin connecté.
+    match /slots/{slotId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
     // Permettre à tout le monde de lire les tables de jeu
     match /gameTables/{tableId} {
       allow read: if true;
@@ -24,11 +42,11 @@ service cloud.firestore {
     // Gérer la création et la suppression des inscriptions
     match /registrations/{registrationId} {
       allow read: if true;
-      // Un utilisateur connecté peut créer une inscription pour lui-même OU l'admin (Olivier) peut créer une inscription pour n'importe qui.
-      allow create: if request.auth != null && (request.resource.data.userId == request.auth.uid || request.auth.token.email == 'olivier@asynconv.fr');
-      // Un utilisateur connecté peut supprimer sa propre inscription OU l'admin (Olivier) peut supprimer n'importe quelle inscription.
-      allow delete: if request.auth != null && (resource.data.userId == request.auth.uid || request.auth.token.email == 'olivier@asynconv.fr');
-      // Pas de règle "update" explicite pour l'instant, si besoin, elle pourrait être similaire à "delete".
+      // Les participants sont authentifiés en anonyme (identité réelle = email + numéro de billet),
+      // donc leur uid ne correspond pas à leur identifiant participant. On autorise donc la
+      // création/màj/suppression à tout utilisateur authentifié. Le contrôle métier (qui s'inscrit
+      // où, file d'attente, etc.) est géré côté application.
+      allow create, update, delete: if request.auth != null;
     }
 
     // Permettre à tout le monde de lire la liste des participants (nécessaire pour afficher les noms, etc.)

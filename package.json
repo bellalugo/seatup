@@ -1,5 +1,5 @@
 {
-  "name": "nextn",
+  "name": "seatup",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -38,6 +38,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "firebase": "^11.3.0",
+    "jspdf": "^2.5.2",
     "lucide-react": "^0.475.0",
     "next": "15.2.8",
     "patch-package": "^8.0.0",

@@ -5,10 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import ConventionManager from "@/components/admin/table-manager";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils, Users, Archive, AlertTriangle } from "lucide-react";
+import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils, Users, Archive, AlertTriangle, Eraser } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { getRegistrationControl, updateRegistrationControl, getRegistrations, getGameTables, getParticipants, getRootCollectionCounts, migrate2025DataToArchives } from "@/lib/data";
+import { getRegistrationControl, updateRegistrationControl, getRegistrations, getGameTables, getParticipants, getRootCollectionCounts, migrate2025DataToArchives, importGames2026, importAnimators2026, wipePlanningData, clearAllRegistrations, assignTableNumbersByPublicationOrder, simulateTestRegistrations } from "@/lib/data";
 import type { ManualRegistrationControls, TicketType, ConventionDay, Registration, GameTable, Participant } from "@/lib/types";
 import { CONVENTION_DAYS } from "@/lib/types";
 import { Progress } from "@/components/ui/progress";
@@ -53,6 +53,14 @@ export default function AdminPage() {
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [archiveConfirmText, setArchiveConfirmText] = useState('');
+
+  // Import des jeux 2026
+  const [isImportingGames, setIsImportingGames] = useState(false);
+  const [isImportingAnimators, setIsImportingAnimators] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
+  const [isNumbering, setIsNumbering] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [isClearingRegs, setIsClearingRegs] = useState(false);
 
   const calculateMealCounts = (registrations: Registration[], tables: GameTable[]): Record<ConventionDay, DailyMealCounts> => {
     // 1. Décompte des participants (uniques par jour) - auto-extensible via CONVENTION_DAYS
@@ -267,6 +275,138 @@ export default function AdminPage() {
         });
     } finally {
         setIsArchiving(false);
+    }
+  };
+
+  const handleImportGames2026 = async () => {
+    setIsImportingGames(true);
+    try {
+        // Exécution CÔTÉ CLIENT (admin authentifié) : la collection `games` exige request.auth != null.
+        const { added, updated, skipped } = await importGames2026();
+        const parts = [`${added} ajouté(s)`];
+        if (updated > 0) parts.push(`${updated} image(s) complétée(s)`);
+        if (skipped > 0) parts.push(`${skipped} déjà à jour`);
+        toast({
+            title: "Import des jeux 2026 terminé",
+            description: parts.join(', ') + '.',
+        });
+        await fetchAdminData();
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Échec de l'import des jeux 2026",
+            description: error instanceof Error ? error.message : "Erreur inconnue.",
+        });
+    } finally {
+        setIsImportingGames(false);
+    }
+  };
+
+  const handleSimulate = async () => {
+    if (!window.confirm("Générer des inscriptions de TEST ?\n\nCela EFFACE toutes les inscriptions actuelles, puis remplit aléatoirement les slots (places + files d'attente) avec tes participants. Pour des tests uniquement.")) {
+        return;
+    }
+    setIsSimulating(true);
+    try {
+        const res = await simulateTestRegistrations();
+        toast({
+            title: "Inscriptions de test générées",
+            description: `${res.confirmed} inscription(s) sur ${res.slots} table(s).`,
+        });
+        await fetchAdminData();
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Échec de la simulation",
+            description: error instanceof Error ? error.message : "Erreur inconnue.",
+        });
+    } finally {
+        setIsSimulating(false);
+    }
+  };
+
+  const handleClearRegistrations = async () => {
+    if (!window.confirm("Effacer toutes les inscriptions ?\n\nCela supprime les places et les files d'attente.\nLa grille (tables/slots), les jeux, configurations et participants sont conservés.")) {
+        return;
+    }
+    setIsClearingRegs(true);
+    try {
+        const res = await clearAllRegistrations();
+        toast({
+            title: "Inscriptions effacées",
+            description: `${res.registrations} inscription(s) supprimée(s). La grille est conservée.`,
+        });
+        await fetchAdminData();
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Échec de l'effacement",
+            description: error instanceof Error ? error.message : "Erreur inconnue.",
+        });
+    } finally {
+        setIsClearingRegs(false);
+    }
+  };
+
+  const handleWipePlanning = async () => {
+    if (!window.confirm("Réinitialiser le planning ?\n\nCela supprime DÉFINITIVEMENT toutes les tables (ancien modèle), tous les slots et toutes les inscriptions.\nLes jeux, configurations, animateurs et participants sont conservés.")) {
+        return;
+    }
+    setIsWiping(true);
+    try {
+        const res = await wipePlanningData();
+        toast({
+            title: "Planning réinitialisé",
+            description: `Supprimés : ${res.gameTables} table(s), ${res.slots} slot(s), ${res.registrations} inscription(s).`,
+        });
+        await fetchAdminData();
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Échec de la réinitialisation",
+            description: error instanceof Error ? error.message : "Erreur inconnue.",
+        });
+    } finally {
+        setIsWiping(false);
+    }
+  };
+
+  const handleNumberTables = async () => {
+    setIsNumbering(true);
+    try {
+        const res = await assignTableNumbersByPublicationOrder();
+        toast({
+            title: "Tables numérotées",
+            description: `${res.length} table(s) numérotée(s) par ordre de publication au programme.`,
+        });
+        await fetchAdminData();
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Échec de la numérotation",
+            description: error instanceof Error ? error.message : "Erreur inconnue.",
+        });
+    } finally {
+        setIsNumbering(false);
+    }
+  };
+
+  const handleImportAnimators2026 = async () => {
+    setIsImportingAnimators(true);
+    try {
+        const { added, skipped } = await importAnimators2026();
+        toast({
+            title: "Import des animateurs terminé",
+            description: `${added} ajouté(s)${skipped > 0 ? `, ${skipped} déjà présent(s)` : ''}.`,
+        });
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Échec de l'import des animateurs",
+            description: error instanceof Error ? error.message : "Erreur inconnue.",
+        });
+    } finally {
+        setIsImportingAnimators(false);
     }
   };
 
@@ -513,7 +653,7 @@ export default function AdminPage() {
                 <div className="flex items-start gap-2 p-3 bg-muted/40 rounded-md text-sm">
                     <Archive className="h-4 w-4 mt-0.5 flex-shrink-0 text-primary" />
                     <span>
-                        Les collections racine sont déjà vides — l&apos;archivage a soit déjà été effectué,
+                        Les collections racine sont déjà vides : l&apos;archivage a soit déjà été effectué,
                         soit il n&apos;y a rien à archiver. Consulte les <Link href="/admin/archives-2025" className="underline">archives 2025</Link> pour vérifier.
                     </span>
                 </div>
@@ -537,6 +677,68 @@ export default function AdminPage() {
                     </Button>
                 </div>
             )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-lg border-primary/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DatabaseZap className="h-6 w-6 text-primary" /> Import des jeux 2026
+          </CardTitle>
+          <CardDescription>
+            Crée les 17 jeux de l&apos;édition 2026 (issus de la page programme) dans la collection <code className="text-xs px-1 py-0.5 bg-muted rounded">games</code> :
+            nom, description, nombre de joueurs et lien. Opération sans risque et ré-exécutable : un jeu déjà présent (même nom) est ignoré.
+            Les visuels et les tables sont à compléter ensuite manuellement.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+            <Button
+                onClick={handleImportGames2026}
+                disabled={isImportingGames || isLoading}
+            >
+                {isImportingGames ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                Importer les 17 jeux 2026
+            </Button>
+            <Button
+                variant="outline"
+                onClick={handleImportAnimators2026}
+                disabled={isImportingAnimators || isLoading}
+            >
+                {isImportingAnimators ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Users className="mr-2 h-4 w-4"/>}
+                Importer les animateurs
+            </Button>
+            <Button
+                variant="outline"
+                onClick={handleNumberTables}
+                disabled={isNumbering || isLoading}
+            >
+                {isNumbering ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                Numéroter les tables (ordre du programme)
+            </Button>
+            <Button
+                variant="secondary"
+                onClick={handleSimulate}
+                disabled={isSimulating || isLoading}
+            >
+                {isSimulating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlayCircle className="mr-2 h-4 w-4"/>}
+                Générer des inscriptions de test
+            </Button>
+            <Button
+                variant="outline"
+                onClick={handleClearRegistrations}
+                disabled={isClearingRegs || isLoading}
+            >
+                {isClearingRegs ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eraser className="mr-2 h-4 w-4"/>}
+                Effacer les inscriptions (garder la grille)
+            </Button>
+            <Button
+                variant="destructive"
+                onClick={handleWipePlanning}
+                disabled={isWiping || isLoading}
+            >
+                {isWiping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <AlertTriangle className="mr-2 h-4 w-4"/>}
+                Réinitialiser le planning
+            </Button>
         </CardContent>
       </Card>
 

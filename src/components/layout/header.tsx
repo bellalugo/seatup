@@ -36,10 +36,10 @@ export default function Header() {
       <div className="container mx-auto flex h-24 items-center justify-between px-4 md:px-6"> {/* Changed h-16 to h-24 */}
         <Link href="/" className="flex items-center gap-2 h-full py-1">
           <Image
-            src="https://www.asynconv.fr/wp-content/uploads/2025/04/Signature_FR.jpg"
-            alt="ASYNCONV Logo"
-            width={1000} // Original width of the image
-            height={328} // Original height of the image
+            src="https://www.asynconv.fr/wp-content/uploads/2026/05/Banner_SEATUP.jpg"
+            alt="SEATUP · ASYNCONV"
+            width={800} // Original width of the image
+            height={150} // Original height of the image
             priority // Load logo quickly
             className="object-contain h-full w-auto" // Ensure image scales within its bounds
             data-ai-hint="brand logo"

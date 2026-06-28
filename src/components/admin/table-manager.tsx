@@ -41,6 +41,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -56,11 +57,15 @@ import {
   saveGameResult,
   getAllGameResults,
   updateGameTableStatus,
+  getAnimators,
+  addAnimator,
 } from '@/lib/data';
-import type { GameTable, GameTableInput, Registration, Game, Participant, GameResult, ConventionDay, TimeSlotType, TableStatus } from '@/lib/types';
-import { CONVENTION_DAYS, TIME_SLOT_TYPE_OPTIONS, getTimeSlotTypeDisplayLabel } from '@/lib/types';
-import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy, CalendarDays, Play, Edit3, StopCircle, Save } from 'lucide-react';
+import type { GameTable, GameTableInput, Registration, Game, Participant, GameResult, ConventionDay, TimeSlotType, TableStatus, TableShape, Animator } from '@/lib/types';
+import { CONVENTION_DAYS, TIME_SLOT_TYPE_OPTIONS, getTimeSlotTypeDisplayLabel, animatorDisplayName } from '@/lib/types';
+import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy, CalendarDays, Play, Edit3, StopCircle, Save, Settings2, LayoutGrid } from 'lucide-react';
 import GameManager from './game-manager';
+import ConfigManager from './config-manager';
+import GrilleManager from './grille-manager';
 import { db } from '@/firebase/clientApp';
 import { writeBatch, doc } from 'firebase/firestore';
 
@@ -70,9 +75,15 @@ const defaultTableFormData: GameTableInput = {
   timeSlotType: TIME_SLOT_TYPE_OPTIONS[0].value, // Default to the first time slot type (e.g., 'Matin')
   totalSeats: 4,
   tableNumber: '',
+  tableShape: 'round',
   authorAnimator: undefined,
+  animatorPlays: false,
   status: 'Ouverte',
 };
+
+// Animator status — three explicit modes. Tracked in dedicated state (animatorMode) because the
+// mode cannot be derived from authorAnimator alone (one must be able to pick a mode before typing a name).
+type AnimatorMode = 'free' | 'animator' | 'animator-plays';
 
 const sortParticipantsByName = (participants: Participant[]): Participant[] => {
   return [...participants].sort((a, b) => {
@@ -85,7 +96,7 @@ const sortParticipantsByName = (participants: Participant[]): Participant[] => {
 };
 
 export default function ConventionManager() {
-  const [activeMainTab, setActiveMainTab] = useState("tables");
+  const [activeMainTab, setActiveMainTab] = useState("configs");
   const [activeDayTab, setActiveDayTab] = useState<ConventionDay>(CONVENTION_DAYS[0]);
 
   const [tables, setTables] = useState<GameTable[]>([]);
@@ -93,6 +104,7 @@ export default function ConventionManager() {
   const [registrations, setRegistrations] = useState<(Registration & { id: string })[]>([]);
   const [allParticipantsData, setAllParticipantsData] = useState<Participant[]>([]);
   const [invitationParticipants, setInvitationParticipants] = useState<Participant[]>([]);
+  const [animators, setAnimators] = useState<Animator[]>([]);
   const [gameResultsData, setGameResultsData] = useState<Map<string, GameResult>>(new Map());
 
   const [isLoadingTables, setIsLoadingTables] = useState(true);
@@ -108,6 +120,11 @@ export default function ConventionManager() {
   const [isManagingParticipant, setIsManagingParticipant] = useState(false);
 
   const [tableFormData, setTableFormData] = useState<GameTableInput>(defaultTableFormData);
+  // Mode d'animation explicite (la valeur ne peut pas être déduite uniquement du nom : on doit
+  // pouvoir sélectionner « Animateur seul/joueur » AVANT d'avoir saisi un nom).
+  const [animatorMode, setAnimatorMode] = useState<AnimatorMode>('free');
+  // true = saisie libre d'un nouvel animateur (option « Autre » du menu déroulant)
+  const [animatorCustom, setAnimatorCustom] = useState(false);
 
   const [tableToDelete, setTableToDelete] = useState<GameTable | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
@@ -128,19 +145,22 @@ export default function ConventionManager() {
         fetchedRegistrationsResult,
         fetchedGamesList,
         fetchedParticipants,
-        fetchedGameResults
+        fetchedGameResults,
+        fetchedAnimators
       ] = await Promise.all([
         getGameTables(),
         getRegistrations(),
         getGames(),
         getParticipants(),
-        getAllGameResults()
+        getAllGameResults(),
+        getAnimators()
       ]);
       setTables(fetchedTables);
       setRegistrations(fetchedRegistrationsResult);
       setAllGames(fetchedGamesList);
       setAllParticipantsData(fetchedParticipants);
       setInvitationParticipants(fetchedParticipants.filter(p => p.typeBillet === 'Invitation'));
+      setAnimators(fetchedAnimators);
       
       const resultsMap = new Map<string, GameResult>();
       fetchedGameResults.forEach(result => resultsMap.set(result.tableId, result));
@@ -232,9 +252,13 @@ export default function ConventionManager() {
         timeSlotType: table.timeSlotType,
         totalSeats: table.totalSeats,
         tableNumber: table.tableNumber || '',
+        tableShape: table.tableShape || 'round',
         authorAnimator: table.authorAnimator || undefined,
+        animatorPlays: !!table.animatorPlays,
         status: table.status || 'Ouverte',
     });
+    setAnimatorMode(table.authorAnimator ? (table.animatorPlays ? 'animator-plays' : 'animator') : 'free');
+    setAnimatorCustom(!!table.authorAnimator && !animators.some(a => animatorDisplayName(a).toLowerCase() === table.authorAnimator!.toLowerCase()));
     fetchRegistrantsForDialog(table.id);
     setIsTableDialogOpen(true);
   };
@@ -243,13 +267,17 @@ export default function ConventionManager() {
     setEditingTable(null); // Not editing, but creating based on another
     setTableFormData({
       gameId: table.gameId,
-      days: [...table.days], 
-      timeSlotType: table.timeSlotType, 
+      days: [...table.days],
+      timeSlotType: table.timeSlotType,
       totalSeats: table.totalSeats,
       tableNumber: '', // Clear table number for duplication
+      tableShape: table.tableShape || 'round',
       authorAnimator: table.authorAnimator || undefined,
+      animatorPlays: !!table.animatorPlays,
       status: 'Ouverte',
     });
+    setAnimatorMode(table.authorAnimator ? (table.animatorPlays ? 'animator-plays' : 'animator') : 'free');
+    setAnimatorCustom(!!table.authorAnimator && !animators.some(a => animatorDisplayName(a).toLowerCase() === table.authorAnimator!.toLowerCase()));
     setCurrentTableRegistrants([]); // New table, no registrants yet
     setSelectableParticipantsForDialog(sortParticipantsByName(allParticipantsData));
     setIsTableDialogOpen(true);
@@ -296,7 +324,9 @@ export default function ConventionManager() {
     setEditingTable(null);
     // Ensure days default to an array with the activeDayTab if it's a valid ConventionDay
     const initialDays: ConventionDay[] = CONVENTION_DAYS.includes(activeDayTab) ? [activeDayTab] : [CONVENTION_DAYS[0]];
-    setTableFormData({...defaultTableFormData, days: initialDays, tableNumber: ''}); 
+    setTableFormData({...defaultTableFormData, days: initialDays, tableNumber: ''});
+    setAnimatorMode('free');
+    setAnimatorCustom(false);
     setCurrentTableRegistrants([]);
     setSelectableParticipantsForDialog(sortParticipantsByName(allParticipantsData)); 
     setIsTableDialogOpen(true);
@@ -308,6 +338,12 @@ export default function ConventionManager() {
 
     if (!tableFormData.gameId || !tableFormData.days || tableFormData.days.length === 0 || !tableFormData.timeSlotType || tableFormData.totalSeats <= 0 || !tableFormData.tableNumber) {
         toast({ variant: "destructive", title: "Entrée invalide (Table)", description: "Veuillez remplir tous les champs obligatoires, y compris le numéro de table, le nombre de places, sélectionner un jeu et au moins un jour." });
+        setIsSubmittingTable(false);
+        return;
+    }
+
+    if (animatorMode !== 'free' && !(tableFormData.authorAnimator || '').trim()) {
+        toast({ variant: "destructive", title: "Nom d'animateur requis", description: "Vous avez choisi une table animée : indiquez le nom de l'auteur ou de l'animateur (ou repassez en « Table libre »)." });
         setIsSubmittingTable(false);
         return;
     }
@@ -330,16 +366,26 @@ export default function ConventionManager() {
 
         if (editingTable) {
             await updateGameTable({ ...payload, id: editingTable.id });
-            toast({ title: "Table mise à jour", description: "Détails de la table de jeu enregistrés." });
+            toast({ title: "Configuration mise à jour", description: "Détails de la configuration de table enregistrés." });
             currentTableIdForDialog = editingTable.id;
         } else {
             const newTable = await addGameTable(payload);
             setEditingTable(newTable); 
-            toast({ title: "Table ajoutée", description: "Nouvelle table de jeu créée. Vous pouvez maintenant gérer les participants." });
+            toast({ title: "Configuration ajoutée", description: "Nouvelle configuration de table créée. Vous pouvez maintenant gérer les participants." });
             currentTableIdForDialog = newTable.id;
         }
-        
-        await fetchPageData(false); 
+
+        // Auto-enregistre un nouvel animateur dans la collection dédiée s'il n'y figure pas déjà.
+        if (animatorMode !== 'free') {
+            const fullName = (payload.authorAnimator || '').trim();
+            if (fullName && !animators.some(a => animatorDisplayName(a).toLowerCase() === fullName.toLowerCase())) {
+                const [prenom, ...rest] = fullName.split(' ');
+                try { await addAnimator({ prenom, nom: rest.join(' ') }); }
+                catch (e) { console.warn("Ajout automatique de l'animateur échoué:", e); }
+            }
+        }
+
+        await fetchPageData(false);
 
         if (currentTableIdForDialog) {
              const updatedTableData = (await getGameTables()).find(t => t.id === currentTableIdForDialog);
@@ -729,12 +775,12 @@ export default function ConventionManager() {
       <>
         <div className="flex justify-end mb-4">
             <Button onClick={handleOpenTableDialogForAdd} disabled={isSubmittingTable || !!isDeletingTable} className="shadow-sm rounded-md">
-              <TableIcon className="mr-2 h-4 w-4" /> Ajouter une table ({activeDayTab})
+              <TableIcon className="mr-2 h-4 w-4" /> Ajouter une configuration ({activeDayTab})
             </Button>
         </div>
 
         <Tabs value={activeDayTab} onValueChange={(value) => setActiveDayTab(value as ConventionDay)} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
                 {CONVENTION_DAYS.map(day => (
                     <TabsTrigger key={day} value={day} className="flex items-center gap-1.5">
                         <CalendarDays className="h-4 w-4" /> {day}
@@ -760,9 +806,9 @@ export default function ConventionManager() {
         }}>
           <DialogContent className="sm:max-w-2xl rounded-lg shadow-xl">
             <DialogHeader>
-              <DialogTitle>{editingTable ? 'Modifier la table de jeu' : 'Ajouter une nouvelle table de jeu'}</DialogTitle>
+              <DialogTitle>{editingTable ? 'Modifier la configuration de table' : 'Ajouter une configuration de table'}</DialogTitle>
               <DialogDescription>
-                {editingTable ? `Gestion des détails et des participants pour la table N° ${editingTable.tableNumber} - ${editingTable.gameName}.` : 'Entrez les détails de la nouvelle table de jeu.'}
+                {editingTable ? `Gestion des détails et des participants pour la table N° ${editingTable.tableNumber} - ${editingTable.gameName}.` : 'Définissez une configuration de table : jeu, durée (demi-journée / journée / plusieurs jours), places et animation.'}
                  {currentTableStatusForDialog && <span className={`ml-2 font-semibold ${
                     currentTableStatusForDialog === "Ouverte" ? "text-emerald-600" :
                     currentTableStatusForDialog === "EnAttente" ? "text-amber-600" :
@@ -775,7 +821,7 @@ export default function ConventionManager() {
             </DialogHeader>
             <form onSubmit={handleTableDetailsSubmit} className="space-y-4 max-h-[calc(80vh-150px)] overflow-y-auto pr-2">
               <fieldset className="grid grid-cols-1 gap-4 py-4 border p-4 rounded-md">
-                <legend className="text-sm font-medium px-1">Détails de la table</legend>
+                <legend className="text-sm font-medium px-1">Détails de la configuration</legend>
                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="tableNumber" className="text-right">Numéro</Label>
                     <Input id="tableNumber" name="tableNumber" value={tableFormData.tableNumber} onChange={handleTableNonSelectInputChange} className="col-span-3 rounded-md shadow-sm" required disabled={isSubmittingTable} placeholder="Ex: 101, A5"/>
@@ -790,20 +836,98 @@ export default function ConventionManager() {
                         </SelectContent>
                     </Select>
                  </div>
-                 <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="authorAnimator" className="text-right">Auteur/Animateur</Label>
-                    <Select name="authorAnimator" value={tableFormData.authorAnimator || '_NONE_'} onValueChange={handleTableSelectChange('authorAnimator')} disabled={isSubmittingTable || invitationParticipants.length === 0}>
-                        <SelectTrigger className="col-span-3 rounded-md shadow-sm"><SelectValue placeholder="Sélectionner un invité" /></SelectTrigger>
-                        <SelectContent>
-                            {invitationParticipants.length === 0 && <SelectItem value="_NO_INVITES_" disabled>Aucun invité</SelectItem>}
-                            <SelectItem value="_NONE_">Partie libre</SelectItem>
-                            {invitationParticipants.map(p => (<SelectItem key={p.id} value={`${p.prenom} ${p.nom}`}>{p.prenom} {p.nom}</SelectItem>))}
-                        </SelectContent>
-                    </Select>
+                 <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right pt-2">Forme</Label>
+                    <RadioGroup
+                        value={tableFormData.tableShape || 'round'}
+                        onValueChange={(value) => setTableFormData(prev => ({ ...prev, tableShape: value as TableShape }))}
+                        className="col-span-3 flex gap-6"
+                        disabled={isSubmittingTable}
+                    >
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="round" id="shape-round" />
+                            <Label htmlFor="shape-round" className="font-normal">Ronde</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="rectangle" id="shape-rectangle" />
+                            <Label htmlFor="shape-rectangle" className="font-normal">Rectangulaire</Label>
+                        </div>
+                    </RadioGroup>
                  </div>
                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right pt-2">Statut</Label>
+                    <RadioGroup
+                        value={animatorMode}
+                        onValueChange={(value) => {
+                            const mode = value as AnimatorMode;
+                            setAnimatorMode(mode);
+                            if (mode === 'free') {
+                                setTableFormData(prev => ({ ...prev, authorAnimator: undefined, animatorPlays: false }));
+                            } else if (mode === 'animator') {
+                                setTableFormData(prev => ({ ...prev, animatorPlays: false }));
+                            } else {
+                                setTableFormData(prev => ({ ...prev, animatorPlays: true }));
+                            }
+                        }}
+                        className="col-span-3 flex flex-col gap-2"
+                        disabled={isSubmittingTable}
+                    >
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="free" id="status-free" />
+                            <Label htmlFor="status-free" className="font-normal">Table libre <span className="text-xs text-muted-foreground">(aucun animateur, toutes les places ouvertes)</span></Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="animator" id="status-animator" />
+                            <Label htmlFor="status-animator" className="font-normal">Animateur seul <span className="text-xs text-muted-foreground">(anime sans occuper de siège)</span></Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="animator-plays" id="status-animator-plays" />
+                            <Label htmlFor="status-animator-plays" className="font-normal">Animateur + joueur <span className="text-xs text-muted-foreground">(1 place réservée pour l&apos;animateur)</span></Label>
+                        </div>
+                    </RadioGroup>
+                 </div>
+                 {animatorMode !== 'free' && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="authorAnimator" className="text-right pt-2 self-start">Nom animateur</Label>
+                        <div className="col-span-3 space-y-2">
+                            <Select
+                                value={animatorCustom ? '__OTHER__' : (tableFormData.authorAnimator || '')}
+                                onValueChange={(value) => {
+                                    if (value === '__OTHER__') {
+                                        setAnimatorCustom(true);
+                                        setTableFormData(prev => ({ ...prev, authorAnimator: '' }));
+                                    } else {
+                                        setAnimatorCustom(false);
+                                        setTableFormData(prev => ({ ...prev, authorAnimator: value }));
+                                    }
+                                }}
+                                disabled={isSubmittingTable}
+                            >
+                                <SelectTrigger className="rounded-md shadow-sm"><SelectValue placeholder="Sélectionner un animateur" /></SelectTrigger>
+                                <SelectContent>
+                                    {animators.length === 0 && <SelectItem value="_NO_ANIM_" disabled>Aucun animateur (lancer l&apos;import dans l&apos;admin)</SelectItem>}
+                                    {animators.map(a => (<SelectItem key={a.id} value={animatorDisplayName(a)}>{animatorDisplayName(a)}</SelectItem>))}
+                                    <SelectItem value="__OTHER__">➕ Autre / nouveau…</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            {animatorCustom && (
+                                <Input
+                                    id="authorAnimator"
+                                    name="authorAnimator"
+                                    value={tableFormData.authorAnimator || ''}
+                                    onChange={(e) => setTableFormData(prev => ({ ...prev, authorAnimator: e.target.value }))}
+                                    className="rounded-md shadow-sm"
+                                    placeholder="Prénom Nom (sera ajouté à la base)"
+                                    disabled={isSubmittingTable}
+                                    autoComplete="off"
+                                />
+                            )}
+                        </div>
+                    </div>
+                 )}
+                 <div className="grid grid-cols-4 items-start gap-4">
                     <Label className="text-right pt-2">Jours</Label>
-                    <div className="col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+                    <div className="col-span-3 grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-2">
                         {CONVENTION_DAYS.map(day => (
                             <div key={day} className="flex items-center space-x-2">
                                 <Checkbox
@@ -886,7 +1010,7 @@ export default function ConventionManager() {
                                     <SelectValue placeholder={selectableParticipantsForDialog.length === 0 ? "Aucun participant à ajouter" : "Sélectionner un participant"} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {selectableParticipantsForDialog.length === 0 && <SelectItem value="" disabled>Aucun participant disponible</SelectItem>}
+                                    {selectableParticipantsForDialog.length === 0 && <SelectItem value="_NO_PARTICIPANTS_" disabled>Aucun participant disponible</SelectItem>}
                                     {selectableParticipantsForDialog.map(p => (
                                         <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom} ({p.typeBillet})</SelectItem>
                                     ))}
@@ -942,11 +1066,12 @@ export default function ConventionManager() {
             </AlertDialogContent>
         </AlertDialog>
 
+
         <Dialog open={isWinnerSelectDialogOpen} onOpenChange={(open) => {
             setIsWinnerSelectDialogOpen(open);
             if (!open) {
                 setCurrentTableForWinnerSelection(null);
-                setSelectedWinnerIdsInDialog([]); 
+                setSelectedWinnerIdsInDialog([]);
             }
         }}>
             <DialogContent className="sm:max-w-md">
@@ -989,26 +1114,27 @@ export default function ConventionManager() {
   return (
     <Card className="shadow-lg rounded-lg">
       <CardHeader>
-          <CardTitle>Gestion des tables et des jeux</CardTitle>
-          <CardDescription>Ajouter, modifier ou supprimer des jeux ou des tables de jeu.</CardDescription>
+          <CardTitle>Gestion des configurations de tables et des jeux</CardTitle>
+          <CardDescription>Ajouter, modifier ou supprimer des jeux ou des configurations de tables (qui alimentent la grille du salon).</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 shadow-sm rounded-md">
-            <TabsTrigger value="tables" className="flex items-center gap-2"><TableIcon className="h-4 w-4" />Gestion des tables</TabsTrigger>
-            <TabsTrigger value="games" className="flex items-center gap-2"><Gamepad2 className="h-4 w-4" />Gestion des jeux</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 shadow-sm rounded-md">
+            <TabsTrigger value="configs" className="flex items-center gap-2"><Settings2 className="h-4 w-4" />Configurations</TabsTrigger>
+            <TabsTrigger value="grille" className="flex items-center gap-2"><LayoutGrid className="h-4 w-4" />Grille</TabsTrigger>
+            <TabsTrigger value="games" className="flex items-center gap-2"><Gamepad2 className="h-4 w-4" />Jeux</TabsTrigger>
           </TabsList>
+          <TabsContent value="configs" className="mt-4">
+            <ConfigManager />
+          </TabsContent>
+          <TabsContent value="grille" className="mt-4">
+            <GrilleManager />
+          </TabsContent>
           <TabsContent value="games" className="mt-4">
             <GameManager />
-          </TabsContent>
-          <TabsContent value="tables" className="mt-4">
-            {renderTableManagerContent()}
           </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
   );
 }
-    
-
-    
