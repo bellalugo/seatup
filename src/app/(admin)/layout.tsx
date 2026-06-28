@@ -14,14 +14,18 @@ export default function AdminLayout({
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  // IMPORTANT : les participants du salon sont connectés en ANONYME. Seul un vrai
+  // compte (email/mot de passe, donc non anonyme) doit accéder au back-office.
+  const isAdmin = !!user && !user.isAnonymous;
+
   React.useEffect(() => {
-    if (!loading && !user) {
-      // If not loading and no user is logged in, redirect to login
+    if (!loading && !isAdmin) {
+      // Pas connecté, ou simple visiteur anonyme -> redirection vers la connexion.
       router.replace('/login');
     }
-  }, [user, loading, router]);
+  }, [isAdmin, loading, router]);
 
-  if (loading || !user) {
+  if (loading || !isAdmin) {
     // Show loading indicator or nothing while checking auth/redirecting
     return (
         <div className="flex justify-center items-center min-h-[calc(100vh-10rem)]"> {/* Adjust height as needed */}

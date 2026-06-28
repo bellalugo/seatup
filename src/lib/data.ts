@@ -1263,13 +1263,14 @@ export const canRegisterBasedOnTicket = (
   userTicketType: TicketType,
   manualControls: ManualRegistrationControls
 ): boolean => {
-  if (userTicketType === 'Invitation') return false;
-
   // Cascade: Stratège (highest priority) -> Maréchal -> Général -> Colonel (lowest).
   // Each phase opens registration for its own grade AND all higher-priority grades.
+  // Les billets « Invité » (animateurs/auteurs) sont classés en 'Invitation' : ils peuvent
+  // s'inscrire dès que l'inscription est ouverte à tous (dernière vague, bouton « Ouvrir Colonels »).
   if (manualControls.colonelManuallyOpen) {
-      return true; // Every grade can register
+      return true; // Toutes les catégories, y compris les invités, peuvent s'inscrire
   }
+  if (userTicketType === 'Invitation') return false; // sinon, invités bloqués tant que ce n'est pas ouvert à tous
   if (manualControls.generalManuallyOpen) {
       return userTicketType === 'Stratège'
           || userTicketType === 'Maréchal'

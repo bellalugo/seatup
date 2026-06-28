@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserPlus, UserX, Trophy } from 'lucide-react';
 import { addSlotRegistration, removeRegistration, saveGameResult } from '@/lib/data';
 import type { Slot, Participant, Registration } from '@/lib/types';
+import { shortAnimatorName } from '@/lib/types';
 
 const fullName = (p?: Participant) => p ? `${p.prenom || ''} ${p.nom || ''}`.trim() : 'Inconnu';
 
@@ -123,7 +124,7 @@ export function SlotPlayersDialog({ open, onOpenChange, slot, slots = [], partic
               <ul className="space-y-1">
                 {animatorSeat > 0 && slot.config?.authorAnimator && (
                   <li className="flex items-center justify-between gap-2 text-sm border rounded px-2 py-1 bg-amber-50">
-                    <span className="flex items-center gap-2 min-w-0"><span className="truncate">{slot.config.authorAnimator}</span><Badge className="text-[10px] bg-amber-600">animateur</Badge></span>
+                    <span className="flex items-center gap-2 min-w-0"><span className="truncate">{shortAnimatorName(slot.config.authorAnimator)}</span><Badge className="text-[10px] bg-amber-600">animateur</Badge></span>
                   </li>
                 )}
                 {confirmed.map(r => {

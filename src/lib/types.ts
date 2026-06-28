@@ -130,6 +130,19 @@ export interface AnimatorInput {
 export const animatorDisplayName = (a: { prenom?: string; nom?: string }): string =>
   `${a.prenom || ''} ${a.nom || ''}`.replace(/\s+/g, ' ').trim();
 
+// Helper: forme courte d'un nom complet pour l'affichage public.
+// "Olivier JOUCLA" -> "Olivier J." ; "Cyril" (sans nom) -> "Cyril".
+// Le dernier mot est considéré comme le nom de famille (on en garde l'initiale).
+export const shortAnimatorName = (full?: string): string => {
+  const s = (full || '').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  const parts = s.split(' ');
+  if (parts.length === 1) return parts[0];
+  const nom = parts[parts.length - 1];
+  const prenom = parts.slice(0, -1).join(' ');
+  return `${prenom} ${nom.charAt(0).toUpperCase()}.`;
+};
+
 // =============================================================================
 //  NOUVEAU MODÈLE — Configurations de tables + Grille de slots
 //  - Jeu (games)            : catalogue.

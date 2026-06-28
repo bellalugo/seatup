@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -13,12 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
-  // Identifiants administrateur précis
-  const adminEmail = 'olivier@asynconv.fr';
-  const adminPassword = 'p4SIT/ASYNCONV26%';
-
-  const [email, setEmail] = useState(adminEmail);
-  const [password, setPassword] = useState(adminPassword);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,24 +25,14 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    // Nettoyage des espaces éventuels
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
 
-    // BACKDOOR : Mot de passe "Admin" pour développement
-    if (cleanPassword === 'Admin') {
-      toast({ title: 'Mode dev activé', description: 'Accès forcé avec mot de passe Admin.' });
-      router.push('/admin');
-      return; // On Bypass la vraie connexion Firebase
-    }
-
     try {
-      console.log(`[Login] Tentative de connexion pour: ${cleanEmail}`);
       await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
       toast({ title: 'Connexion réussie', description: 'Redirection vers l\'admin...' });
       router.push('/admin');
     } catch (err) {
-      console.error('Échec de la connexion:', err);
       let errorMessage = 'Échec de la connexion. Veuillez vérifier vos identifiants.';
 
       if (err && typeof err === 'object' && 'code' in err) {
@@ -55,7 +40,7 @@ export default function LoginPage() {
 
         switch (firebaseError.code) {
           case 'auth/invalid-credential':
-            errorMessage = "L'identifiant ou le mot de passe est incorrect (ou le compte n'existe pas encore).";
+            errorMessage = "L'identifiant ou le mot de passe est incorrect.";
             break;
           case 'auth/user-not-found':
             errorMessage = "Aucun compte trouvé avec cet email.";
@@ -75,20 +60,15 @@ export default function LoginPage() {
     }
   };
 
-  const fillAdminCredentials = () => {
-    setEmail(adminEmail);
-    setPassword(adminPassword);
-    setError(null);
-  };
-
   const handleResetPassword = async () => {
-    if (!email) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Veuillez saisir votre email pour réinitialiser le mot de passe.' });
       return;
     }
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, cleanEmail);
       toast({ title: 'Email envoyé', description: 'Un email de réinitialisation vous a été envoyé.' });
     } catch (err) {
       console.error(err);
@@ -106,7 +86,7 @@ export default function LoginPage() {
             <LogIn className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle>SEATUP : Back-Office</CardTitle>
-          <CardDescription>Utilisez les identifiants pré-remplis pour accéder à l'administration.</CardDescription>
+          <CardDescription>Réservé à l&apos;administration. Connectez-vous avec vos identifiants.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -165,27 +145,16 @@ export default function LoginPage() {
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Connexion...
-                  </>
-                ) : (
-                  'Se connecter'
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full text-xs"
-                onClick={fillAdminCredentials}
-                disabled={loading}
-              >
-                Réinitialiser les identifiants
-              </Button>
-            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Connexion...
+                </>
+              ) : (
+                'Se connecter'
+              )}
+            </Button>
           </form>
         </CardContent>
       </Card>

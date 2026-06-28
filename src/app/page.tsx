@@ -40,7 +40,7 @@ import {
     getRegistrationControl,
 } from '@/lib/data';
 import type { GameTable, Slot, SlotCell, SessionType, User, Registration, Participant, GameResult, TicketType, ManualRegistrationControls, ConventionDay } from '@/lib/types';
-import { CONVENTION_DAYS as APP_CONVENTION_DAYS, SESSIONS } from '@/lib/types';
+import { CONVENTION_DAYS as APP_CONVENTION_DAYS, SESSIONS, shortAnimatorName } from '@/lib/types';
 import { exportPlanningPdf } from '@/lib/planning-pdf';
 import { CalendarDays, Clock, CheckCircle, AlertCircle, Info, Loader2, Hash, UserCircle2, LogIn, LogOut, Mail, UserCheck, Trophy, BarChart3, Star, Dices, Ban, Sun, SunDim, Moon, Mic, Users, FileDown } from 'lucide-react';
 import { TableSeats } from '@/components/salon/table-seats';
@@ -657,7 +657,7 @@ export default function Home() {
                                                                     <>
                                                                         <div className="w-full flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 mb-0.5 px-1">
                                                                             {slot.config?.authorAnimator
-                                                                                ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 text-[10px] font-medium max-w-full"><Mic className="h-3 w-3 shrink-0" /><span className="truncate">{slot.config.authorAnimator}{slot.config.animatorPlays ? ' (joue)' : ''}</span></span>
+                                                                                ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 text-[10px] font-medium max-w-full"><Mic className="h-3 w-3 shrink-0" /><span className="truncate">{shortAnimatorName(slot.config.authorAnimator)}{slot.config.animatorPlays ? ' (joue)' : ''}</span></span>
                                                                                 : <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-800 border border-green-300 px-1.5 py-0.5 text-[10px] font-medium"><Users className="h-3 w-3" /> Accès libre</span>}
                                                                             <span className={`text-[11px] font-semibold ${statusColor}`}>{statusText}</span>
                                                                         </div>
