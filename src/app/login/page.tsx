@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/firebase/clientApp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,24 +60,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleResetPassword = async () => {
-    const cleanEmail = email.trim();
-    if (!cleanEmail) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Veuillez saisir votre email pour réinitialiser le mot de passe.' });
-      return;
-    }
-    setLoading(true);
-    try {
-      await sendPasswordResetEmail(auth, cleanEmail);
-      toast({ title: 'Email envoyé', description: 'Un email de réinitialisation vous a été envoyé.' });
-    } catch (err) {
-      console.error(err);
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible d\'envoyer l\'email de réinitialisation.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="flex justify-center items-center py-12">
       <Card className="w-full max-w-md shadow-lg border-primary/20">
@@ -104,17 +86,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label htmlFor="password">Mot de passe</Label>
-                <button
-                  type="button"
-                  onClick={handleResetPassword}
-                  className="text-xs text-primary hover:underline font-medium"
-                  disabled={loading}
-                >
-                  Mot de passe oublié ?
-                </button>
-              </div>
+              <Label htmlFor="password">Mot de passe</Label>
               <div className="relative">
                 <Input
                   id="password"
