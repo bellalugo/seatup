@@ -62,11 +62,10 @@ import {
 } from '@/lib/data';
 import type { GameTable, GameTableInput, Registration, Game, Participant, GameResult, ConventionDay, TimeSlotType, TableStatus, TableShape, Animator } from '@/lib/types';
 import { CONVENTION_DAYS, TIME_SLOT_TYPE_OPTIONS, getTimeSlotTypeDisplayLabel, animatorDisplayName } from '@/lib/types';
-import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy, CalendarDays, Play, Edit3, StopCircle, Save, Settings2, LayoutGrid, Mic } from 'lucide-react';
+import { Pencil, Trash2, Loader2, AlertTriangle, Gamepad2, TableIcon, UserSquare2, UserCircle2, Copy, UserCheck, Info, PlusCircle, UserX, Users, Timer, Square, Trophy, CalendarDays, Play, Edit3, StopCircle, Save, Settings2, LayoutGrid } from 'lucide-react';
 import GameManager from './game-manager';
 import ConfigManager from './config-manager';
 import GrilleManager from './grille-manager';
-import AnimatorManager from './animator-manager';
 import { db } from '@/firebase/clientApp';
 import { writeBatch, doc } from 'firebase/firestore';
 
@@ -1120,11 +1119,10 @@ export default function ConventionManager() {
       </CardHeader>
       <CardContent>
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 shadow-sm rounded-md">
+          <TabsList className="grid w-full grid-cols-3 shadow-sm rounded-md">
             <TabsTrigger value="configs" className="flex items-center gap-2"><Settings2 className="h-4 w-4" />Configurations</TabsTrigger>
             <TabsTrigger value="grille" className="flex items-center gap-2"><LayoutGrid className="h-4 w-4" />Grille</TabsTrigger>
             <TabsTrigger value="games" className="flex items-center gap-2"><Gamepad2 className="h-4 w-4" />Jeux</TabsTrigger>
-            <TabsTrigger value="animators" className="flex items-center gap-2"><Mic className="h-4 w-4" />Animateurs</TabsTrigger>
           </TabsList>
           <TabsContent value="configs" className="mt-4">
             <ConfigManager />
@@ -1134,9 +1132,6 @@ export default function ConventionManager() {
           </TabsContent>
           <TabsContent value="games" className="mt-4">
             <GameManager />
-          </TabsContent>
-          <TabsContent value="animators" className="mt-4">
-            <AnimatorManager />
           </TabsContent>
         </Tabs>
       </CardContent>

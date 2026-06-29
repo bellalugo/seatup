@@ -5,7 +5,7 @@ import Image from 'next/image'; // Import Image component
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { ShieldCheck, LogIn, LogOut, Loader2 } from 'lucide-react'; // Import icons
+import { ShieldCheck, LogIn, LogOut, Loader2, Trophy } from 'lucide-react'; // Import icons
 import { useToast } from '@/hooks/use-toast';
 import * as React from 'react'; // Import React for useState
 
@@ -46,6 +46,11 @@ export default function Header() {
           />
         </Link>
         <nav className="flex items-center gap-4">
+           <Link href="/hall-of-fame" className="flex items-center gap-1 text-sm text-primary-foreground hover:text-red-700 transition-colors font-bold" title="Hall of Fame">
+             <Trophy className="h-4 w-4" />
+             <span className="hidden sm:inline">Hall of Fame</span>
+           </Link>
+
            {isRealUser && (
              <>
                <Link href="/admin" className="flex items-center gap-1 text-sm text-primary-foreground hover:text-red-700 transition-colors font-bold" title="Espace Admin">

@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import type React from 'react';
@@ -7,36 +5,32 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, Trophy, CalendarDays, BarChart3, Star, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getAllGameResults, getGameTables, getParticipants, getRegistrations } from '@/lib/data';
-import type { GameResult, GameTable, Participant, Registration, ConventionDay } from '@/lib/types';
-import { CONVENTION_DAYS } from '@/lib/types'; // Import CONVENTION_DAYS
+import { getAllGameResults, getSlots, getParticipants, getRegistrations } from '@/lib/data';
+import type { GameResult, Slot, Participant, Registration, ConventionDay } from '@/lib/types';
+import { CONVENTION_DAYS } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-
-// conventionDays already defined in types, use the imported one
-// const conventionDays = ['Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
-// type ConventionDay = typeof conventionDays[number]; // Use imported ConventionDay
 
 interface PlayerScore {
   id: string;
   name: string;
-  // email: string; // Email is kept in the data structure, but not displayed
-  dailyScores: Record<ConventionDay, number>;
-  dailyGamesPlayed: Record<ConventionDay, number>;
+  dailyPoints: Record<ConventionDay, number>;
   dailyWins: Record<ConventionDay, number>;
-  totalScore: number;
-  gamesPlayed: number;
+  dailyGames: Record<ConventionDay, number>;
+  points: number;
   wins: number;
+  games: number;
 }
 
 interface RankedPlayer extends PlayerScore {
   rank: number;
 }
 
+
 export default function HallOfFamePage() {
-  const [rankedPlayersOverall, setRankedPlayersOverall] = useState<RankedPlayer[]>([]);
+  const [byPoints, setByPoints] = useState<RankedPlayer[]>([]);
+  const [byWins, setByWins] = useState<RankedPlayer[]>([]);
   const [dailyRankings, setDailyRankings] = useState<Record<ConventionDay, RankedPlayer[]>>(
     () => Object.fromEntries(CONVENTION_DAYS.map(d => [d, [] as RankedPlayer[]])) as Record<ConventionDay, RankedPlayer[]>
   );
@@ -47,118 +41,119 @@ export default function HallOfFamePage() {
 
   const calculateScores = useCallback((
     gameResults: GameResult[],
-    gameTables: GameTable[],
+    slots: Slot[],
     participants: Participant[],
     registrations: Registration[]
-  ): { overall: RankedPlayer[], daily: Record<ConventionDay, RankedPlayer[]> } => {
+  ): { byPoints: RankedPlayer[]; byWins: RankedPlayer[]; daily: Record<ConventionDay, RankedPlayer[]> } => {
     const playerScores: Map<string, PlayerScore> = new Map();
-    const gameTablesMap = new Map(gameTables.map(t => [t.id, t]));
+    const slotsMap = new Map(slots.map(s => [s.id, s]));
 
-    // Initialize scores for all participants
     const emptyDailyRecord = (): Record<ConventionDay, number> =>
       Object.fromEntries(CONVENTION_DAYS.map(d => [d, 0])) as Record<ConventionDay, number>;
 
+    // On inclut tous les participants (y compris les billets Auteur/Animateur, classés en
+    // 'Invitation') : ceux qui n'ont rien joué seront de toute façon écartés des classements
+    // par les filtres points>0 / wins>0 plus bas.
     participants.forEach(p => {
-      if (p.typeBillet !== 'Invitation') {
-        const formattedName = `${p.prenom || ''} ${p.nom ? p.nom.charAt(0) + '.' : ''}`.trim();
-        playerScores.set(p.id, {
-          id: p.id,
-          name: formattedName,
-          // email: p.email, // Not displayed
-          dailyScores: emptyDailyRecord(),
-          dailyGamesPlayed: emptyDailyRecord(),
-          dailyWins: emptyDailyRecord(),
-          totalScore: 0,
-          gamesPlayed: 0,
-          wins: 0,
-        });
-      }
-    });
-    
-    // Calculate daily wins, total wins, daily scores, and total scores
-    gameResults.forEach(result => {
-      const table = gameTablesMap.get(result.tableId);
-      if (!table || !table.days || table.days.length === 0) return; // Table not found or has no days defined
-      
-      const dayForScore = table.days[0]; // Attribute score to the first day of the table's schedule
-      if (!CONVENTION_DAYS.includes(dayForScore)) return; // Ensure this chosen day is a valid convention day
-
-      const pointsPerWin = result.playersInGame >= 5 ? 2 : 1;
-
-      result.winnerIds.forEach(winnerId => {
-        const participantData = playerScores.get(winnerId);
-        if (participantData) {
-          participantData.dailyScores[dayForScore] += pointsPerWin;
-          participantData.totalScore += pointsPerWin;
-          participantData.dailyWins[dayForScore] += 1; 
-          participantData.wins += 1;           
-        }
+      const formattedName = `${p.prenom || ''} ${p.nom ? p.nom.charAt(0) + '.' : ''}`.trim();
+      playerScores.set(p.id, {
+        id: p.id,
+        name: formattedName,
+        dailyPoints: emptyDailyRecord(),
+        dailyWins: emptyDailyRecord(),
+        dailyGames: emptyDailyRecord(),
+        points: 0,
+        wins: 0,
+        games: 0,
       });
     });
 
-    // Calculate daily games played and total games played
-    const gameResultTableIds = new Set(gameResults.map(gr => gr.tableId));
-    registrations.forEach(registration => {
-      const table = gameTablesMap.get(registration.tableId);
-      // Ensure the table exists and a result is recorded for it
-      if (table && gameResultTableIds.has(registration.tableId)) {
-        if (!table.days || table.days.length === 0) return; // Skip if table has no days
+    const dayOfSlot = (slot: Slot | undefined): ConventionDay | null => {
+      const day = slot?.cells?.[0]?.day;
+      return day && CONVENTION_DAYS.includes(day) ? day : null;
+    };
 
-        const dayForGamePlayed = table.days[0]; // Attribute game played to the first day of the table's schedule
-        // Ensure the table's day is a valid convention day
-        if (CONVENTION_DAYS.includes(dayForGamePlayed)) {
-          const participantData = playerScores.get(registration.userId);
-          if (participantData) {
-            participantData.dailyGamesPlayed[dayForGamePlayed] += 1; 
-            participantData.gamesPlayed += 1;          
-          }
-        }
+    // Points par position : 1er = N pts, 2e = N-1, ... (min 1). Le 1er compte une victoire.
+    gameResults.forEach(result => {
+      const slot = slotsMap.get(result.tableId);
+      const day = dayOfSlot(slot);
+      if (!day) return;
+      const ranking = (result.ranking && result.ranking.length) ? result.ranking : null;
+      if (ranking) {
+        // Le classement liste TOUS les joueurs (animateur-joueur inclus) → points + partie jouée.
+        const N = ranking.length;
+        ranking.forEach((pid, i) => {
+          const player = playerScores.get(pid);
+          if (!player) return;
+          player.dailyPoints[day] += Math.max(1, N - i);
+          player.points += Math.max(1, N - i);
+          player.dailyGames[day] += 1;
+          player.games += 1;
+          if (i === 0) { player.dailyWins[day] += 1; player.wins += 1; }
+        });
+      } else {
+        // Anciens résultats sans classement complet : seul le vainqueur est connu ;
+        // les parties jouées sont déduites des inscriptions du slot.
+        const pts = Math.max(1, result.playersInGame || 1);
+        (result.winnerIds || []).forEach(pid => {
+          const player = playerScores.get(pid);
+          if (!player) return;
+          player.dailyPoints[day] += pts;
+          player.points += pts;
+          player.dailyWins[day] += 1;
+          player.wins += 1;
+        });
+        registrations.filter(r => r.slotId === result.tableId).forEach(r => {
+          const player = playerScores.get(r.userId);
+          if (!player) return;
+          player.dailyGames[day] += 1;
+          player.games += 1;
+        });
       }
     });
 
-    const allPlayersArray = Array.from(playerScores.values());
+    const all = Array.from(playerScores.values());
 
-    // Calculate overall ranking
-    const sortedOverall = [...allPlayersArray]
-      .filter(p => p.totalScore > 0)
-      .sort((a, b) => b.totalScore - a.totalScore || a.name.localeCompare(b.name))
-      .map((player, index) => ({ ...player, rank: index + 1 }));
+    const rankedByPoints = all
+      .filter(p => p.points > 0)
+      .sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name))
+      .map((p, i) => ({ ...p, rank: i + 1 }));
 
-    // Calculate daily rankings
+    const rankedByWins = all
+      .filter(p => p.wins > 0)
+      .sort((a, b) => b.wins - a.wins || b.points - a.points || a.name.localeCompare(b.name))
+      .map((p, i) => ({ ...p, rank: i + 1 }));
+
     const daily: Record<ConventionDay, RankedPlayer[]> = Object.fromEntries(
       CONVENTION_DAYS.map(d => [d, [] as RankedPlayer[]])
     ) as Record<ConventionDay, RankedPlayer[]>;
     CONVENTION_DAYS.forEach(day => {
-      daily[day] = [...allPlayersArray]
-        .filter(p => p.dailyScores[day] > 0)
-        .sort((a, b) => b.dailyScores[day] - a.dailyScores[day] || a.name.localeCompare(b.name))
-        .map((player, index) => ({ ...player, rank: index + 1 }));
+      daily[day] = all
+        .filter(p => p.dailyPoints[day] > 0)
+        .sort((a, b) => b.dailyPoints[day] - a.dailyPoints[day] || b.dailyWins[day] - a.dailyWins[day] || a.name.localeCompare(b.name))
+        .map((p, i) => ({ ...p, rank: i + 1 }));
     });
 
-    return { overall: sortedOverall, daily };
+    return { byPoints: rankedByPoints, byWins: rankedByWins, daily };
   }, []);
 
   const loadHallOfFameData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [results, tables, participants, registrationsData] = await Promise.all([
+      const [results, slots, participants, registrationsData] = await Promise.all([
         getAllGameResults(),
-        getGameTables(),
+        getSlots(),
         getParticipants(),
         getRegistrations(),
       ]);
 
-      if (!results || !tables || !participants || !registrationsData) {
-          throw new Error("Données de base manquantes (résultats, tables, participants ou inscriptions) pour calculer le Hall of Fame.");
-      }
+      setHasAnyResults((results?.length || 0) > 0);
 
-      setHasAnyResults(results.length > 0);
-
-      const { overall, daily } = calculateScores(results, tables, participants, registrationsData);
-      setRankedPlayersOverall(overall);
+      const { byPoints: bp, byWins: bw, daily } = calculateScores(results, slots, participants, registrationsData);
+      setByPoints(bp);
+      setByWins(bw);
       setDailyRankings(daily);
-
     } catch (err) {
       console.error("Erreur chargement Hall of Fame:", err);
       const errorMessage = err instanceof Error ? err.message : "Erreur inconnue";
@@ -173,7 +168,7 @@ export default function HallOfFamePage() {
     loadHallOfFameData();
   }, [loadHallOfFameData]);
 
-  const renderRankingTable = (players: RankedPlayer[], caption: string, isDaily: boolean = false, day?: ConventionDay) => {
+  const renderRankingTable = (players: RankedPlayer[], caption: string, day?: ConventionDay) => {
     if (isLoading) {
       return (
         <div className="flex items-center justify-center py-6">
@@ -182,9 +177,13 @@ export default function HallOfFamePage() {
         </div>
       );
     }
-    if (players.length === 0 && !isLoading) {
-      return <p className="text-muted-foreground text-center py-6">Aucune donnée de classement disponible pour {caption.toLowerCase().replace('classement ', '')}.</p>;
+    if (players.length === 0) {
+      return <p className="text-muted-foreground text-center py-6">Aucune donnée de classement disponible pour le moment.</p>;
     }
+
+    const games = (p: RankedPlayer) => day ? p.dailyGames[day] : p.games;
+    const wins = (p: RankedPlayer) => day ? p.dailyWins[day] : p.wins;
+    const points = (p: RankedPlayer) => day ? p.dailyPoints[day] : p.points;
 
     return (
       <Table>
@@ -193,45 +192,35 @@ export default function HallOfFamePage() {
           <TableRow>
             <TableHead className="w-16 text-center">Rang</TableHead>
             <TableHead>Participant</TableHead>
-            <TableHead className="text-center">Nombre de parties jouées</TableHead>
-            <TableHead className="text-center">Victoires</TableHead>
-            <TableHead className="w-24 text-center">Score</TableHead>
+            <TableHead className="text-center">Parties jouées</TableHead>
+            <TableHead className="text-center font-bold text-foreground">Victoires</TableHead>
+            <TableHead className="text-center font-bold text-foreground">Points</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {players.map((player) => {
-            const currentScore = isDaily && day ? player.dailyScores[day] : player.totalScore;
-            return (
-              <TableRow key={player.id}>
-                <TableCell className="text-center font-medium">
-                  {player.rank === 1 && <Trophy className="inline h-5 w-5 mr-1 text-amber-500" />}
-                  {player.rank === 2 && <Trophy className="inline h-5 w-5 mr-1 text-slate-400" />}
-                  {player.rank === 3 && <Trophy className="inline h-5 w-5 mr-1 text-yellow-700" />}
-                  {player.rank}
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium">{player.name}</div>
-                </TableCell>
-                <TableCell className="text-center">
-                  {isDaily && day ? player.dailyGamesPlayed[day] : player.gamesPlayed}
-                </TableCell>
-                <TableCell className="text-center">
-                  {isDaily && day ? player.dailyWins[day] : player.wins}
-                </TableCell>
-                <TableCell className="text-center font-bold">
-                  <div className="flex items-center justify-center">
-                    {currentScore === 0 ? '-' : currentScore}
-                    {currentScore > 0 && <Star className="ml-1 h-4 w-4 text-black fill-black" />}
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })}
+          {players.map((player) => (
+            <TableRow key={player.id}>
+              <TableCell className="text-center font-medium">
+                {player.rank === 1 && <Trophy className="inline h-5 w-5 mr-1 text-amber-500" />}
+                {player.rank === 2 && <Trophy className="inline h-5 w-5 mr-1 text-slate-400" />}
+                {player.rank === 3 && <Trophy className="inline h-5 w-5 mr-1 text-yellow-700" />}
+                {player.rank}
+              </TableCell>
+              <TableCell><div className="font-medium">{player.name}</div></TableCell>
+              <TableCell className="text-center">{games(player)}</TableCell>
+              <TableCell className="text-center font-bold">
+                <div className="flex items-center justify-center">
+                  {wins(player)}
+                  {wins(player) > 0 && <Star className="ml-1 h-4 w-4 text-amber-500 fill-amber-500" />}
+                </div>
+              </TableCell>
+              <TableCell className="text-center font-bold">{points(player)}</TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
     );
   };
-
 
   if (error) {
     return (
@@ -253,16 +242,16 @@ export default function HallOfFamePage() {
     <div className="space-y-8">
       <Card className="shadow-xl bg-primary">
         <CardHeader className="text-center">
-           <div className="mx-auto bg-black rounded-full p-4 w-fit mb-4 shadow-md">
-             <Trophy className="h-10 w-10 text-primary" />
-           </div>
-          <CardTitle className="text-4xl font-bold tracking-tight text-primary-foreground">ASYNCONV26 : HALL OF FAME (for the fun !)</CardTitle>
+          <div className="mx-auto bg-black rounded-full p-4 w-fit mb-4 shadow-md">
+            <Trophy className="h-10 w-10 text-primary" />
+          </div>
+          <CardTitle className="text-4xl font-bold tracking-tight text-primary-foreground">ASYNCONV 5|5 : HALL OF FAME (for the fun !)</CardTitle>
           <CardDescription className="text-lg text-primary-foreground/90">
-            Classement des Grands Maîtres de la convention !
+            Deux classements : nombre de victoires (prestige) et nombre de points (régularité).
           </CardDescription>
-          <Badge variant="outline" className="mx-auto mt-2 border-primary-foreground/50 text-primary-foreground/90 flex items-center gap-1">
-            <Star className="inline-block h-3.5 w-3.5 text-primary-foreground fill-primary-foreground" /> par victoire | Bonus de <Star className="inline-block h-3.5 w-3.5 text-primary-foreground fill-primary-foreground" /> par victoire si la partie compte 5 joueurs ou plus
-          </Badge>
+          <div className="mx-auto mt-3 max-w-2xl rounded-md bg-black text-white text-sm px-4 py-2 text-center">
+            Points : gagner une partie à N joueurs rapporte (N + 1 - position dans le classement) points.<br />Exemple : être deuxième dans une partie à 5 joueurs rapporte 4 points.
+          </div>
         </CardHeader>
       </Card>
 
@@ -285,13 +274,25 @@ export default function HallOfFamePage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center">
-            <BarChart3 className="mr-3 h-7 w-7 text-primary" />
-            Classement Général (Tous les jours)
+            <Star className="mr-3 h-7 w-7 text-primary fill-primary" />
+            Classement par points (régularité)
           </CardTitle>
-          <CardDescription>Performance globale des participants sur l'ensemble de la convention.</CardDescription>
         </CardHeader>
         <CardContent>
-          {renderRankingTable(rankedPlayersOverall, "Classement général sur les 5 jours")}
+          {renderRankingTable(byPoints, "Classement général par points")}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <BarChart3 className="mr-3 h-7 w-7 text-primary" />
+            Classement par nombre de victoires
+          </CardTitle>
+          <CardDescription>Nombre total de parties gagnées sur l&apos;ensemble de la convention.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {renderRankingTable(byWins, "Classement général par victoires")}
         </CardContent>
       </Card>
 
@@ -299,9 +300,9 @@ export default function HallOfFamePage() {
         <CardHeader>
           <CardTitle className="flex items-center">
             <CalendarDays className="mr-3 h-7 w-7 text-primary" />
-            Classements Journaliers
+            Classements journaliers (par points)
           </CardTitle>
-          <CardDescription>Performance des participants pour chaque jour de la convention.</CardDescription>
+          <CardDescription>Performance par jour de la convention.</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue={CONVENTION_DAYS[0]} className="w-full">
@@ -312,7 +313,7 @@ export default function HallOfFamePage() {
             </TabsList>
             {CONVENTION_DAYS.map(day => (
               <TabsContent key={`content-${day}`} value={day} className="mt-4">
-                {renderRankingTable(dailyRankings[day], `Classement du ${day}`, true, day)}
+                {renderRankingTable(dailyRankings[day], `Classement du ${day}`, day)}
               </TabsContent>
             ))}
           </Tabs>

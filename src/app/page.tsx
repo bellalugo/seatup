@@ -29,6 +29,8 @@ import {
     getSlots,
     deleteSlot,
     setSlotStatus,
+    confirmConditionalSlot,
+    cancelSlot,
     getRegistrations,
     addSlotRegistration,
     updateRegistrationStatus,
@@ -95,6 +97,24 @@ const SESSION_HEADERS: Record<SessionType, { label: string; icon: React.Componen
   'Matin': { label: 'Matin · 09h00–13h00', icon: Sun },
   'Après-midi': { label: 'Après-midi · 14h00–19h00', icon: SunDim },
   'Soir': { label: 'Soirée', icon: Moon },
+};
+
+// Petite jauge d'occupation de la salle pour une demi-journée (barre remplie = sièges occupés).
+const RoomGauge = ({ label, free, capacity }: { label?: string; free: number; capacity: number }) => {
+  const occupied = Math.max(0, capacity - free);
+  const pct = capacity > 0 ? Math.round((occupied / capacity) * 100) : 0;
+  const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-green-500';
+  return (
+    <div className="w-full max-w-[240px] normal-case tracking-normal font-normal">
+      <div className="flex justify-between text-[11px] text-muted-foreground mb-0.5">
+        {label ? <span className="font-medium">{label}</span> : <span />}
+        <span>{free} libre{free > 1 ? 's' : ''} / {capacity}</span>
+      </div>
+      <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
+        <div className={`h-full ${color} transition-all duration-500`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
 };
 
 export default function Home() {
@@ -222,20 +242,28 @@ export default function Home() {
     if (liveDayName && allParticipantsData.length > 0 && slots.length > 0 && gameResultsData.size > 0) {
         const playerScoresMap: Map<string, { id: string, name: string, score: number }> = new Map();
         allParticipantsData.forEach(p => {
-            if (p.typeBillet !== 'Invitation') {
-                const formattedName = `${p.prenom || ''} ${p.nom ? p.nom.charAt(0) + '.' : ''}`.trim();
-                playerScoresMap.set(p.id, { id: p.id, name: formattedName, score: 0 });
-            }
+            const formattedName = `${p.prenom || ''} ${p.nom ? p.nom.charAt(0) + '.' : ''}`.trim();
+            playerScoresMap.set(p.id, { id: p.id, name: formattedName, score: 0 });
         });
         const slotsMap = new Map(slots.map(s => [s.id, s]));
         Array.from(gameResultsData.values()).forEach(result => {
             const slot = slotsMap.get(result.tableId);
             if (!slot || !(slot.cells || []).some(c => c.day === liveDayName)) return;
-            const pointsPerWin = result.playersInGame >= 5 ? 2 : 1;
-            result.winnerIds.forEach(winnerId => {
-                const playerData = playerScoresMap.get(winnerId);
-                if (playerData) playerData.score += pointsPerWin;
-            });
+            // Points par position : 1er = N pts, 2e = N-1, ... (min 1).
+            const ranking = (result.ranking && result.ranking.length) ? result.ranking : null;
+            if (ranking) {
+                const N = ranking.length;
+                ranking.forEach((pid, i) => {
+                    const playerData = playerScoresMap.get(pid);
+                    if (playerData) playerData.score += Math.max(1, N - i);
+                });
+            } else {
+                const pts = Math.max(1, result.playersInGame || 1);
+                (result.winnerIds || []).forEach(winnerId => {
+                    const playerData = playerScoresMap.get(winnerId);
+                    if (playerData) playerData.score += pts;
+                });
+            }
         });
         const rankedToday = Array.from(playerScoresMap.values())
             .filter(p => p.score > 0) 
@@ -329,6 +357,25 @@ export default function Home() {
 
   const cellsLabel = (slot: Slot) => (slot.cells || []).map(c => `${c.day} ${c.session}`).join(', ');
 
+  // Peut gérer une table : l'admin, OU l'animateur/auteur lié à cette table (s'il est connecté).
+  const canManageSlot = (slot: Slot): boolean =>
+    isAdmin || (!!currentUser && !!slot.config?.animatorParticipantId && slot.config.animatorParticipantId === currentUser.id);
+
+  // Vrai s'il existe, sur la MÊME table (jeu) et le MÊME jour, une partie d'un créneau ANTÉRIEUR
+  // qui n'est pas encore terminée (ni annulée). Sert à empêcher de lancer/confirmer une 2e partie
+  // tant que la précédente occupe encore la table.
+  const previousGameUnfinished = (slot: Slot): boolean => {
+    const gid = slot.config?.gameId;
+    if (!gid) return false;
+    return (slot.cells || []).some(cell => {
+      const myIdx = SESSIONS.indexOf(cell.session);
+      return slots.some(o => o.id !== slot.id
+        && o.config?.gameId === gid
+        && (o.cells || []).some(oc => oc.day === cell.day && SESSIONS.indexOf(oc.session) < myIdx)
+        && o.status !== 'Terminee' && o.status !== 'Annulee');
+    });
+  };
+
   const myRegForSlot = (slotId: string) =>
     currentUser ? registrations.find(r => r.slotId === slotId && r.userId === currentUser.id) : undefined;
 
@@ -338,6 +385,35 @@ export default function Home() {
     try {
       await setSlotStatus(slotId, status);
       setSlots(await getSlots());
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Échec', description: (error as Error).message });
+    } finally {
+      setIsSubmittingRegistration(false);
+    }
+  };
+
+  // Admin : confirme une partie « sous réserve » (elle est maintenue).
+  const handleConfirmConditional = async (slotId: string) => {
+    setIsSubmittingRegistration(true);
+    try {
+      await confirmConditionalSlot(slotId);
+      setSlots(await getSlots());
+      toast({ title: 'Partie confirmée', description: 'Elle est maintenue, les inscriptions sont fermes.' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Échec', description: (error as Error).message });
+    } finally {
+      setIsSubmittingRegistration(false);
+    }
+  };
+
+  // Admin : annule une partie (ex. la partie précédente a débordé). Les inscrits sont libérés.
+  const handleCancelSlot = async (slotId: string) => {
+    if (!window.confirm('Annuler cette partie ?\n\nLes joueurs inscrits seront désinscrits (libérés). La partie sera marquée « annulée ».')) return;
+    setIsSubmittingRegistration(true);
+    try {
+      await cancelSlot(slotId);
+      await loadPageData();
+      toast({ title: 'Partie annulée', description: 'Les inscrits ont été libérés.' });
     } catch (error) {
       toast({ variant: 'destructive', title: 'Échec', description: (error as Error).message });
     } finally {
@@ -467,12 +543,13 @@ export default function Home() {
     // (onglet Configurations), pas modifiable depuis le salon. On ne fait rien.
   };
 
-  const getTicketBadgeVariant = (ticketType?: TicketType): "strategist" | "marshal" | "general" | "colonel" | "secondary" => {
+  const getTicketBadgeVariant = (ticketType?: TicketType): "strategist" | "marshal" | "general" | "colonel" | "animator" | "secondary" => {
     switch (ticketType) {
       case 'Stratège': return 'strategist';
       case 'Maréchal': return 'marshal';
       case 'Général': return 'general';
       case 'Colonel': return 'colonel';
+      case 'Animateur': return 'animator';
       default: return 'secondary';
     }
   };
@@ -594,12 +671,22 @@ export default function Home() {
             </div>
             {conventionDaysConfig.map(dayConfig => {
                 const slotsOfDay = slots.filter(s => (s.cells || []).some(c => c.day === dayConfig.name));
+                const sessionSlots = (session: SessionType) => slotsOfDay.filter(s => (s.cells || []).some(c => c.day === dayConfig.name && c.session === session));
+                const freeForSession = (session: SessionType) => sessionSlots(session).reduce((sum, s) => sum + seatsForSlot(s).available, 0);
+                const capForSession = (session: SessionType) => sessionSlots(session).reduce((sum, s) => sum + Math.max(0, (s.config?.totalSeats || 0) - (s.config?.animatorPlays ? 1 : 0)), 0);
+                const freeMatin = freeForSession('Matin');
+                const freeAM = freeForSession('Après-midi');
+                const capMatin = capForSession('Matin');
+                const capAM = capForSession('Après-midi');
+                const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+                const [dd, mm] = (dayConfig.date || '').split('/');
+                const longDate = `${parseInt(dd, 10)} ${MONTHS_FR[parseInt(mm, 10) - 1] || ''}`.trim();
                 return (
                 <TabsContent key={dayConfig.value} value={dayConfig.value}>
                     <Card>
                         <CardHeader>
                             <CardTitle>
-                                <span>Tables du {dayConfig.name} {dayConfig.date}</span>
+                                <span>Tables du {dayConfig.name.toLowerCase()} {longDate}</span>
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2">
@@ -613,7 +700,13 @@ export default function Home() {
                                         <div className="flex-1 grid grid-cols-3 gap-2 pl-3">
                                             {SESSIONS.map(session => {
                                                 const SIcon = SESSION_HEADERS[session].icon;
-                                                return <div key={session} className="text-center flex items-center justify-center gap-1"><SIcon className="h-4 w-4" /> {session}</div>;
+                                                return (
+                                                    <div key={session} className="flex flex-col items-center gap-1">
+                                                        <div className="flex items-center justify-center gap-1"><SIcon className="h-4 w-4" /> {session}</div>
+                                                        {session === 'Matin' && <RoomGauge free={freeMatin} capacity={capMatin} />}
+                                                        {session === 'Après-midi' && <RoomGauge free={freeAM} capacity={capAM} />}
+                                                    </div>
+                                                );
                                             })}
                                         </div>
                                     </div>
@@ -629,8 +722,8 @@ export default function Home() {
                                         });
                                         const rows = [...byGame.values()].sort((a, b) => ((parseInt(a.tableNumber, 10) || 999) - (parseInt(b.tableNumber, 10) || 999)) || a.gameName.localeCompare(b.gameName));
                                         return rows.map(row => (
-                                            <div key={`${row.tableNumber}-${row.gameName}`} className="flex flex-col md:flex-row md:items-center gap-2 border rounded-lg p-2">
-                                                <div className="md:w-56 shrink-0 flex flex-col items-center gap-1.5">
+                                            <div key={`${row.tableNumber}-${row.gameName}`} className="flex flex-col md:flex-row md:items-stretch gap-2 border rounded-lg p-2">
+                                                <div className="md:w-56 shrink-0 flex flex-col items-center justify-center gap-1.5 bg-primary/10 rounded-lg p-2">
                                                     <div className="flex items-center justify-center gap-2">
                                                         <span className="bg-foreground text-background px-1.5 py-0.5 rounded text-xs font-bold shrink-0">{row.tableNumber || '?'}</span>
                                                         <span className="font-semibold text-sm leading-tight text-center">{row.gameName}</span>
@@ -641,10 +734,15 @@ export default function Home() {
                                                         : <div className="w-44 h-[92px] rounded-md border border-border bg-muted" />}
                                                 </div>
                                                 <div className="flex-1 grid grid-cols-3 gap-2 md:border-l md:pl-3">
-                                                    {SESSIONS.map(session => {
+                                                    {SESSIONS.map((session, idx) => {
                                                         const slot = row.sessions[session];
+                                                        // Journée : si ce créneau prolonge le slot du créneau précédent, on ne le redessine pas.
+                                                        if (slot && idx > 0 && row.sessions[SESSIONS[idx - 1]]?.id === slot.id) return null;
+                                                        let span = 1;
+                                                        if (slot) { while (idx + span < SESSIONS.length && row.sessions[SESSIONS[idx + span]]?.id === slot.id) span++; }
+                                                        const spanClass = span === 3 ? 'col-span-3' : span === 2 ? 'col-span-2' : '';
                                                         return (
-                                                            <div key={session} className="flex flex-col items-center justify-start">
+                                                            <div key={session} className={`flex flex-col items-center justify-start rounded-lg ${spanClass} ${session === 'Soir' ? 'bg-slate-800/5 p-1' : ''}`}>
                                                                 <div className="md:hidden text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{session}</div>
                                                                 {slot ? (() => {
                                                                     const { available } = seatsForSlot(slot);
@@ -653,12 +751,24 @@ export default function Home() {
                                                                     const statusColor = isFull ? 'text-destructive' : available <= 1 ? 'text-amber-700' : 'text-green-700';
                                                                     const myReg = myRegForSlot(slot.id);
                                                                     const iAmConfirmed = !!myReg && (myReg.status === 'confirmed' || !myReg.status);
+                                                                    const isCancelled = slot.status === 'Annulee';
+                                                                    const isConditional = !!slot.conditional;
+                                                                    const prevUnfinished = previousGameUnfinished(slot);
+                                                                    if (isCancelled) {
+                                                                      return (
+                                                                        <div className="flex flex-col items-center justify-center h-full py-10 text-center gap-2">
+                                                                          <span className="text-xs font-medium text-muted-foreground max-w-[170px] leading-tight">Pas assez de temps pour lancer une autre partie aujourd&apos;hui.</span>
+                                                                          {canManageSlot(slot) && <button type="button" onClick={() => handleSetSlotStatus(slot.id, 'Ouverte')} className="text-[10px] px-1.5 py-0.5 rounded bg-green-600 text-white">Rouvrir</button>}
+                                                                        </div>
+                                                                      );
+                                                                    }
                                                                     return (
                                                                     <>
                                                                         <div className="w-full flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 mb-0.5 px-1">
                                                                             {slot.config?.authorAnimator
                                                                                 ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 text-[10px] font-medium max-w-full"><Mic className="h-3 w-3 shrink-0" /><span className="truncate">{shortAnimatorName(slot.config.authorAnimator)}{slot.config.animatorPlays ? ' (joue)' : ''}</span></span>
                                                                                 : <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-800 border border-green-300 px-1.5 py-0.5 text-[10px] font-medium"><Users className="h-3 w-3" /> Accès libre</span>}
+                                                                            {isConditional && <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 text-orange-800 border border-orange-300 px-1.5 py-0.5 text-[10px] font-medium" title="Cette partie n'aura lieu que si la partie précédente se termine à temps.">Sous réserve</span>}
                                                                             <span className={`text-[11px] font-semibold ${statusColor}`}>{statusText}</span>
                                                                         </div>
                                                                         <TableSeats
@@ -672,20 +782,36 @@ export default function Home() {
                                                                             size={132}
                                                                             showStatus={false}
                                                                         />
+                                                                        {isConditional && (
+                                                                            <p className="mt-1 text-[10px] text-orange-700 text-center leading-tight max-w-[150px]">Inscription sous réserve : confirmée seulement si la partie précédente finit à temps.</p>
+                                                                        )}
                                                                         {currentUser && iAmConfirmed && (
                                                                             <button type="button" onClick={() => handleUnregister(slot.id)} disabled={isSubmittingRegistration} className="mt-1 text-[11px] text-destructive underline">Se désinscrire</button>
                                                                         )}
-                                                                        {isAdmin && (
+                                                                        {canManageSlot(slot) && (
                                                                             <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
-                                                                                {(slot.status === 'Ouverte' || !slot.status) && <button type="button" onClick={() => handleSetSlotStatus(slot.id, 'EnCours')} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500 text-white">Démarrer</button>}
-                                                                                {slot.status === 'EnCours' && <button type="button" onClick={() => handleSetSlotStatus(slot.id, 'Terminee')} className="text-[10px] px-1.5 py-0.5 rounded bg-stone-600 text-white">Terminer</button>}
-                                                                                {slot.status === 'Terminee' && <button type="button" onClick={() => handleSetSlotStatus(slot.id, 'Ouverte')} className="text-[10px] px-1.5 py-0.5 rounded bg-green-600 text-white">Rouvrir</button>}
+                                                                                {isConditional ? (
+                                                                                    <>
+                                                                                        <button type="button" onClick={() => handleConfirmConditional(slot.id)} disabled={isSubmittingRegistration || prevUnfinished} title={prevUnfinished ? 'Terminez d\'abord la partie précédente sur cette table' : 'Maintenir cette partie'} className="text-[10px] px-1.5 py-0.5 rounded bg-green-600 text-white disabled:opacity-40">Confirmer</button>
+                                                                                        <button type="button" onClick={() => handleCancelSlot(slot.id)} disabled={isSubmittingRegistration} className="text-[10px] px-1.5 py-0.5 rounded bg-red-600 text-white">Annuler</button>
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        {(slot.status === 'Ouverte' || !slot.status) && <button type="button" onClick={() => handleSetSlotStatus(slot.id, 'EnCours')} disabled={isSubmittingRegistration || prevUnfinished} title={prevUnfinished ? 'Terminez d\'abord la partie précédente sur cette table' : 'Démarrer la partie'} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500 text-white disabled:opacity-40">Démarrer</button>}
+                                                                                        {slot.status === 'EnCours' && <button type="button" onClick={() => handleSetSlotStatus(slot.id, 'Terminee')} className="text-[10px] px-1.5 py-0.5 rounded bg-stone-600 text-white">Terminer</button>}
+                                                                                        {slot.status === 'Terminee' && <button type="button" onClick={() => handleSetSlotStatus(slot.id, 'Ouverte')} className="text-[10px] px-1.5 py-0.5 rounded bg-green-600 text-white">Rouvrir</button>}
+                                                                                    </>
+                                                                                )}
                                                                                 <button type="button" onClick={() => setManagedSlot(slot)} className="text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-800 hover:bg-stone-300">Gérer</button>
                                                                             </div>
                                                                         )}
                                                                     </>
                                                                     );
-                                                                })() : (
+                                                                })() : session === 'Soir' ? (
+                                                                    <div className="flex-1 flex items-center justify-center text-center italic text-[11px] text-slate-600 leading-snug px-2 max-w-[210px]">
+                                                                        {"Le soir, c'est OFF, vous pouvez continuer une partie en cours, jouer à un jeu qui n'est pas dans le programme dans l'espace dédié ou bien même, ne pas jouer ! Le OFF, c'est comme vous voulez."}
+                                                                    </div>
+                                                                ) : (
                                                                     <div className="text-muted-foreground/50 text-xs flex items-center justify-center h-full py-10">–</div>
                                                                 )}
                                                             </div>
@@ -728,7 +854,7 @@ export default function Home() {
                                 <TableRow key={`sched-${slot.id}`}>
                                     <TableCell className="font-bold">{slot.config?.gameTableNumber || '–'}</TableCell>
                                     <TableCell className="font-semibold">{slot.config?.gameName}</TableCell>
-                                    <TableCell className="text-xs"><Badge variant="outline">{cellsLabel(slot)}</Badge></TableCell>
+                                    <TableCell className="text-xs"><Badge variant="outline">{cellsLabel(slot)}</Badge>{slot.conditional && <Badge className="ml-1 bg-orange-500 text-[10px]">sous réserve</Badge>}</TableCell>
                                     <TableCell className="text-center">
                                         <Button variant="ghost" size="sm" onClick={() => handleUnregister(slot.id)} className="text-destructive"><Info className="h-4 w-4 mr-1" /> Annuler</Button>
                                     </TableCell>

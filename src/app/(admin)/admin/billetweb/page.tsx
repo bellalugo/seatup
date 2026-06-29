@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw, ArrowLeft, DatabaseZap, CloudCog, Copy } from "lucide-react";
 import type { BilletwebAttendee } from "@/lib/types";
+import { syncParticipantsFromAttendees } from "@/lib/data";
 
 export default function BilletwebPage() {
   const { toast } = useToast();
@@ -61,15 +62,19 @@ export default function BilletwebPage() {
     setSyncError(null);
     setSyncResult(null);
     try {
-        const response = await fetch('/api/sync-participants', { method: 'POST' });
+        // 1) Récupération des participants depuis Billetweb (côté serveur : clé secrète).
+        const response = await fetch('/api/sync-billetweb', { method: 'POST' });
         const data = await response.json();
         if (!response.ok || !data.success) {
-            throw new Error(data.message || 'Une erreur est survenue lors de la synchronisation.');
+            throw new Error(data.message || 'Échec de la récupération depuis Billetweb.');
         }
-        setSyncResult({ added: data.added, updated: data.updated });
+        // 2) Écriture dans Firestore CÔTÉ CLIENT (admin connecté) : conforme aux règles de sécurité.
+        const result = await syncParticipantsFromAttendees(data.attendees || []);
+        setSyncResult(result);
+        setBilletwebAttendees(data.attendees);
         toast({
             title: 'Synchronisation terminée',
-            description: `${data.added} participant(s) ajouté(s), ${data.updated} mis à jour.`,
+            description: `${result.added} participant(s) ajouté(s), ${result.updated} mis à jour.`,
         });
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Une erreur inconnue est survenue.";
@@ -111,7 +116,7 @@ export default function BilletwebPage() {
     </div>
   );
 
-  const getBadgeVariantFromTicket = (ticketName: string | null | undefined): "strategist" | "marshal" | "general" | "secondary" => {
+  const getBadgeVariantFromTicket = (ticketName: string | null | undefined): "strategist" | "marshal" | "general" | "animator" | "secondary" => {
     if (!ticketName) return 'secondary';
     const lowerCaseTicket = ticketName.toLowerCase();
     if (lowerCaseTicket.includes('stratège')) {
@@ -122,6 +127,9 @@ export default function BilletwebPage() {
     }
     if (lowerCaseTicket.includes('général')) {
         return 'general';
+    }
+    if (lowerCaseTicket.includes('auteur') || lowerCaseTicket.includes('animateur')) {
+        return 'animator';
     }
     return 'secondary';
   };

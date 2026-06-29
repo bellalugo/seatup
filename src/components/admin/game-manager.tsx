@@ -270,7 +270,10 @@ export default function GameManager() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                 {games.map((game) => (
+                 {[...games].sort((a, b) =>
+                     (parseInt(a.tableNumber || '', 10) || 9999) - (parseInt(b.tableNumber || '', 10) || 9999)
+                     || (a.nom || '').localeCompare(b.nom || '')
+                   ).map((game) => (
                     <TableRow key={game.id}>
                         <TableCell className="w-40 px-2 py-1">
                             {game.imageUrl ? (

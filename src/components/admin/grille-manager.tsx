@@ -8,10 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2, LayoutGrid, Rows3 } from 'lucide-react';
+import { Loader2, Plus, Trash2, LayoutGrid, Rows3, Hourglass } from 'lucide-react';
 import { getGames, getTableConfigs, getSlots, getRegistrations, addSlot, updateSlot, deleteSlot, fillSlotsForCells, createSlotsFromGroups } from '@/lib/data';
 import type { Game, TableConfig, Slot, SlotCell, SessionType, ConventionDay, Registration } from '@/lib/types';
-import { SESSIONS, CONVENTION_DAYS } from '@/lib/types';
+import { SESSIONS, CONVENTION_DAYS, shortAnimatorName } from '@/lib/types';
 
 const cellKey = (day: ConventionDay, session: SessionType) => `${day}|${session}`;
 
@@ -28,6 +28,7 @@ export default function GrilleManager() {
   const [editing, setEditing] = useState<Slot | null>(null);
   const [selConfig, setSelConfig] = useState('');
   const [selCells, setSelCells] = useState<Set<string>>(new Set());
+  const [selConditional, setSelConditional] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isFilling, setIsFilling] = useState<string | null>(null);
@@ -51,7 +52,9 @@ export default function GrilleManager() {
   useEffect(() => { load(); }, [load]);
 
   const configsByGame = (gameId: string) => configs.filter(c => c.gameId === gameId);
-  const gamesWithConfigs = games.filter(g => configsByGame(g.id).length > 0).sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
+  const gamesWithConfigs = games.filter(g => configsByGame(g.id).length > 0).sort((a, b) =>
+    (parseInt(a.tableNumber || '', 10) || 9999) - (parseInt(b.tableNumber || '', 10) || 9999)
+    || (a.nom || '').localeCompare(b.nom || ''));
   const dialogGame = games.find(g => g.id === dialogGameId);
 
   // Slot d'un jeu couvrant une case donnée.
@@ -75,6 +78,7 @@ export default function GrilleManager() {
     const cfgs = configsByGame(gameId);
     setSelConfig(cfgs[0]?.id || '');
     setSelCells(pre ? new Set([cellKey(pre.day, pre.session)]) : new Set());
+    setSelConditional(false);
     setIsDialogOpen(true);
   };
 
@@ -83,6 +87,7 @@ export default function GrilleManager() {
     setEditing(slot);
     setSelConfig(slot.configId);
     setSelCells(new Set((slot.cells || []).map(c => cellKey(c.day, c.session))));
+    setSelConditional(!!slot.conditional);
     setIsDialogOpen(true);
   };
 
@@ -106,10 +111,10 @@ export default function GrilleManager() {
         return { day: day as ConventionDay, session: session as SessionType };
       });
       if (editing) {
-        await updateSlot({ id: editing.id, configId: selConfig, cells });
+        await updateSlot({ id: editing.id, configId: selConfig, cells, status: editing.status, conditional: selConditional });
         toast({ title: 'Slot mis à jour' });
       } else {
-        await addSlot({ configId: selConfig, cells });
+        await addSlot({ configId: selConfig, cells, conditional: selConditional });
         toast({ title: 'Slot créé' });
       }
       setIsDialogOpen(false);
@@ -201,6 +206,46 @@ export default function GrilleManager() {
 
   const dialogOccupied = occupiedCells(dialogGameId, editing?.id);
 
+  // Dessine les cases d'un jeu pour un jour, en FUSIONNANT les créneaux consécutifs couverts
+  // par un même slot (ex. journée Matin+Après-midi → une seule case sur 2 colonnes).
+  const renderDayCells = (gameId: string, day: ConventionDay): JSX.Element[] => {
+    const cells: JSX.Element[] = [];
+    for (let i = 0; i < SESSIONS.length;) {
+      const session = SESSIONS[i];
+      const slot = slotAt(gameId, day, session);
+      if (slot) {
+        let span = 1;
+        while (i + span < SESSIONS.length && slotAt(gameId, day, SESSIONS[i + span])?.id === slot.id) span++;
+        cells.push(
+          <td key={`${day}-${session}`} colSpan={span} className="p-1 border-b border-r align-top min-w-[64px]">
+            <div className={`group flex items-center gap-0.5 rounded border px-1 py-0.5 ${slot.conditional ? 'bg-orange-100 border-orange-300' : slot.config?.authorAnimator ? 'bg-green-100 border-green-300' : 'bg-sky-100 border-sky-300'}`}>
+              <button type="button" onClick={() => openEdit(slot)} className="min-w-0 text-left flex-1" title={slot.conditional ? 'Partie sous réserve — éditer ce slot' : 'Éditer ce slot'}>
+                <span className="flex items-center gap-1 text-[11px] leading-tight">
+                  {slot.conditional && <Hourglass className="h-3 w-3 text-orange-600 shrink-0" />}
+                  <span className="truncate">{slot.config?.authorAnimator ? shortAnimatorName(slot.config.authorAnimator) : 'Accès libre'}</span>
+                </span>
+              </button>
+              <button type="button" onClick={() => handleDelete(slot)} disabled={isDeleting === slot.id || confirmedCount(slot.id) > 0} title={confirmedCount(slot.id) > 0 ? 'Des joueurs sont inscrits : suppression bloquée' : 'Retirer'} className={confirmedCount(slot.id) > 0 ? 'text-red-300 cursor-not-allowed shrink-0' : 'text-red-600 hover:text-red-700 shrink-0'}>
+                {isDeleting === slot.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              </button>
+            </div>
+          </td>
+        );
+        i += span;
+      } else {
+        cells.push(
+          <td key={`${day}-${session}`} className="p-1 border-b border-r align-top min-w-[64px]">
+            <button type="button" onClick={() => openAdd(gameId, { day, session })} title="Ajouter un slot" className="w-full h-7 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded border border-dashed">
+              <Plus className="h-3 w-3" />
+            </button>
+          </td>
+        );
+        i += 1;
+      }
+    }
+    return cells;
+  };
+
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -253,30 +298,7 @@ export default function GrilleManager() {
                         </TooltipTrigger><TooltipContent><p>Remplir tous les créneaux libres</p></TooltipContent></Tooltip>
                       </div>
                     </td>
-                    {CONVENTION_DAYS.map(day => (
-                      SESSIONS.map(session => {
-                        const slot = slotAt(game.id, day, session);
-                        return (
-                          <td key={`${day}-${session}`} className="p-1 border-b border-r align-top min-w-[64px]">
-                            {slot ? (
-                              <div className="group flex items-start gap-0.5 rounded bg-primary/10 border border-primary/20 px-1 py-0.5">
-                                <button type="button" onClick={() => openEdit(slot)} className="min-w-0 text-left flex-1" title="Éditer ce slot">
-                                  <span className="block text-[11px] leading-tight truncate">{slot.config?.label || 'config'}</span>
-                                  <span className="block text-[10px] text-muted-foreground">{slot.config?.totalSeats ?? '?'} pl.</span>
-                                </button>
-                                <button type="button" onClick={() => handleDelete(slot)} disabled={isDeleting === slot.id || confirmedCount(slot.id) > 0} title={confirmedCount(slot.id) > 0 ? 'Des joueurs sont inscrits : suppression bloquée' : 'Retirer'} className={confirmedCount(slot.id) > 0 ? 'text-red-300 cursor-not-allowed shrink-0' : 'text-red-600 hover:text-red-700 shrink-0'}>
-                                  {isDeleting === slot.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                </button>
-                              </div>
-                            ) : (
-                              <button type="button" onClick={() => openAdd(game.id, { day, session })} title="Ajouter un slot" className="w-full h-7 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded border border-dashed">
-                                <Plus className="h-3 w-3" />
-                              </button>
-                            )}
-                          </td>
-                        );
-                      })
-                    ))}
+                    {CONVENTION_DAYS.map(day => renderDayCells(game.id, day))}
                   </tr>
                 ))}
               </tbody>
@@ -354,6 +376,14 @@ export default function GrilleManager() {
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">{selCells.size} créneau(x) sélectionné(s). Les cases grisées sont déjà occupées par ce jeu.</p>
               </div>
+
+              <label className="flex items-start gap-2 rounded-md border p-2 cursor-pointer">
+                <Checkbox checked={selConditional} onCheckedChange={(v) => setSelConditional(!!v)} disabled={isSaving} className="mt-0.5" />
+                <span className="text-sm">
+                  Partie <strong>sous réserve</strong>
+                  <span className="block text-[11px] text-muted-foreground">La partie n&apos;aura lieu que si la partie précédente se termine à temps. Les joueurs s&apos;inscrivent en le sachant ; tu confirmes ou annules depuis le salon le jour J.</span>
+                </span>
+              </label>
             </div>
 
             <DialogFooter>

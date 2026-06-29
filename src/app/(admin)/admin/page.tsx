@@ -5,11 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import ConventionManager from "@/components/admin/table-manager";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils, Users, Archive, AlertTriangle, Eraser } from "lucide-react";
+import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils, Users, Archive, AlertTriangle, Eraser, Gauge, Trophy } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { getRegistrationControl, updateRegistrationControl, getRegistrations, getGameTables, getParticipants, getRootCollectionCounts, migrate2025DataToArchives, importGames2026, importAnimators2026, wipePlanningData, clearAllRegistrations, assignTableNumbersByPublicationOrder, simulateTestRegistrations } from "@/lib/data";
-import type { ManualRegistrationControls, TicketType, ConventionDay, Registration, GameTable, Participant } from "@/lib/types";
+import { getRegistrationControl, updateRegistrationControl, getRegistrations, getParticipants, getRootCollectionCounts, migrate2025DataToArchives, importGames2026, importAnimators2026, wipePlanningData, clearAllRegistrations, clearAllGameResults, assignTableNumbersByPublicationOrder, simulateTestRegistrations, getSlots } from "@/lib/data";
+import type { ManualRegistrationControls, TicketType, ConventionDay, Registration, Participant, Slot } from "@/lib/types";
 import { CONVENTION_DAYS } from "@/lib/types";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -38,12 +38,23 @@ interface ParticipantStats {
   ratio: number;
 }
 
+// Tension de la salle : demande théorique (selon les billets vendus) vs capacité.
+interface RoomTension {
+  perHalfDay: { day: ConventionDay; session: string; capacity: number; tensionPct: number; belowFloor: boolean }[];
+  expectedPerHalfDay: number;
+  stratFloor: number;
+  totalDemand: number;
+  totalCapacity: number;
+  globalPct: number;
+}
+
 export default function AdminPage() {
   const { toast } = useToast();
 
   const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls | null>(null);
   const [mealCounts, setMealCounts] = useState<Record<ConventionDay, DailyMealCounts> | null>(null);
-  const [participantStats, setParticipantStats] = useState<Record<Exclude<TicketType, 'Invitation'>, ParticipantStats> | null>(null);
+  const [participantStats, setParticipantStats] = useState<Record<Exclude<TicketType, 'Invitation' | 'Animateur'>, ParticipantStats> | null>(null);
+  const [roomTension, setRoomTension] = useState<RoomTension | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingControls, setIsUpdatingControls] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -61,39 +72,43 @@ export default function AdminPage() {
   const [isNumbering, setIsNumbering] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
   const [isClearingRegs, setIsClearingRegs] = useState(false);
+  const [isClearingResults, setIsClearingResults] = useState(false);
 
-  const calculateMealCounts = (registrations: Registration[], tables: GameTable[]): Record<ConventionDay, DailyMealCounts> => {
-    // 1. Décompte des participants (uniques par jour) - auto-extensible via CONVENTION_DAYS
+  const calculateMealCounts = (registrations: Registration[], slots: Slot[]): Record<ConventionDay, DailyMealCounts> => {
+    // 1. Décompte des participants (uniques par jour), à partir des inscriptions confirmées
+    //    rattachées à un slot et aux jours couverts par ce slot.
     const dailyParticipants: Record<ConventionDay, Set<string>> = CONVENTION_DAYS.reduce((acc, day) => {
         acc[day] = new Set<string>();
         return acc;
     }, {} as Record<ConventionDay, Set<string>>);
 
-    const tablesMap = new Map(tables.map(t => [t.id, t]));
+    const slotsMap = new Map(slots.map(s => [s.id, s]));
 
     for (const reg of registrations) {
-      const table = tablesMap.get(reg.tableId);
-      if (table && table.timeSlotType !== 'Off') {
-        for (const day of table.days) {
-          if (CONVENTION_DAYS.includes(day)) {
-            dailyParticipants[day].add(reg.userId);
-          }
+      if ((reg.status || 'confirmed') !== 'confirmed') continue;
+      const slot = reg.slotId ? slotsMap.get(reg.slotId) : undefined;
+      if (!slot) continue;
+      for (const cell of slot.cells || []) {
+        if (CONVENTION_DAYS.includes(cell.day)) {
+          dailyParticipants[cell.day].add(reg.userId);
         }
       }
     }
 
-    // 2. Décompte des animateurs (uniques par jour) - auto-extensible via CONVENTION_DAYS
+    // 2. Décompte des animateurs (uniques par jour) : un animateur présent sur au moins
+    //    un slot d'un jour donné = un repas ce jour-là (il mange une fois, quel que soit
+    //    le nombre de créneaux/tables qu'il anime).
     const dailyAnimators: Record<ConventionDay, Set<string>> = CONVENTION_DAYS.reduce((acc, day) => {
         acc[day] = new Set<string>();
         return acc;
     }, {} as Record<ConventionDay, Set<string>>);
 
-    for (const table of tables) {
-        if (table.authorAnimator && table.timeSlotType !== 'Off') {
-            for (const day of table.days) {
-                if (CONVENTION_DAYS.includes(day)) {
-                    dailyAnimators[day].add(table.authorAnimator);
-                }
+    for (const slot of slots) {
+        const animator = slot.config?.authorAnimator;
+        if (!animator) continue;
+        for (const cell of slot.cells || []) {
+            if (CONVENTION_DAYS.includes(cell.day)) {
+                dailyAnimators[cell.day].add(animator);
             }
         }
     }
@@ -113,8 +128,8 @@ export default function AdminPage() {
     return finalCounts;
   };
 
-  const calculateParticipantStats = (participants: Participant[], registrations: Registration[]): Record<Exclude<TicketType, 'Invitation'>, ParticipantStats> => {
-    const ticketTypes: Exclude<TicketType, 'Invitation'>[] = ['Stratège', 'Maréchal', 'Général', 'Colonel'];
+  const calculateParticipantStats = (participants: Participant[], registrations: Registration[]): Record<Exclude<TicketType, 'Invitation' | 'Animateur'>, ParticipantStats> => {
+    const ticketTypes: Exclude<TicketType, 'Invitation' | 'Animateur'>[] = ['Stratège', 'Maréchal', 'Général', 'Colonel'];
     const stats: Record<string, ParticipantStats> = {};
 
     ticketTypes.forEach(type => {
@@ -138,7 +153,44 @@ export default function AdminPage() {
         stats[type].ratio = total > 0 ? (registered / total) * 100 : 0;
     });
 
-    return stats as Record<Exclude<TicketType, 'Invitation'>, ParticipantStats>;
+    return stats as Record<Exclude<TicketType, 'Invitation' | 'Animateur'>, ParticipantStats>;
+  };
+
+  // Demande théorique selon les billets (Stratège 10, Maréchal 8, Général 6, Colonel 4 demi-journées)
+  // confrontée à la capacité (sièges hors animateur) de chaque demi-journée Matin/Après-midi.
+  const calculateRoomTension = (participants: Participant[], slots: Slot[]): RoomTension => {
+    const HALF_DAYS = ['Matin', 'Après-midi'];
+    const counts: Record<string, number> = { 'Stratège': 0, 'Maréchal': 0, 'Général': 0, 'Colonel': 0 };
+    participants.forEach(p => { if (counts[p.typeBillet] !== undefined) counts[p.typeBillet]++; });
+
+    const expectedPerHalfDay = counts['Stratège'] * 1 + counts['Maréchal'] * 0.8 + counts['Général'] * 0.6 + counts['Colonel'] * 0.4;
+    const stratFloor = counts['Stratège'];
+    const totalDemand = counts['Stratège'] * 10 + counts['Maréchal'] * 8 + counts['Général'] * 6 + counts['Colonel'] * 4;
+
+    const capacityAt = (day: ConventionDay, session: string) => slots
+      .filter(s => (s.cells || []).some(c => c.day === day && c.session === session))
+      .reduce((sum, s) => sum + Math.max(0, (s.config?.totalSeats || 0) - (s.config?.animatorPlays ? 1 : 0)), 0);
+
+    const perHalfDay: RoomTension['perHalfDay'] = [];
+    let totalCapacity = 0;
+    CONVENTION_DAYS.forEach(day => HALF_DAYS.forEach(session => {
+      const capacity = capacityAt(day, session);
+      totalCapacity += capacity;
+      perHalfDay.push({
+        day, session, capacity,
+        tensionPct: capacity > 0 ? Math.round((expectedPerHalfDay / capacity) * 100) : 0,
+        belowFloor: capacity > 0 && capacity < stratFloor,
+      });
+    }));
+
+    return {
+      perHalfDay,
+      expectedPerHalfDay: Math.round(expectedPerHalfDay),
+      stratFloor,
+      totalDemand,
+      totalCapacity,
+      globalPct: totalCapacity > 0 ? Math.round((totalDemand / totalCapacity) * 100) : 0,
+    };
   };
 
   const fetchAdminData = useCallback(async (isManualRefresh = false) => {
@@ -149,10 +201,10 @@ export default function AdminPage() {
     }
 
     try {
-      const [controls, registrations, tables, participants, rCounts] = await Promise.all([
+      const [controls, registrations, slots, participants, rCounts] = await Promise.all([
         getRegistrationControl(),
         getRegistrations(),
-        getGameTables(),
+        getSlots(),
         getParticipants(),
         getRootCollectionCounts(),
       ]);
@@ -160,11 +212,13 @@ export default function AdminPage() {
       setRegistrationControls(controls);
       setRootCounts(rCounts);
 
-      const counts = calculateMealCounts(registrations, tables);
+      const counts = calculateMealCounts(registrations, slots);
       setMealCounts(counts);
 
       const pStats = calculateParticipantStats(participants, registrations);
       setParticipantStats(pStats);
+
+      setRoomTension(calculateRoomTension(participants, slots));
 
       if (isManualRefresh) {
         toast({ title: "Données actualisées", description: "Les statistiques et décomptes ont été rechargés." });
@@ -345,6 +399,22 @@ export default function AdminPage() {
         });
     } finally {
         setIsClearingRegs(false);
+    }
+  };
+
+  const handleClearResults = async () => {
+    if (!window.confirm("Remettre le Hall of Fame à zéro ?\n\nCela supprime tous les résultats de parties enregistrés (vainqueurs et points).\nLes inscriptions, la grille et les participants sont conservés.")) {
+        return;
+    }
+    setIsClearingResults(true);
+    try {
+        const res = await clearAllGameResults();
+        toast({ title: "Hall of Fame réinitialisé", description: `${res.results} résultat(s) supprimé(s).` });
+        await fetchAdminData();
+    } catch (error) {
+        toast({ variant: "destructive", title: "Échec", description: error instanceof Error ? error.message : "Erreur inconnue." });
+    } finally {
+        setIsClearingResults(false);
     }
   };
 
@@ -599,7 +669,7 @@ export default function AdminPage() {
                 <Utensils className="h-6 w-6 text-primary" /> Décompte des Repas
             </CardTitle>
             <CardDescription>
-                Décompte des repas participants (comptés une fois par jour) et animateurs (un par table par jour), hors créneaux 'Off'.
+                Décompte des repas : participants inscrits (comptés une fois par jour) + animateurs (un repas par animateur et par jour).
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -630,6 +700,47 @@ export default function AdminPage() {
                 </div>
             ) : (
                  <p className="text-center text-destructive p-4">Impossible de calculer le nombre de repas.</p>
+            )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-lg">
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+                <Gauge className="h-6 w-6 text-primary" /> Tension de la salle (théorique)
+            </CardTitle>
+            <CardDescription>
+                Demande estimée selon les billets vendus (Stratège 10, Maréchal 8, Général 6, Colonel 4 demi-journées) confrontée à la capacité par demi-journée. Une tension basse = plus de fluidité pour organiser les tables.
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {isLoading || !roomTension ? (
+                <div className="flex items-center justify-center p-4"><Loader2 className="mr-2 h-4 w-4 animate-spin" /><p>Calcul…</p></div>
+            ) : (
+                <div className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                        <span>Occupation moyenne : <strong className={roomTension.globalPct >= 90 ? 'text-red-600' : roomTension.globalPct >= 70 ? 'text-amber-600' : 'text-green-600'}>{roomTension.globalPct}%</strong></span>
+                        <span className="text-muted-foreground">Demande {roomTension.totalDemand} / capacité {roomTension.totalCapacity} sièges-demi-journées</span>
+                        <span className="text-muted-foreground">Plancher Stratèges : {roomTension.stratFloor} sièges requis à chaque demi-journée</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        {CONVENTION_DAYS.map(day => (
+                            <div key={day} className="p-2 bg-muted/40 rounded-lg">
+                                <p className="text-xs font-semibold text-center mb-1.5">{day}</p>
+                                {roomTension.perHalfDay.filter(h => h.day === day).map(h => {
+                                    const color = h.belowFloor ? 'bg-red-600' : h.tensionPct >= 90 ? 'bg-red-500' : h.tensionPct >= 70 ? 'bg-amber-500' : 'bg-green-500';
+                                    return (
+                                        <div key={h.session} className="mb-1.5 last:mb-0">
+                                            <div className="flex justify-between text-[10px] text-muted-foreground"><span>{h.session === 'Après-midi' ? 'AM' : 'Mat.'}</span><span>{h.tensionPct}% · {h.capacity} pl.</span></div>
+                                            <div className="h-2 w-full rounded-full bg-background overflow-hidden"><div className={`h-full ${color}`} style={{ width: `${Math.min(100, h.tensionPct)}%` }} /></div>
+                                            {h.belowFloor && <p className="text-[9px] text-red-600 leading-tight">capacité &lt; Stratèges !</p>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ))}
+                    </div>
+                </div>
             )}
         </CardContent>
       </Card>
@@ -730,6 +841,14 @@ export default function AdminPage() {
             >
                 {isClearingRegs ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eraser className="mr-2 h-4 w-4"/>}
                 Effacer les inscriptions (garder la grille)
+            </Button>
+            <Button
+                variant="outline"
+                onClick={handleClearResults}
+                disabled={isClearingResults || isLoading}
+            >
+                {isClearingResults ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trophy className="mr-2 h-4 w-4"/>}
+                Remettre le Hall of Fame à zéro
             </Button>
             <Button
                 variant="destructive"

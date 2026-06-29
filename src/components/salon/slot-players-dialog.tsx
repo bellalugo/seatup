@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserPlus, UserX, Trophy } from 'lucide-react';
+import { Loader2, UserPlus, UserX, Trophy, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { addSlotRegistration, removeRegistration, saveGameResult } from '@/lib/data';
 import type { Slot, Participant, Registration } from '@/lib/types';
 import { shortAnimatorName } from '@/lib/types';
@@ -28,7 +27,8 @@ export function SlotPlayersDialog({ open, onOpenChange, slot, slots = [], partic
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [addId, setAddId] = useState('');
-  const [winners, setWinners] = useState<Set<string>>(new Set());
+  const [order, setOrder] = useState<string[]>([]);
+  const [dragId, setDragId] = useState<string | null>(null);
 
   const pById = useMemo(() => new Map(participants.map(p => [p.id, p])), [participants]);
 
@@ -41,7 +41,7 @@ export function SlotPlayersDialog({ open, onOpenChange, slot, slots = [], partic
 
   const registeredIds = new Set(slotRegs.map(r => r.userId));
 
-  // Un joueur ne peut pas se dédoubler : on exclut ceux déjà engagés (place OU file) sur un créneau de ce slot.
+  // Un joueur ne peut pas se dédoubler : on exclut ceux déjà engagés sur un créneau de ce slot.
   const slotsById = useMemo(() => new Map(slots.map(s => [s.id, s])), [slots]);
   const targetKeys = useMemo(() => new Set((slot?.cells || []).map(c => `${c.day}|${c.session}`)), [slot]);
   const hasTimeConflict = (uid: string) =>
@@ -52,6 +52,24 @@ export function SlotPlayersDialog({ open, onOpenChange, slot, slots = [], partic
   const addable = participants
     .filter(p => !registeredIds.has(p.id) && !hasTimeConflict(p.id))
     .sort((a, b) => fullName(a).localeCompare(fullName(b)));
+
+  // L'animateur « + joueur » est inscrit d'office comme joueur (via son billet lié à la config).
+  const animatorPid = (slot?.config?.animatorPlays && slot?.config?.animatorParticipantId) ? slot.config.animatorParticipantId : '';
+
+  // Synchronise l'ordre du classement avec les joueurs (animateur-joueur + inscrits confirmés).
+  const playerIds = animatorPid
+    ? [animatorPid, ...confirmed.map(r => r.userId).filter(id => id !== animatorPid)]
+    : confirmed.map(r => r.userId);
+  const playerKey = playerIds.join(',');
+  useEffect(() => {
+    const ids = playerKey ? playerKey.split(',') : [];
+    setOrder(prev => {
+      const set = new Set(ids);
+      const kept = prev.filter(id => set.has(id));
+      const added = ids.filter(id => !prev.includes(id));
+      return [...kept, ...added];
+    });
+  }, [playerKey, slot?.id]);
 
   const refresh = async () => { await onChanged(); };
 
@@ -74,14 +92,31 @@ export function SlotPlayersDialog({ open, onOpenChange, slot, slots = [], partic
     finally { setBusy(false); }
   };
 
-  const toggleWinner = (id: string) => setWinners(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const reorder = (id: string, targetIndex: number) => {
+    setOrder(prev => {
+      const arr = [...prev];
+      const from = arr.indexOf(id);
+      if (from < 0) return prev;
+      const to = Math.max(0, Math.min(arr.length - 1, targetIndex));
+      arr.splice(from, 1);
+      arr.splice(to, 0, id);
+      return arr;
+    });
+  };
+  const move = (id: string, delta: number) => reorder(id, order.indexOf(id) + delta);
+  const onDrop = (targetId: string) => {
+    if (!dragId || dragId === targetId) { setDragId(null); return; }
+    reorder(dragId, order.indexOf(targetId));
+    setDragId(null);
+  };
 
-  const handleSaveWinners = async () => {
-    if (!slot) return;
+  const handleSaveResult = async () => {
+    if (!slot || order.length === 0) return;
     setBusy(true);
     try {
-      await saveGameResult(slot.id, [...winners], confirmed.length);
-      toast({ title: 'Résultat enregistré', description: `${winners.size} vainqueur(s) sur ${confirmed.length} joueur(s).` });
+      const ranking = [...order];
+      await saveGameResult(slot.id, [ranking[0]], ranking.length, ranking);
+      toast({ title: 'Résultat enregistré', description: `Classement de ${ranking.length} joueur(s) enregistré.` });
       await refresh();
     } catch (e) { toast({ variant: 'destructive', title: 'Échec', description: e instanceof Error ? e.message : 'Erreur.' }); }
     finally { setBusy(false); }
@@ -140,22 +175,37 @@ export function SlotPlayersDialog({ open, onOpenChange, slot, slots = [], partic
             )}
           </div>
 
-          {/* Vainqueurs */}
-          {confirmed.length > 0 && (
+          {/* Classement de la partie (glisser-déposer) */}
+          {order.length > 0 && (
             <div>
-              <p className="text-sm font-medium mb-1 flex items-center gap-1"><Trophy className="h-4 w-4 text-amber-500" /> Vainqueur(s)</p>
+              <p className="text-sm font-medium mb-1 flex items-center gap-1"><Trophy className="h-4 w-4 text-amber-500" /> Classement de la partie</p>
+              <p className="text-[11px] text-muted-foreground mb-1">Classe les joueurs du 1er au dernier (glisse les lignes ou utilise les flèches). Points : 1er = {order.length} pts, puis −1 par rang.</p>
               <ul className="space-y-1">
-                {confirmed.map(r => {
-                  const p = pById.get(r.userId);
+                {order.map((uid, i) => {
+                  const p = pById.get(uid);
+                  const pts = Math.max(1, order.length - i);
                   return (
-                    <li key={`w-${r.id}`} className="flex items-center gap-2 text-sm">
-                      <Checkbox checked={winners.has(r.userId)} onCheckedChange={() => toggleWinner(r.userId)} disabled={busy} />
-                      <span className="truncate">{fullName(p)}</span>
+                    <li
+                      key={uid}
+                      draggable={!busy}
+                      onDragStart={() => setDragId(uid)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => onDrop(uid)}
+                      className={`flex items-center gap-2 text-sm border rounded px-2 py-1 bg-background ${i === 0 ? 'border-amber-400 bg-amber-50' : ''} ${dragId === uid ? 'opacity-50' : ''} cursor-move`}
+                    >
+                      <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="w-6 text-center font-semibold flex items-center justify-center gap-0.5">{i + 1}{i === 0 && <Trophy className="h-3 w-3 text-amber-500" />}</span>
+                      <span className="truncate flex-1">{fullName(p)}{uid === animatorPid && <span className="ml-1 text-[10px] text-amber-700">(animateur)</span>}</span>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{pts} pt{pts > 1 ? 's' : ''}</Badge>
+                      <span className="flex flex-col shrink-0">
+                        <button type="button" onClick={() => move(uid, -1)} disabled={busy || i === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30" title="Monter"><ArrowUp className="h-3.5 w-3.5" /></button>
+                        <button type="button" onClick={() => move(uid, 1)} disabled={busy || i === order.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30" title="Descendre"><ArrowDown className="h-3.5 w-3.5" /></button>
+                      </span>
                     </li>
                   );
                 })}
               </ul>
-              <Button type="button" size="sm" className="mt-2" disabled={busy} onClick={handleSaveWinners}>
+              <Button type="button" size="sm" className="mt-2" disabled={busy} onClick={handleSaveResult}>
                 {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trophy className="h-4 w-4 mr-1" />} Enregistrer le résultat
               </Button>
             </div>

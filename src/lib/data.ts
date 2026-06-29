@@ -267,6 +267,7 @@ export const addTableConfig = async (input: TableConfigInput): Promise<TableConf
         tableShape: input.tableShape || 'round',
         authorAnimator: (input.authorAnimator || '').trim(),
         animatorPlays: !!input.animatorPlays,
+        animatorParticipantId: input.animatorParticipantId || '',
         isDefault: !!input.isDefault,
     };
     const ref = await addDoc(collection(firestore, CONFIGS_COLLECTION), data);
@@ -283,6 +284,7 @@ export const updateTableConfig = async (config: TableConfig): Promise<void> => {
         tableShape: config.tableShape || 'round',
         authorAnimator: (config.authorAnimator || '').trim(),
         animatorPlays: !!config.animatorPlays,
+        animatorParticipantId: config.animatorParticipantId || '',
         isDefault: !!config.isDefault,
     });
     if (config.isDefault) await ensureSingleDefaultConfig(firestore, config.gameId, config.id);
@@ -324,6 +326,7 @@ export const addSlot = async (input: SlotInput): Promise<Slot> => {
         configId: input.configId,
         cells: input.cells || [],
         status: (input.status || 'Ouverte') as TableStatus,
+        conditional: !!input.conditional,
     };
     const ref = await addDoc(collection(firestore, SLOTS_COLLECTION), data);
     return { id: ref.id, ...data };
@@ -359,6 +362,7 @@ export const updateSlot = async (slot: SlotInput & { id: string }): Promise<void
         configId: slot.configId,
         cells: slot.cells || [],
         status: slot.status || 'Ouverte',
+        conditional: !!slot.conditional,
     });
 };
 
@@ -366,6 +370,23 @@ export const updateSlot = async (slot: SlotInput & { id: string }): Promise<void
 export const setSlotStatus = async (slotId: string, status: TableStatus): Promise<void> => {
     const firestore = getFirestoreOrThrow();
     await updateDoc(doc(firestore, SLOTS_COLLECTION, slotId), { status });
+};
+
+/** Confirme une partie « sous réserve » : elle est maintenue (le drapeau conditionnel est retiré). */
+export const confirmConditionalSlot = async (slotId: string): Promise<void> => {
+    const firestore = getFirestoreOrThrow();
+    await updateDoc(doc(firestore, SLOTS_COLLECTION, slotId), { conditional: false });
+};
+
+/** Annule une partie (ex. la partie précédente a débordé) : statut « Annulee » et suppression
+ *  des inscriptions pour libérer les joueurs. Le slot reste visible (marqué annulé). */
+export const cancelSlot = async (slotId: string): Promise<void> => {
+    const firestore = getFirestoreOrThrow();
+    const regsSnap = await getDocs(query(collection(firestore, REGISTRATIONS_COLLECTION), where('slotId', '==', slotId)));
+    const batch = writeBatch(firestore);
+    regsSnap.docs.forEach(d => batch.delete(d.ref));
+    batch.update(doc(firestore, SLOTS_COLLECTION, slotId), { status: 'Annulee' as TableStatus });
+    await batch.commit();
 };
 
 /** Supprime un slot. Refuse s'il a des inscriptions confirmées ; sinon retire aussi ses entrées de file d'attente. */
@@ -382,9 +403,11 @@ export const deleteSlot = async (slotId: string): Promise<void> => {
     await batch.commit();
 };
 
-/** Outil de TEST : remet à zéro les inscriptions puis remplit aléatoirement les slots avec de vrais
- *  participants (places confirmées + quelques files d'attente sur les tables pleines). À exécuter côté
- *  client (admin). Réversible via la remise à zéro des inscriptions. */
+/** Outil de TEST : remet à zéro les inscriptions puis génère un remplissage RÉALISTE.
+ *  Chaque billet occupe un siège pendant un nombre de demi-journées (Matin/Après-midi) selon son grade :
+ *  Stratège 10, Maréchal 8, Général 6, Colonel 4 (sur les 10 demi-journées de la convention).
+ *  L'animation d'une table compte comme jouée (et empêche d'être placé ailleurs au même créneau).
+ *  À exécuter côté client (admin). Réversible via la remise à zéro des inscriptions. */
 export const simulateTestRegistrations = async (): Promise<{ slots: number; confirmed: number }> => {
     const firestore = getFirestoreOrThrow();
     const [slotsSnap, partsSnap, regsSnap, configs] = await Promise.all([
@@ -393,8 +416,8 @@ export const simulateTestRegistrations = async (): Promise<{ slots: number; conf
         getDocs(collection(firestore, REGISTRATIONS_COLLECTION)),
         getTableConfigs(),
     ]);
-    const participantIds = partsSnap.docs.map(d => d.id);
-    if (participantIds.length === 0) throw new Error("Aucun participant : lance d'abord la synchro Billetweb.");
+    const participants = partsSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Participant, 'id'>) }));
+    if (participants.length === 0) throw new Error("Aucun participant : lance d'abord la synchro Billetweb.");
     if (slotsSnap.empty) throw new Error('Aucun slot : remplis d’abord la grille.');
 
     // 1) Efface les inscriptions existantes (repart propre).
@@ -405,46 +428,66 @@ export const simulateTestRegistrations = async (): Promise<{ slots: number; conf
     }
 
     const configById = new Map(configs.map(c => [c.id, c]));
+    const isHalfDay = (session: string) => session === 'Matin' || session === 'Après-midi';
 
-    // Un joueur ne peut pas se dédoubler : on suit les créneaux déjà pris (place OU file) par chacun.
-    const busyCells = new Map<string, Set<string>>();
-    const conflicts = (uid: string, keys: string[]) => {
-        const s = busyCells.get(uid);
-        return !!s && keys.some(k => s.has(k));
-    };
-    const markBusy = (uid: string, keys: string[]) => {
-        let s = busyCells.get(uid);
-        if (!s) { s = new Set(); busyCells.set(uid, s); }
-        keys.forEach(k => s!.add(k));
-    };
-    const pick = (n: number, exclude: Set<string>, keys: string[]): string[] => {
-        const pool = participantIds.filter(p => !exclude.has(p) && !conflicts(p, keys));
-        const res: string[] = [];
-        while (res.length < n && pool.length > 0) res.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-        return res;
-    };
-
-    const writes: { id: string; data: Registration }[] = [];
-    let confirmed = 0, slotsFilled = 0;
-    slotsSnap.docs.forEach(d => {
+    // Slots jouables (au moins une demi-journée Matin/Après-midi), avec capacité et créneaux.
+    const slotInfos = slotsSnap.docs.map(d => {
         const slot = d.data() as Slot;
         const cfg = configById.get(slot.configId);
-        if (!cfg) return;
-        const keys = (slot.cells || []).map(c => `${c.day}|${c.session}`);
-        const capacity = Math.max(1, (cfg.totalSeats || 1) - (cfg.animatorPlays ? 1 : 0));
-        const full = Math.random() < 0.4;
-        const confN = full ? capacity : Math.floor(Math.random() * (capacity + 1));
-        const used = new Set<string>();
-        pick(confN, used, keys).forEach(uid => { used.add(uid); markBusy(uid, keys); writes.push({ id: `${uid}_${d.id}`, data: { userId: uid, slotId: d.id, status: 'confirmed', timestamp: new Date() } }); confirmed++; });
-        if (used.size > 0) slotsFilled++;
-    });
+        const animatorSeat = cfg?.animatorPlays ? 1 : 0;
+        const halfDayCells = (slot.cells || []).filter(c => isHalfDay(c.session)).map(c => `${c.day}|${c.session}`);
+        return {
+            id: d.id,
+            halfDayCells,
+            capacity: Math.max(0, (cfg?.totalSeats || 0) - animatorSeat),
+            confirmed: 0,
+            animatorPid: (cfg?.animatorPlays && cfg?.animatorParticipantId) ? cfg.animatorParticipantId : undefined,
+        };
+    }).filter(s => s.halfDayCells.length > 0);
+
+    const gradeHalfDays: Record<string, number> = { 'Stratège': 10, 'Maréchal': 8, 'Général': 6, 'Colonel': 4 };
+
+    // Créneaux déjà occupés par chaque participant (un seul siège par demi-journée).
+    const occupied = new Map<string, Set<string>>();
+    const occ = (pid: string) => { let s = occupied.get(pid); if (!s) { s = new Set(); occupied.set(pid, s); } return s; };
+    // L'animateur-joueur occupe d'office les créneaux de sa table (compté comme joué).
+    for (const si of slotInfos) {
+        if (si.animatorPid) si.halfDayCells.forEach(k => occ(si.animatorPid!).add(k));
+    }
+
+    const writes: { id: string; data: Registration }[] = [];
+    let confirmed = 0;
+    const usedSlots = new Set<string>();
+
+    const shuffled = [...participants].sort(() => Math.random() - 0.5);
+    for (const p of shuffled) {
+        const target = gradeHalfDays[p.typeBillet] || 0;
+        if (target <= 0) continue;
+        const myCells = occ(p.id);
+        let guard = 0;
+        while (myCells.size < target && guard++ < 200) {
+            const remaining = target - myCells.size;
+            const candidates = slotInfos.filter(si =>
+                si.confirmed < si.capacity && !si.halfDayCells.some(k => myCells.has(k)));
+            if (candidates.length === 0) break;
+            // On évite de dépasser : on préfère les slots qui « rentrent » dans le quota restant.
+            const fitting = candidates.filter(si => si.halfDayCells.length <= remaining);
+            const pool = fitting.length > 0 ? fitting : candidates;
+            const si = pool[Math.floor(Math.random() * pool.length)];
+            si.confirmed++;
+            si.halfDayCells.forEach(k => myCells.add(k));
+            writes.push({ id: `${p.id}_${si.id}`, data: { userId: p.id, slotId: si.id, status: 'confirmed', timestamp: new Date() } });
+            confirmed++;
+            usedSlots.add(si.id);
+        }
+    }
 
     for (let i = 0; i < writes.length; i += 450) {
         const batch = writeBatch(firestore);
         writes.slice(i, i + 450).forEach(w => batch.set(doc(firestore, REGISTRATIONS_COLLECTION, w.id), w.data));
         await batch.commit();
     }
-    return { slots: slotsFilled, confirmed };
+    return { slots: usedSlots.size, confirmed };
 };
 
 /** Efface UNIQUEMENT les inscriptions (places + files). Conserve la grille (slots), les
@@ -458,6 +501,18 @@ export const clearAllRegistrations = async (): Promise<{ registrations: number }
         await batch.commit();
     }
     return { registrations: regsSnap.size };
+};
+
+/** Efface tous les résultats de parties : remet le Hall of Fame à zéro. À exécuter côté client (admin). */
+export const clearAllGameResults = async (): Promise<{ results: number }> => {
+    const firestore = getFirestoreOrThrow();
+    const snap = await getDocs(collection(firestore, GAME_RESULTS_COLLECTION));
+    for (let i = 0; i < snap.docs.length; i += 450) {
+        const batch = writeBatch(firestore);
+        snap.docs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+    }
+    return { results: snap.size };
 };
 
 /** Remet à zéro les données de planning : gameTables (ancien modèle), slots et TOUTES les inscriptions.
@@ -938,7 +993,7 @@ export const verifyParticipantCredentials = async (email: string, ticketNumber: 
 // --- Game Results Functions ---
 
 /** Saves or updates a game result in Firestore. Uses tableId as document ID. */
-export const saveGameResult = async (tableId: string, winnerIds: string[], playersInGame: number): Promise<GameResult> => {
+export const saveGameResult = async (tableId: string, winnerIds: string[], playersInGame: number, ranking?: string[]): Promise<GameResult> => {
     if (!db) {
         console.error("Firestore DB instance is not initialized for saveGameResult.");
         throw new Error("La connexion à Firestore n'est pas initialisée pour sauvegarder le résultat du jeu.");
@@ -949,6 +1004,7 @@ export const saveGameResult = async (tableId: string, winnerIds: string[], playe
             tableId,
             winnerIds,
             playersInGame,
+            ranking: ranking || [],
             timestamp: new Date(),
         };
         await setDoc(gameResultRef, resultData, { merge: true });
@@ -1079,7 +1135,8 @@ const mapBilletwebTicketToType = (ticketName: string): TicketType => {
     if (lowerCaseTicket.includes('maréchal')) return 'Maréchal';
     if (lowerCaseTicket.includes('général')) return 'Général';
     if (lowerCaseTicket.includes('colonel')) return 'Colonel';
-    // Any other ticket name like "Animateur" will be considered an 'Invitation' for registration purposes.
+    if (lowerCaseTicket.includes('auteur') || lowerCaseTicket.includes('animateur')) return 'Animateur';
+    // Tout autre intitulé (invité, etc.) est traité comme 'Invitation'.
     return 'Invitation';
 };
 
@@ -1088,14 +1145,14 @@ const mapBilletwebTicketToType = (ticketName: string): TicketType => {
  * Adds new participants and updates existing ones based on email.
  * @returns {Promise<{ added: number; updated: number;}>} A summary of the sync operation.
  */
-export const syncParticipantsWithBilletweb = async (): Promise<{ added: number; updated: number;}> => {
+// Écrit/Met à jour les participants à partir d'une liste d'attendees Billetweb déjà récupérée.
+// À exécuter CÔTÉ CLIENT (admin connecté) : l'écriture dans liste_participants est réservée à l'admin.
+export const syncParticipantsFromAttendees = async (billetwebAttendees: BilletwebAttendee[]): Promise<{ added: number; updated: number;}> => {
     if (!db) {
         throw new Error("La connexion à Firestore n'est pas initialisée.");
     }
-    
-    const billetwebAttendees = await fetchBilletwebAttendees();
     if (!billetwebAttendees || billetwebAttendees.length === 0) {
-        // If Billetweb returns nothing, we don't proceed to avoid accidental deletions or empty states.
+        // Rien reçu de Billetweb : on ne fait rien (évite de vider la base par erreur).
         return { added: 0, updated: 0 };
     }
 
@@ -1157,6 +1214,13 @@ export const syncParticipantsWithBilletweb = async (): Promise<{ added: number; 
     }
 
     return { added: addedCount, updated: updatedCount };
+};
+
+/** Variante "tout-en-un" (récupère puis écrit). L'écriture nécessitant désormais un admin
+ *  authentifié, la synchro est déclenchée côté client : on récupère les attendees via l'API
+ *  (/api/sync-billetweb) puis on appelle syncParticipantsFromAttendees. */
+export const syncParticipantsWithBilletweb = async (): Promise<{ added: number; updated: number;}> => {
+    return syncParticipantsFromAttendees(await fetchBilletwebAttendees());
 };
 
 

@@ -12,9 +12,9 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, PlusCircle, Pencil, Trash2, Mic, Users, Gamepad2 } from 'lucide-react';
-import { getGames, getTableConfigs, addTableConfig, updateTableConfig, deleteTableConfig, getAnimators } from '@/lib/data';
-import type { Game, TableConfig, TableConfigInput, TableShape, Animator } from '@/lib/types';
-import { animatorDisplayName } from '@/lib/types';
+import { getGames, getTableConfigs, addTableConfig, updateTableConfig, deleteTableConfig, getParticipants } from '@/lib/data';
+import type { Game, TableConfig, TableConfigInput, TableShape, Participant } from '@/lib/types';
+import { TableShapeIcon } from '@/components/salon/table-shape-icon';
 
 type AnimatorMode = 'free' | 'animator' | 'animator-plays';
 
@@ -25,6 +25,7 @@ const defaultForm: TableConfigInput = {
   tableShape: 'round',
   authorAnimator: undefined,
   animatorPlays: false,
+  animatorParticipantId: undefined,
   isDefault: false,
 };
 
@@ -32,24 +33,24 @@ export default function ConfigManager() {
   const { toast } = useToast();
   const [games, setGames] = useState<Game[]>([]);
   const [configs, setConfigs] = useState<TableConfig[]>([]);
-  const [animators, setAnimators] = useState<Animator[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editing, setEditing] = useState<TableConfig | null>(null);
   const [form, setForm] = useState<TableConfigInput>(defaultForm);
   const [animatorMode, setAnimatorMode] = useState<AnimatorMode>('free');
-  const [animatorCustom, setAnimatorCustom] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [g, c, a] = await Promise.all([getGames(), getTableConfigs(), getAnimators()]);
+      const [g, c, parts] = await Promise.all([getGames(), getTableConfigs(), getParticipants()]);
       setGames(g);
       setConfigs(c);
-      setAnimators(a);
+      setParticipants([...parts].sort((x, y) => `${x.prenom} ${x.nom}`.localeCompare(`${y.prenom} ${y.nom}`, 'fr')));
     } catch (e) {
       toast({ variant: 'destructive', title: 'Erreur de chargement', description: e instanceof Error ? e.message : 'Erreur.' });
     } finally {
@@ -65,7 +66,7 @@ export default function ConfigManager() {
     setEditing(null);
     setForm(defaultForm);
     setAnimatorMode('free');
-    setAnimatorCustom(false);
+    setShowAllParticipants(false);
     setIsDialogOpen(true);
   };
 
@@ -78,10 +79,13 @@ export default function ConfigManager() {
       tableShape: c.tableShape || 'round',
       authorAnimator: c.authorAnimator || undefined,
       animatorPlays: !!c.animatorPlays,
+      animatorParticipantId: c.animatorParticipantId || undefined,
       isDefault: !!c.isDefault,
     });
     setAnimatorMode(c.authorAnimator ? (c.animatorPlays ? 'animator-plays' : 'animator') : 'free');
-    setAnimatorCustom(!!c.authorAnimator && !animators.some(a => animatorDisplayName(a).toLowerCase() === c.authorAnimator!.toLowerCase()));
+    // Si l'animateur enregistré n'a pas un billet « Animateur » (ex. Stratège qui anime), on
+    // élargit d'office la liste pour qu'il reste visible/sélectionné.
+    setShowAllParticipants(!!c.animatorParticipantId && participants.find(p => p.id === c.animatorParticipantId)?.typeBillet !== 'Animateur');
     setIsDialogOpen(true);
   };
 
@@ -91,8 +95,8 @@ export default function ConfigManager() {
       toast({ variant: 'destructive', title: 'Jeu requis', description: 'Sélectionnez un jeu.' });
       return;
     }
-    if (animatorMode !== 'free' && !(form.authorAnimator || '').trim()) {
-      toast({ variant: 'destructive', title: "Nom d'animateur requis", description: "Indiquez l'animateur, ou repassez en « accès libre »." });
+    if (animatorMode !== 'free' && !form.animatorParticipantId) {
+      toast({ variant: 'destructive', title: "Auteur / animateur requis", description: "Choisissez l'auteur/animateur (billet Auteur/Animateur), ou repassez en « accès libre »." });
       return;
     }
     setIsSaving(true);
@@ -104,6 +108,7 @@ export default function ConfigManager() {
         tableShape: form.tableShape || 'round',
         authorAnimator: animatorMode === 'free' ? '' : (form.authorAnimator || '').trim(),
         animatorPlays: animatorMode === 'animator-plays',
+        animatorParticipantId: animatorMode !== 'free' ? (form.animatorParticipantId || '') : '',
         isDefault: !!form.isDefault,
       };
       if (editing) {
@@ -169,6 +174,7 @@ export default function ConfigManager() {
               <TableCaption>{configs.length} configuration(s)</TableCaption>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-16 text-center">N°</TableHead>
                   <TableHead>Jeu</TableHead>
                   <TableHead>Libellé</TableHead>
                   <TableHead className="text-center">Places</TableHead>
@@ -178,15 +184,28 @@ export default function ConfigManager() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {configs.map(c => (
+                {[...configs].sort((a, b) =>
+                    (parseInt(a.gameTableNumber || '', 10) || 9999) - (parseInt(b.gameTableNumber || '', 10) || 9999)
+                    || (a.gameName || '').localeCompare(b.gameName || '')
+                  ).map(c => (
                   <TableRow key={c.id}>
+                    <TableCell className="text-center">
+                      {c.gameTableNumber
+                        ? <span className="bg-foreground text-background px-1.5 py-0.5 rounded text-xs font-bold">{c.gameTableNumber}</span>
+                        : <span className="text-muted-foreground text-xs">–</span>}
+                    </TableCell>
                     <TableCell className="font-medium">{c.gameName}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.label || '–'}
                       {c.isDefault && <span className="ml-2 inline-block bg-primary/15 text-primary text-[10px] font-medium px-1.5 py-0.5 rounded">défaut</span>}
                     </TableCell>
                     <TableCell className="text-center">{c.totalSeats}</TableCell>
-                    <TableCell className="text-center">{c.tableShape === 'rectangle' ? 'Rectangle' : 'Ronde'}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <TableShapeIcon shape={c.tableShape} />
+                        <span className="text-[10px] text-muted-foreground">{({ rectangle: 'Rectangle', double: 'Double', triple: 'Triple', round: 'Ronde' } as Record<string, string>)[c.tableShape || 'round'] || 'Ronde'}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>{animatorSummary(c)}</TableCell>
                     <TableCell className="text-right space-x-1">
                       <Tooltip><TooltipTrigger asChild>
@@ -247,7 +266,7 @@ export default function ConfigManager() {
                   onValueChange={(v) => {
                     const m = v as AnimatorMode;
                     setAnimatorMode(m);
-                    if (m === 'free') { setForm(p => ({ ...p, authorAnimator: undefined, animatorPlays: false })); setAnimatorCustom(false); }
+                    if (m === 'free') { setForm(p => ({ ...p, authorAnimator: undefined, animatorPlays: false, animatorParticipantId: undefined })); }
                     else if (m === 'animator') setForm(p => ({ ...p, animatorPlays: false }));
                     else setForm(p => ({ ...p, animatorPlays: true }));
                   }}
@@ -262,26 +281,35 @@ export default function ConfigManager() {
 
               {animatorMode !== 'free' && (
                 <div className="grid grid-cols-4 items-center gap-3">
-                  <Label className="text-right pt-2 self-start">Nom animateur</Label>
-                  <div className="col-span-3 space-y-2">
+                  <Label className="text-right pt-2 self-start">Auteur / Animateur</Label>
+                  <div className="col-span-3 space-y-1">
                     <Select
-                      value={animatorCustom ? '__OTHER__' : (form.authorAnimator || '')}
-                      onValueChange={(v) => {
-                        if (v === '__OTHER__') { setAnimatorCustom(true); setForm(p => ({ ...p, authorAnimator: '' })); }
-                        else { setAnimatorCustom(false); setForm(p => ({ ...p, authorAnimator: v })); }
+                      value={form.animatorParticipantId || ''}
+                      onValueChange={(pid) => {
+                        const part = participants.find(p => p.id === pid);
+                        setForm(p => ({ ...p, animatorParticipantId: pid, authorAnimator: part ? `${part.prenom || ''} ${part.nom || ''}`.trim() : (p.authorAnimator || '') }));
                       }}
                       disabled={isSaving}
                     >
-                      <SelectTrigger className="rounded-md"><SelectValue placeholder="Sélectionner un animateur" /></SelectTrigger>
+                      <SelectTrigger className="rounded-md"><SelectValue placeholder="Choisir l&apos;auteur / animateur" /></SelectTrigger>
                       <SelectContent>
-                        {animators.length === 0 && <SelectItem value="_NO_ANIM_" disabled>Aucun animateur (lancer l&apos;import)</SelectItem>}
-                        {animators.map(a => (<SelectItem key={a.id} value={animatorDisplayName(a)}>{animatorDisplayName(a)}</SelectItem>))}
-                        <SelectItem value="__OTHER__">➕ Autre / nouveau…</SelectItem>
+                        {(() => {
+                          const opts = showAllParticipants ? participants : participants.filter(p => p.typeBillet === 'Animateur');
+                          if (opts.length === 0) return <SelectItem value="_NO_P_" disabled>Aucun billet Auteur/Animateur (créez-le dans Billetweb puis synchronisez)</SelectItem>;
+                          return opts.map(p => (<SelectItem key={p.id} value={p.id}>{`${p.prenom || ''} ${p.nom || ''}`.trim()}{showAllParticipants ? ` (${p.typeBillet})` : ''}</SelectItem>));
+                        })()}
                       </SelectContent>
                     </Select>
-                    {animatorCustom && (
-                      <Input value={form.authorAnimator || ''} onChange={(e) => setForm(p => ({ ...p, authorAnimator: e.target.value }))} className="rounded-md" placeholder="Prénom Nom" disabled={isSaving} autoComplete="off" />
-                    )}
+                    <label className="flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer">
+                      <Checkbox checked={showAllParticipants} onCheckedChange={(v) => setShowAllParticipants(!!v)} disabled={isSaving} />
+                      Afficher tous les billets (cas d&apos;un animateur ayant un billet payant, ex. Stratège)
+                    </label>
+                    <p className="text-[11px] text-muted-foreground">
+                      {animatorMode === 'animator-plays'
+                        ? "Inscrit d'office comme joueur et compté dans le classement."
+                        : "Anime sans occuper de siège."}
+                      {' '}Une fois connecté, il pourra gérer SA table (démarrer/terminer, résultats).
+                    </p>
                   </div>
                 </div>
               )}

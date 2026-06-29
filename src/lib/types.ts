@@ -1,6 +1,6 @@
 import type React from 'react'; // Ensure React is imported for ElementType
 
-export type TicketType = 'Stratège' | 'Maréchal' | 'Général' | 'Colonel' | 'Invitation';
+export type TicketType = 'Stratège' | 'Maréchal' | 'Général' | 'Colonel' | 'Animateur' | 'Invitation';
 
 export interface User {
   id: string; // Firebase Auth UID or Participant ID from Firestore
@@ -66,7 +66,7 @@ export const getActualGranularSlotsForTimeSlotType = (type: TimeSlotType): strin
   return TIME_SLOT_TYPE_OPTIONS.find(opt => opt.value === type)?.actualSlots || [type]; // Fallback to type itself if not found
 }
 
-export type TableStatus = "Ouverte" | "EnAttente" | "EnCours" | "Terminee";
+export type TableStatus = "Ouverte" | "EnAttente" | "EnCours" | "Terminee" | "Annulee";
 
 export type TableShape = "round" | "rectangle" | "double" | "triple";
 
@@ -170,6 +170,7 @@ export interface TableConfig {
   tableShape?: TableShape;
   authorAnimator?: string;   // vide => accès libre
   animatorPlays?: boolean;   // l'animateur occupe-t-il un siège
+  animatorParticipantId?: string; // si animatorPlays : l'id du participant (billet) de l'animateur, pour le classer
   isDefault?: boolean;       // configuration par défaut du jeu (une seule par jeu) — utilisée pour « remplir la ligne »
   // Champs hydratés à la lecture (non stockés) :
   gameName?: string;
@@ -187,6 +188,7 @@ export interface TableConfigInput {
   tableShape?: TableShape;
   authorAnimator?: string;
   animatorPlays?: boolean;
+  animatorParticipantId?: string;
   isDefault?: boolean;
 }
 
@@ -202,6 +204,9 @@ export interface Slot {
   configId: string;
   cells: SlotCell[];         // cellules occupées (contiguës) : 1 = demi-journée, 2 = journée, etc.
   status?: TableStatus;
+  // « Sous réserve » : la partie n'aura lieu que si une partie précédente se termine à temps.
+  // Les joueurs peuvent s'inscrire en sachant que c'est conditionnel. L'admin confirme ou annule.
+  conditional?: boolean;
   // Champs hydratés à la lecture (non stockés) :
   config?: TableConfig;
 }
@@ -210,6 +215,7 @@ export interface SlotInput {
   configId: string;
   cells: SlotCell[];
   status?: TableStatus;
+  conditional?: boolean;
 }
 
 // Statut d'une inscription sur un slot.
@@ -229,10 +235,13 @@ export interface Participant {
 
 // Represents the result of a game table, including winners and number of players
 export interface GameResult {
-  tableId: string; // Corresponds to GameTable.id, used as document ID in 'gameResults' collection
-  winnerIds: string[]; // Array of Participant.id for winners
-  playersInGame: number; // Number of participants who played in this game session
-  timestamp?: Date; // Optional: when the result was recorded
+  tableId: string; // = slot.id (document ID dans la collection 'gameResults')
+  winnerIds: string[]; // Participant.id des vainqueurs (1re place). Dérivé de ranking[0] si présent.
+  playersInGame: number; // Nombre de joueurs ayant joué cette partie
+  // Classement complet de la partie, du 1er au dernier (Participant.id ordonnés).
+  // Points par position : 1er = N, 2e = N-1, ... (minimum 1), où N = nombre de joueurs.
+  ranking?: string[];
+  timestamp?: Date; // Quand le résultat a été enregistré
 }
 
 // For manual admin control

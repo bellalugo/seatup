@@ -33,10 +33,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Slots (configurations placées sur la grille) : lecture publique ; écriture admin uniquement.
+    // Slots (configurations placées sur la grille) : lecture publique.
+    // Création / suppression réservées à l'admin. Mise à jour (statut de partie : démarrer/
+    // terminer/confirmer/annuler) autorisée à tout utilisateur connecté, car un animateur
+    // (connecté en anonyme) doit pouvoir piloter SA table. Le contrôle « est-ce bien son
+    // animateur » est fait côté application.
     match /slots/{slotId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if request.auth != null;
     }
 
     // Anciennes tables (modèle hérité) : lecture publique ; écriture admin uniquement.
@@ -60,10 +65,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Résultats des parties (Hall of Fame) : lecture publique ; écriture admin uniquement.
+    // Résultats des parties (Hall of Fame) : lecture publique ; écriture par tout utilisateur
+    // connecté (l'animateur enregistre le résultat de SA table). Contrôle métier côté application.
     match /gameResults/{resultId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if request.auth != null;
     }
 
     // Paramètres système (contrôle des inscriptions) : lecture publique ; écriture admin.
