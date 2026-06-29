@@ -117,6 +117,15 @@ const RoomGauge = ({ label, free, capacity }: { label?: string; free: number; ca
   );
 };
 
+// Petit pictogramme de siège (même forme que sur les tables) pour la légende.
+const SeatGlyph = ({ fill, stroke, star }: { fill: string; stroke: string; star?: boolean }) => (
+  <svg viewBox="-7 -7 14 14" width="22" height="22" className="inline-block align-middle shrink-0" aria-hidden="true">
+    <rect x="-4.5" y="-5.5" width="9" height="3" rx="1.5" fill={stroke} />
+    <rect x="-5" y="-2.5" width="10" height="7" rx="2" fill={fill} stroke={stroke} strokeWidth="1" />
+    {star && <text x="0" y="2.7" textAnchor="middle" fontSize="6.5" fill="#fec107" fontWeight="bold">★</text>}
+  </svg>
+);
+
 export default function Home() {
   const { user: firebaseUser } = useAuth();
   const isAdmin = !!firebaseUser && !firebaseUser.isAnonymous;
@@ -543,13 +552,14 @@ export default function Home() {
     // (onglet Configurations), pas modifiable depuis le salon. On ne fait rien.
   };
 
-  const getTicketBadgeVariant = (ticketType?: TicketType): "strategist" | "marshal" | "general" | "colonel" | "animator" | "secondary" => {
+  const getTicketBadgeVariant = (ticketType?: TicketType): "strategist" | "marshal" | "general" | "colonel" | "animator" | "staff" | "secondary" => {
     switch (ticketType) {
       case 'Stratège': return 'strategist';
       case 'Maréchal': return 'marshal';
       case 'Général': return 'general';
       case 'Colonel': return 'colonel';
       case 'Animateur': return 'animator';
+      case 'Staff': return 'staff';
       default: return 'secondary';
     }
   };
@@ -585,6 +595,9 @@ export default function Home() {
                           {isLookingUpUser ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <LogIn className="h-4 w-4 mr-2" />}
                           Se connecter
                       </Button>
+                      <a href="/Notice_SEATUP.pdf" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-medium bg-black text-white rounded-md px-3 py-2 hover:bg-black/85 mt-1 self-start">
+                          <FileDown className="h-4 w-4" /> Télécharger le mode d&apos;emploi (PDF)
+                      </a>
                   </div>
               ) : (
                   <div className="flex items-center justify-between p-3 bg-accent/10 rounded-md">
@@ -663,10 +676,10 @@ export default function Home() {
                     )}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-6 text-sm">
-                    <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: '#c0dd97', border: '1.5px solid #639922' }} /> place libre</span>
-                    <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: '#fec107', border: '1.5px solid #a07a00' }} /> votre place</span>
-                    <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: '#888888', border: '1.5px solid #444444' }} /> place prise</span>
-                    <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: '#8b6914', border: '1.5px solid #5a4408' }} /> animateur</span>
+                    <span className="flex items-center gap-1"><SeatGlyph fill="#c0dd97" stroke="#639922" /> place libre</span>
+                    <span className="flex items-center gap-1"><SeatGlyph fill="#fec107" stroke="#a07a00" /> votre place</span>
+                    <span className="flex items-center gap-1"><SeatGlyph fill="#888888" stroke="#444444" /> place prise</span>
+                    <span className="flex items-center gap-1"><SeatGlyph fill="#8b6914" stroke="#5a4408" star /> animateur</span>
                 </div>
             </div>
             {conventionDaysConfig.map(dayConfig => {

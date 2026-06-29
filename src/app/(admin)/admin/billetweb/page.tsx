@@ -116,7 +116,7 @@ export default function BilletwebPage() {
     </div>
   );
 
-  const getBadgeVariantFromTicket = (ticketName: string | null | undefined): "strategist" | "marshal" | "general" | "animator" | "secondary" => {
+  const getBadgeVariantFromTicket = (ticketName: string | null | undefined): "strategist" | "marshal" | "general" | "colonel" | "animator" | "staff" | "secondary" => {
     if (!ticketName) return 'secondary';
     const lowerCaseTicket = ticketName.toLowerCase();
     if (lowerCaseTicket.includes('stratège')) {
@@ -128,8 +128,14 @@ export default function BilletwebPage() {
     if (lowerCaseTicket.includes('général')) {
         return 'general';
     }
+    if (lowerCaseTicket.includes('colonel')) {
+        return 'colonel';
+    }
     if (lowerCaseTicket.includes('auteur') || lowerCaseTicket.includes('animateur')) {
         return 'animator';
+    }
+    if (lowerCaseTicket.includes('staff')) {
+        return 'staff';
     }
     return 'secondary';
   };

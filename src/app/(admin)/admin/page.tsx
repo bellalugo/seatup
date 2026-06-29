@@ -53,7 +53,7 @@ export default function AdminPage() {
 
   const [registrationControls, setRegistrationControls] = useState<ManualRegistrationControls | null>(null);
   const [mealCounts, setMealCounts] = useState<Record<ConventionDay, DailyMealCounts> | null>(null);
-  const [participantStats, setParticipantStats] = useState<Record<Exclude<TicketType, 'Invitation' | 'Animateur'>, ParticipantStats> | null>(null);
+  const [participantStats, setParticipantStats] = useState<Record<Exclude<TicketType, 'Invitation' | 'Animateur' | 'Staff'>, ParticipantStats> | null>(null);
   const [roomTension, setRoomTension] = useState<RoomTension | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingControls, setIsUpdatingControls] = useState(false);
@@ -128,8 +128,8 @@ export default function AdminPage() {
     return finalCounts;
   };
 
-  const calculateParticipantStats = (participants: Participant[], registrations: Registration[]): Record<Exclude<TicketType, 'Invitation' | 'Animateur'>, ParticipantStats> => {
-    const ticketTypes: Exclude<TicketType, 'Invitation' | 'Animateur'>[] = ['Stratège', 'Maréchal', 'Général', 'Colonel'];
+  const calculateParticipantStats = (participants: Participant[], registrations: Registration[]): Record<Exclude<TicketType, 'Invitation' | 'Animateur' | 'Staff'>, ParticipantStats> => {
+    const ticketTypes: Exclude<TicketType, 'Invitation' | 'Animateur' | 'Staff'>[] = ['Stratège', 'Maréchal', 'Général', 'Colonel'];
     const stats: Record<string, ParticipantStats> = {};
 
     ticketTypes.forEach(type => {
@@ -153,7 +153,7 @@ export default function AdminPage() {
         stats[type].ratio = total > 0 ? (registered / total) * 100 : 0;
     });
 
-    return stats as Record<Exclude<TicketType, 'Invitation' | 'Animateur'>, ParticipantStats>;
+    return stats as Record<Exclude<TicketType, 'Invitation' | 'Animateur' | 'Staff'>, ParticipantStats>;
   };
 
   // Demande théorique selon les billets (Stratège 10, Maréchal 8, Général 6, Colonel 4 demi-journées)

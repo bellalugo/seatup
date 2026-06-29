@@ -1136,6 +1136,7 @@ const mapBilletwebTicketToType = (ticketName: string): TicketType => {
     if (lowerCaseTicket.includes('général')) return 'Général';
     if (lowerCaseTicket.includes('colonel')) return 'Colonel';
     if (lowerCaseTicket.includes('auteur') || lowerCaseTicket.includes('animateur')) return 'Animateur';
+    if (lowerCaseTicket.includes('staff')) return 'Staff';
     // Tout autre intitulé (invité, etc.) est traité comme 'Invitation'.
     return 'Invitation';
 };

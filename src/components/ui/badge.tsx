@@ -18,8 +18,9 @@ const badgeVariants = cva(
         strategist: "border-transparent bg-[hsl(var(--badge-strategist-background))] text-[hsl(var(--badge-strategist-foreground))] hover:bg-[hsl(var(--badge-strategist-background))]/80",
         marshal: "border-transparent bg-[hsl(var(--badge-marshal-background))] text-[hsl(var(--badge-marshal-foreground))] hover:bg-[hsl(var(--badge-marshal-background))]/80",
         general: "border-transparent bg-[hsl(var(--badge-general-background))] text-[hsl(var(--badge-general-foreground))] hover:bg-[hsl(var(--badge-general-background))]/80",
-        colonel: "border-transparent bg-[hsl(var(--badge-colonel-background))] text-[hsl(var(--badge-colonel-foreground))] hover:bg-[hsl(var(--badge-colonel-background))]/80",
+        colonel: "border-transparent bg-purple-600 text-white hover:bg-purple-600/80",
         animator: "border-transparent bg-orange-500 text-white hover:bg-orange-500/80",
+        staff: "border-transparent bg-red-900 text-white hover:bg-red-900/80",
       },
     },
     defaultVariants: {

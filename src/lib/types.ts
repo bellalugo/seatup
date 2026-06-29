@@ -1,6 +1,6 @@
 import type React from 'react'; // Ensure React is imported for ElementType
 
-export type TicketType = 'Stratège' | 'Maréchal' | 'Général' | 'Colonel' | 'Animateur' | 'Invitation';
+export type TicketType = 'Stratège' | 'Maréchal' | 'Général' | 'Colonel' | 'Animateur' | 'Staff' | 'Invitation';
 
 export interface User {
   id: string; // Firebase Auth UID or Participant ID from Firestore
