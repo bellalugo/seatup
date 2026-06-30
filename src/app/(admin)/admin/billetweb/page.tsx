@@ -244,12 +244,23 @@ export default function BilletwebPage() {
                     </div>
                 )}
 
-                {billetwebAttendees && billetwebAttendees.length > 0 && !isFetchingBilletweb && (
-                    <details className="mt-3 text-xs">
-                        <summary className="cursor-pointer text-muted-foreground">Voir les données brutes d&apos;un participant (diagnostic : tous les champs renvoyés par Billetweb)</summary>
-                        <pre className="mt-2 p-3 bg-muted rounded-md overflow-auto max-h-72 whitespace-pre-wrap break-all">{JSON.stringify(billetwebAttendees[0], null, 2)}</pre>
-                    </details>
-                )}
+                {billetwebAttendees && billetwebAttendees.length > 0 && !isFetchingBilletweb && (() => {
+                    const labels = Array.from(new Set(billetwebAttendees.flatMap(a => (a.answers || []).map(x => x.label)))).filter(Boolean);
+                    const isEmailAnswer = (x: { label: string; value: string }) => /e-?mail|courriel|mèl|mail/i.test(x.label) || /^\S+@\S+\.\S+$/.test((x.value || '').trim());
+                    const withParticipantEmail = billetwebAttendees.filter(a => (a.answers || []).some(isEmailAnswer)).length;
+                    return (
+                        <div className="mt-3 text-xs space-y-2">
+                            <div className="p-3 bg-muted/60 rounded-md">
+                                <p><strong>Email participant dans les questions personnalisées :</strong> {withParticipantEmail > 0 ? `OUI — détecté sur ${withParticipantEmail}/${billetwebAttendees.length} billet(s).` : 'NON détecté (le champ « email » utilisé est donc celui de l’acheteur).'}</p>
+                                <p className="mt-1 text-muted-foreground">Questions personnalisées détectées : {labels.length > 0 ? labels.join(' · ') : 'aucune'}.</p>
+                            </div>
+                            <details>
+                                <summary className="cursor-pointer text-muted-foreground">Voir les données brutes d&apos;un participant (tous les champs renvoyés par Billetweb)</summary>
+                                <pre className="mt-2 p-3 bg-muted rounded-md overflow-auto max-h-72 whitespace-pre-wrap break-all">{JSON.stringify(billetwebAttendees[0], null, 2)}</pre>
+                            </details>
+                        </div>
+                    );
+                })()}
             </div>
         </CardContent>
       </Card>

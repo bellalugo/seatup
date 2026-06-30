@@ -799,7 +799,7 @@ export default function Home() {
                                                                             <p className="mt-1 text-[10px] text-orange-700 text-center leading-tight max-w-[150px]">Inscription sous réserve : confirmée seulement si la partie précédente finit à temps.</p>
                                                                         )}
                                                                         {currentUser && iAmConfirmed && (
-                                                                            <button type="button" onClick={() => handleUnregister(slot.id)} disabled={isSubmittingRegistration} className="mt-1 text-[11px] text-destructive underline">Se désinscrire</button>
+                                                                            <button type="button" onClick={() => handleUnregister(slot.id)} disabled={isSubmittingRegistration} className="mt-1 text-[11px] px-2 py-0.5 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">Se désinscrire</button>
                                                                         )}
                                                                         {canManageSlot(slot) && (
                                                                             <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
