@@ -1158,54 +1158,44 @@ export const syncParticipantsFromAttendees = async (billetwebAttendees: Billetwe
     }
 
     const existingParticipantsSnapshot = await getDocs(collection(db, PARTICIPANTS_COLLECTION));
-    const existingParticipantsMapByEmail = new Map<string, Participant & { id: string }>();
-    existingParticipantsSnapshot.docs.forEach(doc => {
-        const participant = { id: doc.id, ...doc.data() } as Participant & { id: string };
-        if (participant.email) {
-            existingParticipantsMapByEmail.set(participant.email.toLowerCase(), participant);
-        }
-    });
+    // IMPORTANT : on indexe par identifiant de billet (attendee.id = id du document Firestore),
+    // PAS par email. Plusieurs participants peuvent partager le même email (celui de l'acheteur),
+    // donc dédupliquer par email écraserait des billets (et casserait leur connexion).
+    const existingById = new Map<string, Participant>();
+    existingParticipantsSnapshot.docs.forEach(d => existingById.set(d.id, d.data() as Participant));
 
     const batch = writeBatch(db);
     let addedCount = 0;
     let updatedCount = 0;
 
     for (const attendee of billetwebAttendees) {
-        // Skip entries without a valid email, as it's our primary key
+        // L'email reste requis pour la connexion (email + numéro de billet).
         if (!attendee.email || attendee.email.trim() === '') continue;
 
-        const normalizedEmail = attendee.email.toLowerCase();
-        const existingParticipant = existingParticipantsMapByEmail.get(normalizedEmail);
-        
+        const docId = String(attendee.id);
         // Empreinte du numéro de billet (ext_id) — jamais stockée en clair.
         const ticketHash = await hashTicket(attendee.ext_id || '');
 
-        const participantDataFromBilletweb = {
-            nom: attendee.name.trim(),
-            prenom: attendee.firstname.trim(),
-            email: attendee.email, // Store the original-cased email
+        const participantData = {
+            nom: (attendee.name || '').trim(),
+            prenom: (attendee.firstname || '').trim(),
+            email: attendee.email, // casse d'origine conservée
             typeBillet: mapBilletwebTicketToType(attendee.ticket),
             ticketHash,
         };
 
-        if (existingParticipant) {
-            // Update existing participant only if data has changed
+        const existing = existingById.get(docId);
+        const participantRef = doc(db, PARTICIPANTS_COLLECTION, docId);
+        if (existing) {
             const hasChanged =
-                existingParticipant.nom !== participantDataFromBilletweb.nom ||
-                existingParticipant.prenom !== participantDataFromBilletweb.prenom ||
-                existingParticipant.typeBillet !== participantDataFromBilletweb.typeBillet ||
-                (existingParticipant.ticketHash || '') !== ticketHash;
-
-            if (hasChanged) {
-                const participantRef = doc(db, PARTICIPANTS_COLLECTION, existingParticipant.id);
-                batch.update(participantRef, participantDataFromBilletweb);
-                updatedCount++;
-            }
+                existing.nom !== participantData.nom ||
+                existing.prenom !== participantData.prenom ||
+                existing.email !== participantData.email ||
+                existing.typeBillet !== participantData.typeBillet ||
+                (existing.ticketHash || '') !== ticketHash;
+            if (hasChanged) { batch.update(participantRef, participantData); updatedCount++; }
         } else {
-            // Add new participant, using their Billetweb ID as the Firestore document ID for idempotency.
-            const participantRef = doc(db, PARTICIPANTS_COLLECTION, String(attendee.id));
-            batch.set(participantRef, participantDataFromBilletweb);
-            addedCount++;
+            batch.set(participantRef, participantData); addedCount++;
         }
     }
 
