@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import ConventionManager from "@/components/admin/table-manager";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils, Users, Archive, AlertTriangle, Eraser, Gauge, Trophy } from "lucide-react";
+import { ShieldCheck, Loader2, Settings2, PlayCircle, XCircle, RefreshCw, DatabaseZap, Utensils, Users, Archive, AlertTriangle, Eraser, Gauge, Trophy, CalendarDays } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getRegistrationControl, updateRegistrationControl, getRegistrations, getParticipants, getRootCollectionCounts, migrate2025DataToArchives, importGames2026, importAnimators2026, wipePlanningData, clearAllRegistrations, clearAllGameResults, assignTableNumbersByPublicationOrder, simulateTestRegistrations, getSlots } from "@/lib/data";
@@ -545,6 +545,12 @@ export default function AdminPage() {
                 </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
+                <Link href="/admin/plannings" passHref>
+                    <Button variant="outline">
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        Plannings des participants
+                    </Button>
+                </Link>
                 <Link href="/admin/archives-2025" passHref>
                     <Button variant="outline">
                         <Archive className="mr-2 h-4 w-4" />
