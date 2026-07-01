@@ -126,6 +126,29 @@ const SeatGlyph = ({ fill, stroke, star }: { fill: string; stroke: string; star?
   </svg>
 );
 
+// Deux verres à cocktail qui trinquent (illustration du pot de clôture).
+const CocktailClink = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 80 60" width="66" height="50" className={className} aria-hidden="true">
+    <g stroke="#f5b301" strokeWidth="2" strokeLinecap="round">
+      <line x1="40" y1="7" x2="40" y2="1" />
+      <line x1="32" y1="10" x2="28" y2="6" />
+      <line x1="48" y1="10" x2="52" y2="6" />
+    </g>
+    <g stroke="#334155" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round">
+      <polygon points="12,14 39,20 25,34" fill="#f59e0b" />
+      <line x1="25" y1="34" x2="19" y2="52" fill="none" />
+      <line x1="11" y1="52" x2="27" y2="52" fill="none" />
+    </g>
+    <circle cx="25" cy="22" r="2.5" fill="#65a30d" stroke="#3f6212" strokeWidth="1" />
+    <g stroke="#334155" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round">
+      <polygon points="68,14 41,20 55,34" fill="#f59e0b" />
+      <line x1="55" y1="34" x2="61" y2="52" fill="none" />
+      <line x1="53" y1="52" x2="69" y2="52" fill="none" />
+    </g>
+    <circle cx="55" cy="22" r="2.5" fill="#65a30d" stroke="#3f6212" strokeWidth="1" />
+  </svg>
+);
+
 export default function Home() {
   const { user: firebaseUser } = useAuth();
   const isAdmin = !!firebaseUser && !firebaseUser.isAnonymous;
@@ -821,9 +844,16 @@ export default function Home() {
                                                                     </>
                                                                     );
                                                                 })() : session === 'Soir' ? (
-                                                                    <div className="flex-1 flex items-center justify-center text-center italic text-[11px] text-slate-600 leading-snug px-2 max-w-[210px]">
-                                                                        {"Le soir, c'est OFF, vous pouvez continuer une partie en cours, jouer à un jeu qui n'est pas dans le programme dans l'espace dédié ou bien même, ne pas jouer ! Le OFF, c'est comme vous voulez."}
-                                                                    </div>
+                                                                    dayConfig.name === 'Lundi' ? (
+                                                                        <div className="flex-1 flex flex-col items-center justify-center text-center px-2 gap-1.5">
+                                                                            <CocktailClink />
+                                                                            <span className="text-sm font-semibold text-slate-700">Pot de clôture</span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex-1 flex items-center justify-center text-center italic text-[11px] text-slate-600 leading-snug px-2 max-w-[210px]">
+                                                                            {"Le soir, c'est OFF, vous pouvez continuer une partie en cours, jouer à un jeu qui n'est pas dans le programme dans l'espace dédié ou bien même, ne pas jouer ! Le OFF, c'est comme vous voulez."}
+                                                                        </div>
+                                                                    )
                                                                 ) : (
                                                                     <div className="text-muted-foreground/50 text-xs flex items-center justify-center h-full py-10">–</div>
                                                                 )}
